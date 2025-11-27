@@ -20,6 +20,9 @@ import AdminBids from "@/pages/admin/rides";
 import AdminTransporters from "@/pages/admin/transporters";
 import AdminCalendar from "@/pages/admin/calendar";
 
+import TransporterDashboard from "@/pages/transporter/dashboard";
+import TransporterBids from "@/pages/transporter/bids";
+
 function Router() {
   return (
     <Switch>
@@ -34,6 +37,10 @@ function Router() {
       <Route path="/driver/active-ride/:id" component={ActiveRide} />
       <Route path="/driver/book-ride" component={BookRide} />
       <Route path="/driver/notifications" component={Notifications} />
+
+      {/* Transporter App Routes */}
+      <Route path="/transporter" component={TransporterDashboard} />
+      <Route path="/transporter/bids" component={TransporterBids} />
 
       {/* Admin Panel Routes */}
       <Route path="/admin" component={AdminDashboard} />
