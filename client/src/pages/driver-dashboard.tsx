@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { MOCK_RIDES, MOCK_USER } from "@/lib/mockData";
 import { RideCard } from "@/components/ride-card";
@@ -9,6 +10,7 @@ import { Bell, Plus } from "lucide-react";
 import { VehicleSelector } from "@/components/vehicle-selector";
 
 export default function DriverDashboard() {
+  const [_, setLocation] = useLocation();
   const [isOnline, setIsOnline] = useState(false);
   const [showVehicleSelector, setShowVehicleSelector] = useState(false);
   const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
@@ -52,9 +54,9 @@ export default function DriverDashboard() {
         <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex justify-between items-center">
           <div>
             <h3 className="font-semibold text-primary text-sm">Got a load from network?</h3>
-            <p className="text-xs text-muted-foreground">Book a ride manually</p>
+            <p className="text-xs text-muted-foreground">Book a ride manually & earn incentive</p>
           </div>
-          <Button size="sm" className="gap-1 h-8">
+          <Button size="sm" className="gap-1 h-8" onClick={() => setLocation("/driver/book-ride")}>
             <Plus className="h-4 w-4" /> Book Ride
           </Button>
         </div>
@@ -89,7 +91,9 @@ export default function DriverDashboard() {
         onConfirm={(vehicleId) => {
           console.log(`Ride ${selectedRideId} accepted with vehicle ${vehicleId}`);
           setShowVehicleSelector(false);
-          // Here you would normally navigate to active ride screen
+          if (selectedRideId) {
+            setLocation(`/driver/active-ride/${selectedRideId}`);
+          }
         }}
       />
 

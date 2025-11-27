@@ -10,6 +10,9 @@ export interface Ride {
   distance: string;
   cargoType: string;
   weight: string;
+  customerName?: string;
+  customerPhone?: string;
+  incentive?: number;
 }
 
 export interface Vehicle {
@@ -72,7 +75,9 @@ export const MOCK_RIDES: Ride[] = [
     price: 1200,
     distance: "24 km",
     cargoType: "Electronics",
-    weight: "500 kg"
+    weight: "500 kg",
+    customerName: "Amit Sharma",
+    customerPhone: "+91 98765 43210"
   },
   {
     id: "r2",
@@ -83,7 +88,9 @@ export const MOCK_RIDES: Ride[] = [
     price: 4500,
     distance: "140 km",
     cargoType: "Furniture",
-    weight: "900 kg"
+    weight: "900 kg",
+    customerName: "Sneha Patel",
+    customerPhone: "+91 98123 45678"
   },
   {
     id: "r3",

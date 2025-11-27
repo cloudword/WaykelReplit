@@ -9,6 +9,8 @@ import DriverDashboard from "@/pages/driver-dashboard";
 import DriverRides from "@/pages/driver-rides";
 import DriverEarnings from "@/pages/driver-earnings";
 import DriverProfile from "@/pages/driver-profile";
+import ActiveRide from "@/pages/active-ride";
+import BookRide from "@/pages/book-ride";
 
 function Router() {
   return (
@@ -19,6 +21,8 @@ function Router() {
       <Route path="/driver/rides" component={DriverRides} />
       <Route path="/driver/earnings" component={DriverEarnings} />
       <Route path="/driver/profile" component={DriverProfile} />
+      <Route path="/driver/active-ride/:id" component={ActiveRide} />
+      <Route path="/driver/book-ride" component={BookRide} />
       <Route component={NotFound} />
     </Switch>
   );
