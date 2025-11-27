@@ -1,3 +1,21 @@
+export interface Bid {
+  driverId: string;
+  driverName: string;
+  amount: number;
+  vehicleId: string;
+  status: "pending" | "accepted" | "rejected";
+  timestamp: string;
+}
+
+export interface Transporter {
+  id: string;
+  companyName: string;
+  ownerName: string;
+  contact: string;
+  status: "active" | "pending_approval" | "suspended";
+  fleetSize: number;
+  location: string;
+}
 
 export interface Ride {
   id: string;
@@ -5,7 +23,7 @@ export interface Ride {
   dropLocation: string;
   pickupTime: string;
   dropTime?: string;
-  status: "pending" | "active" | "completed" | "cancelled" | "scheduled";
+  status: "pending" | "active" | "completed" | "cancelled" | "scheduled" | "bid_placed";
   price: number;
   distance: string;
   cargoType: string;
@@ -13,6 +31,9 @@ export interface Ride {
   customerName?: string;
   customerPhone?: string;
   incentive?: number;
+  bids?: Bid[];
+  transporterId?: string;
+  date?: string; // YYYY-MM-DD for calendar
 }
 
 export interface Vehicle {
@@ -65,25 +86,51 @@ export const MOCK_USER: User = {
   ]
 };
 
+export const MOCK_TRANSPORTERS: Transporter[] = [
+  {
+    id: "t1",
+    companyName: "FastTrack Logistics",
+    ownerName: "Vikram Malhotra",
+    contact: "+91 98765 11223",
+    status: "active",
+    fleetSize: 12,
+    location: "Mumbai"
+  },
+  {
+    id: "t2",
+    companyName: "Pune Cargo Movers",
+    ownerName: "Anjali Deshmukh",
+    contact: "+91 98765 44556",
+    status: "pending_approval",
+    fleetSize: 5,
+    location: "Pune"
+  }
+];
+
 export const MOCK_RIDES: Ride[] = [
   {
     id: "r1",
     pickupLocation: "Bhiwandi Warehouse Zone 5",
     dropLocation: "Andheri East, MIDC",
     pickupTime: "Today, 2:30 PM",
+    date: "2025-11-27",
     status: "pending",
     price: 1200,
     distance: "24 km",
     cargoType: "Electronics",
     weight: "500 kg",
     customerName: "Amit Sharma",
-    customerPhone: "+91 98765 43210"
+    customerPhone: "+91 98765 43210",
+    bids: [
+      { driverId: "D002", driverName: "Suresh Singh", amount: 1300, vehicleId: "v1", status: "pending", timestamp: "10:30 AM" }
+    ]
   },
   {
     id: "r2",
     pickupLocation: "Navi Mumbai Port",
     dropLocation: "Pune IT Park",
     pickupTime: "Tomorrow, 8:00 AM",
+    date: "2025-11-28",
     status: "scheduled",
     price: 4500,
     distance: "140 km",
@@ -97,6 +144,7 @@ export const MOCK_RIDES: Ride[] = [
     pickupLocation: "Thane West",
     dropLocation: "Dadar Market",
     pickupTime: "Yesterday, 4:15 PM",
+    date: "2025-11-26",
     dropTime: "Yesterday, 6:30 PM",
     status: "completed",
     price: 850,

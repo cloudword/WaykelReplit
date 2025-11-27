@@ -16,6 +16,9 @@ import Notifications from "@/pages/notifications";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminDrivers from "@/pages/admin/drivers";
 import AdminVehicles from "@/pages/admin/vehicles";
+import AdminBids from "@/pages/admin/rides";
+import AdminTransporters from "@/pages/admin/transporters";
+import AdminCalendar from "@/pages/admin/calendar";
 
 function Router() {
   return (
@@ -36,6 +39,9 @@ function Router() {
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/admin/drivers" component={AdminDrivers} />
       <Route path="/admin/vehicles" component={AdminVehicles} />
+      <Route path="/admin/bids" component={AdminBids} />
+      <Route path="/admin/transporters" component={AdminTransporters} />
+      <Route path="/admin/calendar" component={AdminCalendar} />
       
       <Route component={NotFound} />
     </Switch>

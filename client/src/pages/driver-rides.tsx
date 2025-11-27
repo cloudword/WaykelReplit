@@ -2,6 +2,7 @@ import { MobileNav } from "@/components/layout/mobile-nav";
 import { MOCK_RIDES } from "@/lib/mockData";
 import { RideCard } from "@/components/ride-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CalendarView } from "@/components/calendar-view";
 
 export default function DriverRides() {
   const scheduledRides = MOCK_RIDES.filter(r => r.status === "scheduled");
@@ -15,9 +16,10 @@ export default function DriverRides() {
 
       <main className="p-4">
         <Tabs defaultValue="scheduled" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsList className="grid w-full grid-cols-3 mb-6">
             <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
+            <TabsTrigger value="calendar">Calendar</TabsTrigger>
           </TabsList>
           
           <TabsContent value="scheduled" className="space-y-4">
@@ -38,6 +40,10 @@ export default function DriverRides() {
             ) : (
               <div className="text-center py-10 text-gray-400">No past rides</div>
             )}
+          </TabsContent>
+
+          <TabsContent value="calendar">
+            <CalendarView rides={MOCK_RIDES} />
           </TabsContent>
         </Tabs>
       </main>

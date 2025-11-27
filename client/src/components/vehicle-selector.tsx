@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Truck, IndianRupee } from "lucide-react";
+import { Truck, IndianRupee, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 
 interface VehicleSelectorProps {
@@ -17,14 +17,41 @@ interface VehicleSelectorProps {
 export function VehicleSelector({ open, onOpenChange, onConfirm, basePrice }: VehicleSelectorProps) {
   const [selectedVehicle, setSelectedVehicle] = useState(MOCK_USER.vehicles[0].id);
   const [bidAmount, setBidAmount] = useState(basePrice ? basePrice.toString() : "");
+  const [isBidSent, setIsBidSent] = useState(false);
+
+  const handleConfirm = () => {
+    setIsBidSent(true);
+    setTimeout(() => {
+      onConfirm(selectedVehicle, bidAmount);
+      setIsBidSent(false); // Reset for next time
+    }, 2000);
+  };
+
+  if (isBidSent) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-md text-center py-10">
+          <div className="flex justify-center mb-4">
+            <div className="h-16 w-16 bg-green-100 rounded-full flex items-center justify-center text-green-600 animate-in zoom-in duration-300">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+          </div>
+          <DialogTitle className="text-xl mb-2">Bid Placed Successfully!</DialogTitle>
+          <DialogDescription>
+            Your offer of ₹{bidAmount} has been sent to the admin for approval. You will be notified once confirmed.
+          </DialogDescription>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md overflow-y-auto max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>Accept Ride</DialogTitle>
+          <DialogTitle>Place Bid</DialogTitle>
           <DialogDescription>
-            Select vehicle and enter your bid amount.
+            Select vehicle and enter your bid amount to request this load.
           </DialogDescription>
         </DialogHeader>
         
@@ -70,8 +97,8 @@ export function VehicleSelector({ open, onOpenChange, onConfirm, basePrice }: Ve
         
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={() => onConfirm(selectedVehicle, bidAmount)} disabled={!bidAmount}>
-            Submit Bid & Accept
+          <Button onClick={handleConfirm} disabled={!bidAmount}>
+            Place Bid
           </Button>
         </DialogFooter>
       </DialogContent>
