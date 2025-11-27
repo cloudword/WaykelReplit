@@ -110,13 +110,19 @@ export default function ActiveRide() {
                   {ride.price}
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-xs text-muted-foreground font-medium uppercase mb-1">Incentive</p>
-                <div className="flex items-center justify-end text-sm font-bold text-green-600">
-                  + <IndianRupee className="h-3 w-3" />
-                  {Math.floor(ride.price * 0.05)}
+              {/* Incentive only shown for external rides in real app, but user requested distinction. 
+                  Assuming regular rides don't show it here based on user input. 
+                  However, mock data might have it. Let's condition it. 
+              */}
+              {ride.incentive && (
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground font-medium uppercase mb-1">Incentive</p>
+                  <div className="flex items-center justify-end text-sm font-bold text-green-600">
+                    + <IndianRupee className="h-3 w-3" />
+                    {ride.incentive}
+                  </div>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
 

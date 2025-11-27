@@ -12,17 +12,31 @@ import DriverProfile from "@/pages/driver-profile";
 import ActiveRide from "@/pages/active-ride";
 import BookRide from "@/pages/book-ride";
 
+import Notifications from "@/pages/notifications";
+import AdminDashboard from "@/pages/admin/dashboard";
+import AdminDrivers from "@/pages/admin/drivers";
+import AdminVehicles from "@/pages/admin/vehicles";
+
 function Router() {
   return (
     <Switch>
       <Route path="/" component={SplashScreen} />
       <Route path="/auth" component={AuthPage} />
+      
+      {/* Driver App Routes */}
       <Route path="/driver" component={DriverDashboard} />
       <Route path="/driver/rides" component={DriverRides} />
       <Route path="/driver/earnings" component={DriverEarnings} />
       <Route path="/driver/profile" component={DriverProfile} />
       <Route path="/driver/active-ride/:id" component={ActiveRide} />
       <Route path="/driver/book-ride" component={BookRide} />
+      <Route path="/driver/notifications" component={Notifications} />
+
+      {/* Admin Panel Routes */}
+      <Route path="/admin" component={AdminDashboard} />
+      <Route path="/admin/drivers" component={AdminDrivers} />
+      <Route path="/admin/vehicles" component={AdminVehicles} />
+      
       <Route component={NotFound} />
     </Switch>
   );

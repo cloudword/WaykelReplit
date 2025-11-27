@@ -14,11 +14,13 @@ export default function DriverDashboard() {
   const [isOnline, setIsOnline] = useState(false);
   const [showVehicleSelector, setShowVehicleSelector] = useState(false);
   const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
+  const [selectedRidePrice, setSelectedRidePrice] = useState<number>(0);
 
   const activeRides = MOCK_RIDES.filter(r => r.status === "pending");
 
-  const handleAcceptRide = (rideId: string) => {
+  const handleAcceptRide = (rideId: string, price: number) => {
     setSelectedRideId(rideId);
+    setSelectedRidePrice(price);
     setShowVehicleSelector(true);
   };
 
@@ -42,7 +44,12 @@ export default function DriverDashboard() {
               className="scale-75 data-[state=checked]:bg-green-500"
             />
           </div>
-          <Button size="icon" variant="ghost" className="rounded-full h-8 w-8">
+          <Button 
+            size="icon" 
+            variant="ghost" 
+            className="rounded-full h-8 w-8"
+            onClick={() => setLocation("/driver/notifications")}
+          >
             <Bell className="h-5 w-5 text-gray-600" />
           </Button>
         </div>
@@ -74,7 +81,7 @@ export default function DriverDashboard() {
               <RideCard 
                 key={ride.id} 
                 ride={ride} 
-                onAccept={() => handleAcceptRide(ride.id)} 
+                onAccept={() => handleAcceptRide(ride.id, ride.price)} 
               />
             ))
           ) : (
@@ -88,8 +95,9 @@ export default function DriverDashboard() {
       <VehicleSelector 
         open={showVehicleSelector} 
         onOpenChange={setShowVehicleSelector}
-        onConfirm={(vehicleId) => {
-          console.log(`Ride ${selectedRideId} accepted with vehicle ${vehicleId}`);
+        basePrice={selectedRidePrice}
+        onConfirm={(vehicleId, bidAmount) => {
+          console.log(`Ride ${selectedRideId} accepted with vehicle ${vehicleId} at bid ${bidAmount}`);
           setShowVehicleSelector(false);
           if (selectedRideId) {
             setLocation(`/driver/active-ride/${selectedRideId}`);
