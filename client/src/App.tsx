@@ -11,6 +11,7 @@ import DriverEarnings from "@/pages/driver-earnings";
 import DriverProfile from "@/pages/driver-profile";
 import ActiveRide from "@/pages/active-ride";
 import BookRide from "@/pages/book-ride";
+import DriverAddVehicle from "@/pages/driver-add-vehicle";
 
 import Notifications from "@/pages/notifications";
 import AdminDashboard from "@/pages/admin/dashboard";
@@ -27,6 +28,8 @@ import TransporterBids from "@/pages/transporter/bids";
 import TransporterDrivers from "@/pages/transporter/drivers";
 import TransporterVehicles from "@/pages/transporter/vehicles";
 import TransporterMarketplace from "@/pages/transporter/marketplace";
+import TransporterTrips from "@/pages/transporter/trips";
+import TransporterDocuments from "@/pages/transporter/documents";
 
 import CustomerDashboard from "@/pages/customer/dashboard";
 import CustomerRides from "@/pages/customer/rides";
@@ -46,6 +49,7 @@ function Router() {
       <Route path="/driver/profile" component={DriverProfile} />
       <Route path="/driver/active-ride/:id" component={ActiveRide} />
       <Route path="/driver/book-ride" component={BookRide} />
+      <Route path="/driver/add-vehicle" component={DriverAddVehicle} />
       <Route path="/driver/notifications" component={Notifications} />
 
       {/* Transporter Admin Panel Routes */}
@@ -54,6 +58,8 @@ function Router() {
       <Route path="/transporter/drivers" component={TransporterDrivers} />
       <Route path="/transporter/vehicles" component={TransporterVehicles} />
       <Route path="/transporter/marketplace" component={TransporterMarketplace} />
+      <Route path="/transporter/trips" component={TransporterTrips} />
+      <Route path="/transporter/documents" component={TransporterDocuments} />
 
       {/* Customer/Rider App Routes */}
       <Route path="/customer" component={CustomerDashboard} />

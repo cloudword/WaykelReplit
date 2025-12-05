@@ -20,6 +20,7 @@ export default function TransporterVehicles() {
   const [newVehicle, setNewVehicle] = useState({
     type: "",
     plateNumber: "",
+    model: "",
     capacity: "",
   });
   const [user] = useState<any>(() => {
@@ -51,6 +52,7 @@ export default function TransporterVehicles() {
       const result = await api.vehicles.create({
         type: newVehicle.type,
         plateNumber: newVehicle.plateNumber,
+        model: newVehicle.model,
         capacity: newVehicle.capacity,
         transporterId: user.transporterId,
         status: "active",
@@ -61,7 +63,7 @@ export default function TransporterVehicles() {
       } else {
         toast.success("Vehicle added successfully!");
         setShowAddDialog(false);
-        setNewVehicle({ type: "", plateNumber: "", capacity: "" });
+        setNewVehicle({ type: "", plateNumber: "", model: "", capacity: "" });
         loadVehicles();
       }
     } catch (error) {
@@ -151,6 +153,17 @@ export default function TransporterVehicles() {
                   />
                 </div>
                 <div>
+                  <Label htmlFor="model">Make/Model</Label>
+                  <Input 
+                    id="model" 
+                    placeholder="e.g., Tata Ace, Ashok Leyland Dost"
+                    value={newVehicle.model}
+                    onChange={(e) => setNewVehicle({...newVehicle, model: e.target.value})}
+                    required
+                    data-testid="input-model"
+                  />
+                </div>
+                <div>
                   <Label htmlFor="capacity">Capacity (in tons)</Label>
                   <Input 
                     id="capacity" 
@@ -191,8 +204,8 @@ export default function TransporterVehicles() {
                         </Badge>
                       </div>
                       <div className="space-y-1 text-sm text-gray-600">
-                        <p>Type: {vehicle.type}</p>
-                        {vehicle.capacity && <p>Capacity: {vehicle.capacity} tons</p>}
+                        <p>{vehicle.model || vehicle.type}</p>
+                        <p>Type: {vehicle.type} {vehicle.capacity && `• ${vehicle.capacity} tons`}</p>
                       </div>
                     </div>
                   </div>

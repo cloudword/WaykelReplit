@@ -34,6 +34,28 @@ if (!sessionSecret) {
   console.warn("WARNING: SESSION_SECRET not set. Using a randomly generated secret for development.");
 }
 
+// CORS middleware for customer portal
+const ALLOWED_ORIGINS = [
+  process.env.CUSTOMER_PORTAL_URL,
+  'http://localhost:3000',
+  'http://localhost:5173',
+].filter(Boolean);
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  }
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 app.use(
   session({
     secret: sessionSecret || require("crypto").randomBytes(32).toString("hex"),
@@ -46,7 +68,7 @@ app.use(
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000,
-      sameSite: "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     },
   })
 );

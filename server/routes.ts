@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, insertTransporterSchema, insertVehicleSchema, insertRideSchema, insertBidSchema } from "@shared/schema";
+import { insertUserSchema, insertTransporterSchema, insertVehicleSchema, insertRideSchema, insertBidSchema, insertDocumentSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
@@ -169,12 +169,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Ride routes
   app.get("/api/rides", async (req, res) => {
-    const { status, driverId } = req.query;
+    const { status, driverId, transporterId, createdById } = req.query;
     
     try {
       let result;
       if (driverId) {
         result = await storage.getDriverRides(driverId as string);
+      } else if (transporterId) {
+        result = await storage.getTransporterRides(transporterId as string);
+      } else if (createdById) {
+        result = await storage.getCustomerRides(createdById as string);
       } else if (status === "pending") {
         result = await storage.getPendingRides();
       } else if (status === "scheduled") {
@@ -236,7 +240,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Bid routes
   app.get("/api/bids", async (req, res) => {
-    const { rideId, userId } = req.query;
+    const { rideId, userId, transporterId } = req.query;
     
     try {
       let result: any[];
@@ -244,6 +248,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         result = await storage.getRideBids(rideId as string);
       } else if (userId) {
         result = await storage.getUserBids(userId as string);
+      } else if (transporterId) {
+        result = await storage.getTransporterBids(transporterId as string);
       } else {
         result = await storage.getAllBids();
       }
@@ -300,6 +306,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json(result);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch vehicles" });
+    }
+  });
+
+  app.get("/api/vehicles/all", async (req, res) => {
+    try {
+      const result = await storage.getAllVehicles();
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch all vehicles" });
     }
   });
 
@@ -376,6 +391,48 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ error: "Failed to update online status" });
+    }
+  });
+
+  // Document routes
+  app.get("/api/documents", async (req, res) => {
+    const { userId, vehicleId, transporterId } = req.query;
+    
+    try {
+      let result;
+      if (userId) {
+        result = await storage.getUserDocuments(userId as string);
+      } else if (vehicleId) {
+        result = await storage.getVehicleDocuments(vehicleId as string);
+      } else if (transporterId) {
+        result = await storage.getTransporterDocuments(transporterId as string);
+      } else {
+        result = await storage.getAllDocuments();
+      }
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch documents" });
+    }
+  });
+
+  app.post("/api/documents", async (req, res) => {
+    try {
+      const data = insertDocumentSchema.parse(req.body);
+      const document = await storage.createDocument(data);
+      res.status(201).json(document);
+    } catch (error) {
+      console.error("Document creation error:", error);
+      res.status(400).json({ error: "Invalid document data" });
+    }
+  });
+
+  app.patch("/api/documents/:id/status", async (req, res) => {
+    try {
+      const { status } = req.body;
+      await storage.updateDocumentStatus(req.params.id, status);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({ error: "Failed to update document status" });
     }
   });
 

@@ -109,10 +109,13 @@ export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id),
   transporterId: varchar("transporter_id").references(() => transporters.id),
-  type: text("type").notNull().$type<"license" | "aadhar" | "insurance" | "fitness" | "registration">(),
+  vehicleId: varchar("vehicle_id").references(() => vehicles.id),
+  entityType: text("entity_type").notNull().$type<"driver" | "vehicle" | "transporter">(),
+  type: text("type").notNull().$type<"license" | "aadhar" | "pan" | "insurance" | "fitness" | "registration" | "rc" | "permit" | "pollution">(),
+  documentName: text("document_name").notNull(),
   url: text("url").notNull(),
   expiryDate: text("expiry_date"),
-  status: text("status").notNull().$type<"verified" | "pending" | "expired">().default("pending"),
+  status: text("status").notNull().$type<"verified" | "pending" | "expired" | "rejected">().default("pending"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

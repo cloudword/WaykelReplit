@@ -103,7 +103,11 @@ export const api = {
   },
   vehicles: {
     list: async (filters?: any) => {
-      const params = new URLSearchParams(filters || {});
+      if (!filters || Object.keys(filters).length === 0) {
+        const res = await fetch(`${API_BASE}/vehicles/all`);
+        return res.json();
+      }
+      const params = new URLSearchParams(filters);
       const res = await fetch(`${API_BASE}/vehicles?${params}`);
       return res.json();
     },
@@ -152,6 +156,29 @@ export const api = {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isOnline }),
+      });
+      return res.json();
+    },
+  },
+  documents: {
+    list: async (filters?: { userId?: string; vehicleId?: string; transporterId?: string }) => {
+      const params = new URLSearchParams(filters as any || {});
+      const res = await fetch(`${API_BASE}/documents?${params}`);
+      return res.json();
+    },
+    create: async (data: any) => {
+      const res = await fetch(`${API_BASE}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      return res.json();
+    },
+    updateStatus: async (id: string, status: string) => {
+      const res = await fetch(`${API_BASE}/documents/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
       });
       return res.json();
     },
