@@ -103,7 +103,11 @@ export const api = {
   },
   vehicles: {
     list: async (filters?: any) => {
-      const params = new URLSearchParams(filters || {});
+      if (!filters || Object.keys(filters).length === 0) {
+        const res = await fetch(`${API_BASE}/vehicles/all`);
+        return res.json();
+      }
+      const params = new URLSearchParams(filters);
       const res = await fetch(`${API_BASE}/vehicles?${params}`);
       return res.json();
     },

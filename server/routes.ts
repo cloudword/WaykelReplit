@@ -303,6 +303,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  app.get("/api/vehicles/all", async (req, res) => {
+    try {
+      const result = await storage.getAllVehicles();
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch all vehicles" });
+    }
+  });
+
   app.post("/api/vehicles", async (req, res) => {
     try {
       const data = insertVehicleSchema.parse(req.body);

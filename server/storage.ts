@@ -34,6 +34,7 @@ export interface IStorage {
   getVehicle(id: string): Promise<Vehicle | undefined>;
   getUserVehicles(userId: string): Promise<Vehicle[]>;
   getTransporterVehicles(transporterId: string): Promise<Vehicle[]>;
+  getAllVehicles(): Promise<Vehicle[]>;
   createVehicle(vehicle: InsertVehicle): Promise<Vehicle>;
   updateVehicleStatus(id: string, status: "active" | "inactive" | "maintenance"): Promise<void>;
   
@@ -147,6 +148,10 @@ export class DatabaseStorage implements IStorage {
 
   async getTransporterVehicles(transporterId: string): Promise<Vehicle[]> {
     return await db.select().from(vehicles).where(eq(vehicles.transporterId, transporterId));
+  }
+
+  async getAllVehicles(): Promise<Vehicle[]> {
+    return await db.select().from(vehicles).orderBy(desc(vehicles.createdAt));
   }
 
   async createVehicle(insertVehicle: InsertVehicle): Promise<Vehicle> {
