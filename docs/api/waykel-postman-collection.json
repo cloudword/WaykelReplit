@@ -1,0 +1,557 @@
+{
+  "info": {
+    "name": "Waykel Logistics API",
+    "description": "Complete API collection for Waykel Commercial Vehicle Logistics Platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "prodUrl",
+      "value": "https://your-domain.com",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"test@example.com\",\n  \"phone\": \"9876543210\",\n  \"password\": \"password123\",\n  \"role\": \"customer\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Register a new user. Roles: customer, driver, transporter, admin"
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"9111111111\",\n  \"password\": \"driver123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login with phone and password"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Rides",
+      "item": [
+        {
+          "name": "Get All Rides",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/rides",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rides"]
+            },
+            "description": "Get all rides in the system"
+          }
+        },
+        {
+          "name": "Get Pending Rides",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/rides?status=pending",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rides"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending"
+                }
+              ]
+            },
+            "description": "Get rides awaiting bids"
+          }
+        },
+        {
+          "name": "Get Active Rides",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/rides?status=active",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rides"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "active"
+                }
+              ]
+            },
+            "description": "Get rides currently in transit"
+          }
+        },
+        {
+          "name": "Get Scheduled Rides",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/rides?status=scheduled",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rides"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "scheduled"
+                }
+              ]
+            },
+            "description": "Get scheduled future rides"
+          }
+        },
+        {
+          "name": "Get Completed Rides",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/rides?status=completed",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rides"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "completed"
+                }
+              ]
+            },
+            "description": "Get completed rides"
+          }
+        },
+        {
+          "name": "Get Driver Rides",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/rides?driverId={{driverId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rides"],
+              "query": [
+                {
+                  "key": "driverId",
+                  "value": "{{driverId}}"
+                }
+              ]
+            },
+            "description": "Get rides assigned to a specific driver"
+          }
+        },
+        {
+          "name": "Get Ride by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/rides/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rides", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "ride-uuid-here"
+                }
+              ]
+            },
+            "description": "Get a specific ride by ID"
+          }
+        },
+        {
+          "name": "Create Ride",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pickupLocation\": \"Mumbai, Maharashtra\",\n  \"dropLocation\": \"Pune, Maharashtra\",\n  \"pickupTime\": \"09:00\",\n  \"dropTime\": null,\n  \"date\": \"2025-12-10\",\n  \"status\": \"pending\",\n  \"price\": \"5000.00\",\n  \"distance\": \"150 km\",\n  \"cargoType\": \"Electronics\",\n  \"weight\": \"2-5 Ton\",\n  \"customerName\": \"John Doe\",\n  \"customerPhone\": \"9876543210\",\n  \"createdById\": \"user-uuid-here\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/rides",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rides"]
+            },
+            "description": "Create a new ride/load request"
+          }
+        },
+        {
+          "name": "Update Ride Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/rides/:id/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rides", ":id", "status"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "ride-uuid-here"
+                }
+              ]
+            },
+            "description": "Update ride status. Options: pending, active, completed, cancelled, scheduled, bid_placed"
+          }
+        },
+        {
+          "name": "Assign Driver to Ride",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driverId\": \"driver-uuid-here\",\n  \"vehicleId\": \"vehicle-uuid-here\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/rides/:id/assign",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rides", ":id", "assign"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "ride-uuid-here"
+                }
+              ]
+            },
+            "description": "Assign a driver and vehicle to a ride (Super Admin only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bids",
+      "item": [
+        {
+          "name": "Get All Bids",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/bids",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bids"]
+            },
+            "description": "Get all bids (Admin only)"
+          }
+        },
+        {
+          "name": "Get Bids by Ride",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/bids?rideId={{rideId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bids"],
+              "query": [
+                {
+                  "key": "rideId",
+                  "value": "{{rideId}}"
+                }
+              ]
+            },
+            "description": "Get all bids for a specific ride"
+          }
+        },
+        {
+          "name": "Get User Bids",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/bids?userId={{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bids"],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Get all bids placed by a specific user"
+          }
+        },
+        {
+          "name": "Create Bid",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rideId\": \"ride-uuid-here\",\n  \"userId\": \"user-uuid-here\",\n  \"transporterId\": \"transporter-uuid-here\",\n  \"vehicleId\": \"vehicle-uuid-here\",\n  \"amount\": \"4500.00\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bids",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bids"]
+            },
+            "description": "Place a bid on a ride (Driver/Transporter)"
+          }
+        },
+        {
+          "name": "Update Bid Status (Approve/Reject)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"accepted\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bids/:id/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "bids", ":id", "status"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "bid-uuid-here"
+                }
+              ]
+            },
+            "description": "Approve or reject a bid. Options: pending, accepted, rejected (Super Admin only)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Vehicles",
+      "item": [
+        {
+          "name": "Get User Vehicles",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/vehicles?userId={{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "vehicles"],
+              "query": [
+                {
+                  "key": "userId",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "Get vehicles owned by a user"
+          }
+        },
+        {
+          "name": "Get Transporter Vehicles",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/vehicles?transporterId={{transporterId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "vehicles"],
+              "query": [
+                {
+                  "key": "transporterId",
+                  "value": "{{transporterId}}"
+                }
+              ]
+            },
+            "description": "Get vehicles belonging to a transporter fleet"
+          }
+        },
+        {
+          "name": "Create Vehicle",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"user-uuid-here\",\n  \"transporterId\": \"transporter-uuid-here\",\n  \"type\": \"Truck\",\n  \"plateNumber\": \"MH01XY9999\",\n  \"model\": \"Tata 407\",\n  \"capacity\": \"3 Ton\",\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/vehicles",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "vehicles"]
+            },
+            "description": "Register a new vehicle"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transporters",
+      "item": [
+        {
+          "name": "Get All Transporters",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/transporters",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transporters"]
+            },
+            "description": "Get all registered transporters"
+          }
+        },
+        {
+          "name": "Get Pending Transporters",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/transporters?status=pending_approval",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transporters"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending_approval"
+                }
+              ]
+            },
+            "description": "Get transporters awaiting approval"
+          }
+        },
+        {
+          "name": "Create Transporter",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"companyName\": \"Quick Logistics\",\n  \"ownerName\": \"Rajesh Kumar\",\n  \"contact\": \"9876543210\",\n  \"email\": \"quick@logistics.com\",\n  \"status\": \"pending_approval\",\n  \"fleetSize\": 5,\n  \"location\": \"Delhi\",\n  \"baseCity\": \"Delhi\",\n  \"preferredRoutes\": [\"Delhi-Jaipur\", \"Delhi-Chandigarh\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transporters",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transporters"]
+            },
+            "description": "Register a new transporter company"
+          }
+        },
+        {
+          "name": "Update Transporter Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transporters/:id/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transporters", ":id", "status"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "transporter-uuid-here"
+                }
+              ]
+            },
+            "description": "Approve or suspend a transporter. Options: active, pending_approval, suspended"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Update Online Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isOnline\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/:id/online-status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", ":id", "online-status"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "user-uuid-here"
+                }
+              ]
+            },
+            "description": "Toggle driver online/offline status"
+          }
+        }
+      ]
+    }
+  ]
+}
