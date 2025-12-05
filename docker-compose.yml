@@ -1,0 +1,85 @@
+# Waykel - Docker Compose Configuration
+# For local development and self-hosted production
+# 
+# SECURITY: Before deploying to production:
+# 1. Set strong passwords in .env file
+# 2. Generate SSL certificates
+# 3. Never expose database ports externally in production
+
+version: '3.8'
+
+services:
+  # ============================================
+  # Application
+  # ============================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: waykel-app
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - waykel-internal
+
+  # ============================================
+  # Database (PostgreSQL) - Internal only
+  # ============================================
+  db:
+    image: postgres:15-alpine
+    container_name: waykel-db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:?POSTGRES_USER is required}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - POSTGRES_DB=${POSTGRES_DB:?POSTGRES_DB is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # SECURITY: Database is NOT exposed externally - only accessible within Docker network
+    # Uncomment below ONLY for local development debugging
+    # ports:
+    #   - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - waykel-internal
+
+  # ============================================
+  # Nginx Reverse Proxy (Production only)
+  # Requires SSL certificates in ./ssl directory
+  # ============================================
+  nginx:
+    image: nginx:alpine
+    container_name: waykel-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+    networks:
+      - waykel-internal
+    profiles:
+      - production
+
+volumes:
+  postgres_data:
+
+networks:
+  waykel-internal:
+    driver: bridge
+    internal: false

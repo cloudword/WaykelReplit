@@ -5,6 +5,27 @@ import { insertUserSchema, insertTransporterSchema, insertVehicleSchema, insertR
 import bcrypt from "bcrypt";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
+  // Health check endpoint for Docker and load balancers
+  app.get("/api/health", async (req, res) => {
+    try {
+      // Test database connectivity
+      await storage.getAllRides();
+      res.json({ 
+        status: "healthy", 
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        database: "connected"
+      });
+    } catch (error) {
+      res.status(503).json({
+        status: "unhealthy",
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        database: "disconnected"
+      });
+    }
+  });
+
   // Auth routes
   app.post("/api/auth/register", async (req, res) => {
     try {
