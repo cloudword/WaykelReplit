@@ -4,7 +4,7 @@
  * Copy this file to your customer portal project and configure the API_BASE_URL
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_WAYKEL_API_URL || process.env.VITE_WAYKEL_API_URL || '';
+const API_BASE_URL = process.env.NEXT_PUBLIC_WAYKEL_API_URL || process.env.VITE_WAYKEL_API_URL || 'https://admin.waykel.com/api';
 
 interface ApiError {
   error: string;
