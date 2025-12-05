@@ -168,6 +168,30 @@ The platform includes CORS support for a separate customer portal application:
 - **Maps/Geolocation**: Google Maps integration for route tracking
 - **Real-time Communication**: Socket.IO for driver tracking and notifications
 
+### Document Upload System
+
+The platform supports direct file uploads for driver and vehicle documents without requiring external services like Google Drive.
+
+**Features:**
+- Direct file upload to cloud storage (Replit Object Storage)
+- Multi-file upload support
+- Progress tracking for each file
+- Automatic ACL (Access Control List) assignment
+
+**Security Model:**
+- Files are stored with "private" visibility
+- Only the owner (transporter/user) and super admins can access files
+- Authentication required for all upload and download operations
+- Owner ID derived from session, not client-supplied data
+
+**Environment Variables:**
+- `PRIVATE_OBJECT_DIR` - Base directory for uploaded documents (e.g., `/waykel-documents`)
+
+**API Endpoints:**
+- `POST /api/objects/upload` - Get signed upload URL (requires auth)
+- `POST /api/objects/confirm` - Confirm upload and set ACL (requires auth)
+- `GET /objects/:objectPath(*)` - Download file (requires auth + ACL check)
+
 ### Replit-Specific Plugins
 - `@replit/vite-plugin-runtime-error-modal` - Development error overlay
 - `@replit/vite-plugin-cartographer` - Development tooling

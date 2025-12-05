@@ -93,6 +93,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           id: user.id,
           role: user.role,
           isSuperAdmin: user.isSuperAdmin || false,
+          transporterId: user.transporterId || undefined,
         };
 
         req.session.save((saveErr) => {
@@ -451,8 +452,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.post("/api/documents", async (req, res) => {
+    if (!req.session?.user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
     try {
       const data = insertDocumentSchema.parse(req.body);
+      
+      // For transporters, enforce that transporterId matches session
+      if (req.session.user.transporterId) {
+        if (data.transporterId && data.transporterId !== req.session.user.transporterId) {
+          return res.status(403).json({ error: "Cannot create document for another transporter" });
+        }
+        // Auto-set transporterId from session if not provided
+        if (!data.transporterId) {
+          data.transporterId = req.session.user.transporterId;
+        }
+      }
+      
       const document = await storage.createDocument(data);
       res.status(201).json(document);
     } catch (error) {
@@ -471,8 +488,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // File upload routes for document storage
+  // File upload routes for document storage (requires authentication)
   app.post("/api/objects/upload", async (req, res) => {
+    if (!req.session?.user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
     try {
       const { fileName } = req.body;
       const objectStorageService = new ObjectStorageService();
@@ -484,11 +505,33 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // Serve uploaded files
+  // Serve uploaded files (authenticated users with ACL access)
   app.get("/objects/:objectPath(*)", async (req, res) => {
+    if (!req.session?.user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
     try {
       const objectStorageService = new ObjectStorageService();
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+      
+      // Super admins can access all documents
+      if (req.session.user.isSuperAdmin || req.session.user.role === "admin") {
+        return objectStorageService.downloadObject(objectFile, res);
+      }
+      
+      // Check if user has permission to access this file
+      const userId = req.session.user.transporterId || req.session.user.id;
+      const canAccess = await objectStorageService.canAccessObjectEntity({
+        objectFile,
+        userId,
+        requestedPermission: ObjectPermission.READ,
+      });
+      
+      if (!canAccess) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
       objectStorageService.downloadObject(objectFile, res);
     } catch (error) {
       console.error("Error fetching object:", error);
@@ -499,20 +542,27 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // Confirm file upload and set ACL
+  // Confirm file upload and set ACL (requires authentication)
   app.post("/api/objects/confirm", async (req, res) => {
+    if (!req.session?.user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
     try {
-      const { objectPath, ownerId } = req.body;
+      const { objectPath } = req.body;
       if (!objectPath) {
         return res.status(400).json({ error: "objectPath is required" });
       }
+      
+      // Use session user's transporterId if available, otherwise their userId
+      const ownerId = req.session.user.transporterId || req.session.user.id;
       
       const objectStorageService = new ObjectStorageService();
       const normalizedPath = await objectStorageService.trySetObjectEntityAclPolicy(
         objectPath,
         {
-          owner: ownerId || "system",
-          visibility: "public",
+          owner: ownerId,
+          visibility: "private", // Private by default - only owner and admins can access
         }
       );
       

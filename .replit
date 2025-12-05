@@ -62,3 +62,4 @@ integrations = ["javascript_database:1.0.0", "github:1.0.0"]
 
 [userenv.shared]
 CUSTOMER_PORTAL_URL = "https://www.waykel.com"
+PRIVATE_OBJECT_DIR = "/waykel-documents"

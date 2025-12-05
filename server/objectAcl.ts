@@ -88,13 +88,18 @@ export async function canAccessObject({
   requestedPermission: ObjectPermission;
 }): Promise<boolean> {
   const aclPolicy = await getObjectAclPolicy(objectFile);
+  
+  // If no ACL policy exists, deny access (fail closed)
+  // Legacy files need to have ACL set before access is granted
   if (!aclPolicy) {
     return false;
   }
 
+  // Public visibility allows read access to any authenticated user
   if (
     aclPolicy.visibility === "public" &&
-    requestedPermission === ObjectPermission.READ
+    requestedPermission === ObjectPermission.READ &&
+    userId
   ) {
     return true;
   }
@@ -103,10 +108,12 @@ export async function canAccessObject({
     return false;
   }
 
+  // Owner always has full access
   if (aclPolicy.owner === userId) {
     return true;
   }
 
+  // Check ACL rules
   for (const rule of aclPolicy.aclRules || []) {
     const accessGroup = createObjectAccessGroup(rule.group);
     if (
