@@ -65,19 +65,59 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
-      const { password: _, ...userWithoutPassword } = user;
-      res.json(userWithoutPassword);
+      req.session.regenerate((err) => {
+        if (err) {
+          return res.status(500).json({ error: "Session error" });
+        }
+
+        req.session.user = {
+          id: user.id,
+          role: user.role,
+          isSuperAdmin: user.isSuperAdmin || false,
+        };
+
+        req.session.save((saveErr) => {
+          if (saveErr) {
+            return res.status(500).json({ error: "Session save error" });
+          }
+          const { password: _, ...userWithoutPassword } = user;
+          res.json(userWithoutPassword);
+        });
+      });
     } catch (error) {
       res.status(400).json({ error: "Login failed" });
     }
   });
 
+  app.post("/api/auth/logout", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Logout failed" });
+      }
+      res.clearCookie("connect.sid");
+      res.json({ success: true, message: "Logged out successfully" });
+    });
+  });
+
+  app.get("/api/auth/session", (req, res) => {
+    if (req.session.user) {
+      res.json({ authenticated: true, user: req.session.user });
+    } else {
+      res.json({ authenticated: false });
+    }
+  });
+
   app.post("/api/auth/change-password", async (req, res) => {
     try {
-      const { userId, currentPassword, newPassword } = req.body;
+      if (!req.session.user) {
+        return res.status(401).json({ error: "Not authenticated. Please log in again." });
+      }
+
+      const sessionUserId = req.session.user.id;
+      const { currentPassword, newPassword } = req.body;
       
-      if (!userId || !currentPassword || !newPassword) {
-        return res.status(400).json({ error: "All fields are required" });
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: "Current and new password are required" });
       }
 
       if (newPassword.length < 8) {
@@ -92,7 +132,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ error: "New password must contain at least one number" });
       }
 
-      const user = await storage.getUser(userId);
+      const user = await storage.getUser(sessionUserId);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
@@ -102,7 +142,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       const hashedNewPassword = await bcrypt.hash(newPassword, 10);
-      await storage.updateUserPassword(userId, hashedNewPassword);
+      await storage.updateUserPassword(sessionUserId, hashedNewPassword);
       
       res.json({ success: true, message: "Password updated successfully" });
     } catch (error) {

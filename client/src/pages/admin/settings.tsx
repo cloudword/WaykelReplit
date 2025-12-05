@@ -51,15 +51,9 @@ export default function AdminSettings() {
       return;
     }
 
-    const currentUser = JSON.parse(localStorage.getItem("currentUser") || "{}");
-    if (!currentUser.id) {
-      toast.error("User not found. Please log in again.");
-      return;
-    }
-
     setIsChangingPassword(true);
     try {
-      const result = await api.auth.changePassword(currentUser.id, currentPassword, newPassword);
+      const result = await api.auth.changePassword(currentPassword, newPassword);
       if (result.error) {
         toast.error(result.error);
       } else {
