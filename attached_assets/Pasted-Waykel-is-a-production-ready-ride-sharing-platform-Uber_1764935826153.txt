@@ -1,0 +1,366 @@
+Waykel is a production-ready ride-sharing platform (Uber/Ola equivalent) with:
+
+2 Mobile Apps (Rider + Driver) built with React Native + Expo
+
+3 Web Admin Dashboards (Transporter, Customer, Super Admin) built with React + Vite
+
+1 Robust Backend (Node.js + Express) with real-time features
+
+Complete Payment Integration (Stripe + Razorpay)
+
+Real-Time Tracking (Socket.IO + Geospatial Queries)
+
+Full Authentication System (JWT + Role-based Access)
+
+🎯 PROJECT SCOPE & REQUIREMENTS
+User Roles & Features
+1. Customer/Rider (Mobile App)
+text
+Authentication → Home Map → Book Ride → Track Driver → Rate & Pay
+├── Sign up/Login (Phone + OTP)
+├── Home Screen (Google Maps)
+│   ├── Current location display
+│   ├── Pickup/Dropoff input
+│   ├── Ride type selection (Economy/Premium/XL)
+│   ├── Estimated fare calculation
+│   └── Book Ride button
+├── Active Ride Screen
+│   ├── Real-time driver tracking (WebSocket)
+│   ├── Driver details & photo
+│   ├── Chat with driver
+│   ├── Emergency contact
+│   └── ETA display
+├── Ride History
+│   ├── Past rides list
+│   ├── Filter options
+│   └── Ride details modal
+├── Profile & Wallet
+│   ├── Personal information
+│   ├── Payment methods
+│   ├── Wallet balance
+│   ├── Saved locations
+│   └── Settings
+└── Rating & Review
+    ├── Star rating (1-5)
+    ├── Text feedback
+    ├── Tip option
+    └── Receipt generation
+2. Driver/Transporter (Mobile App)
+text
+Authentication → Dashboard → Accept Rides → Navigate & Complete → Earn
+├── Sign up/Login + Document Upload
+│   ├── Phone verification
+│   ├── License upload
+│   ├── Vehicle registration
+│   ├── Insurance document
+│   ├── Bank details
+│   └── Background check
+├── Dashboard
+│   ├── Driver stats (Rating, Completed Rides)
+│   ├── Earnings today
+│   ├── Online/Offline toggle
+│   └── Current status indicator
+├── Available Rides
+│   ├── Ride request notification
+│   ├── Ride card details
+│   ├── Pickup location on map
+│   ├── Estimated pickup time
+│   ├── Accept/Reject buttons
+│   └── Rejection reason (optional)
+├── Active Ride
+│   ├── Navigation to pickup
+│   ├── Customer details & photo
+│   ├── Chat functionality
+│   ├── Pickup confirmation
+│   ├── Dropoff confirmation
+│   └── Route navigation
+├── Earnings & Analytics
+│   ├── Daily/Weekly/Monthly earnings
+│   ├── Trip count & average rating
+│   ├── Performance metrics
+│   ├── Acceptance rate
+│   ├── Cancellation rate
+│   └── Incentive programs
+├── Documents Management
+│   ├── Document upload
+│   ├── Expiry date tracking
+│   ├── Renewal reminders
+│   └── Verification status
+└── Profile & Settings
+    ├── Driver details edit
+    ├── Bank details
+    ├── Payment preferences
+    └── Support contact
+3. Transporter Admin (Web Dashboard)
+text
+Dashboard with KPIs → Manage Drivers → Analytics → Revenue → Settings
+├── Dashboard
+│   ├── Total drivers online/offline
+│   ├── Active rides count
+│   ├── Today's revenue
+│   ├── Total earnings (monthly)
+│   ├── Average driver rating
+│   ├── Revenue trend chart
+│   └── Performance indicators
+├── Driver Management
+│   ├── Driver list (with search/filter)
+│   ├── Add new driver form
+│   ├── Driver details view
+│   ├── Edit driver information
+│   ├── Document verification
+│   ├── Driver activation/deactivation
+│   ├── Performance review
+│   └── Driver analytics
+├── Ride Management
+│   ├── Ride history table
+│   ├── Filter by date/status
+│   ├── Ride details modal
+│   ├── Map view of completed rides
+│   ├── Ride type breakdown
+│   └── Peak hours analysis
+├── Earnings & Payouts
+│   ├── Revenue dashboard
+│   ├── Payout history
+│   ├── Commission breakdown
+│   ├── Payment method settings
+│   ├── Financial reports (CSV/PDF)
+│   └── Tax calculations
+└── Settings
+    ├── Business profile
+    ├── Commission rates
+    ├── Document requirements
+    ├── API keys
+    └── Account settings
+4. Customer Admin (Web Dashboard)
+text
+Profile & Wallet → My Rides → Payments → Support → Settings
+├── Dashboard
+│   ├── Recent rides summary
+│   ├── Account balance
+│   ├── Quick stats
+│   └── Recent activities
+├── My Rides
+│   ├── Ride history table (with pagination)
+│   ├── Filter by date/status
+│   ├── Search rides
+│   ├── Ride details view
+│   ├── Download receipt
+│   ├── Cancel ride option
+│   └── Reschedule ride
+├── Payments & Wallet
+│   ├── Payment history table
+│   ├── Wallet balance display
+│   ├── Add funds form
+│   ├── Payment method management
+│   ├── Refund requests
+│   ├── Transaction details
+│   └── Invoice downloads
+├── Support
+│   ├── Support tickets list
+│   ├── Create new ticket
+│   ├── Ticket status tracking
+│   ├── Chat with support
+│   ├── FAQ section
+│   └── Help center
+└── Profile
+    ├── Personal information edit
+    ├── Contact details
+    ├── Saved locations
+    ├── Payment methods
+    ├── Notification preferences
+    └── Account security
+5. Super Admin (Web Dashboard)
+text
+System Metrics → User Management → Analytics → System Health → Reports
+├── System Dashboard
+│   ├── Total users (all roles)
+│   ├── Total drivers verified
+│   ├── Total transporters
+│   ├── Total rides completed
+│   ├── Platform revenue
+│   ├── Active sessions
+│   ├── System uptime
+│   └── Critical alerts
+├── User Management
+│   ├── All users table (with advanced filters)
+│   ├── User details view
+│   ├── Block/Unblock users
+│   ├── Verify documents
+│   ├── User activity logs
+│   ├── Mass actions
+│   ├── Export users
+│   └── Support interactions history
+├── Driver Management
+│   ├── All drivers table
+│   ├── Verification status
+│   ├── Document verification workflow
+│   ├── Background check status
+│   ├── Approve/Reject/Suspend drivers
+│   ├── Performance metrics
+│   ├── Inactive drivers list
+│   ├── Driver compliance
+│   └── Ratings & reviews
+├── Transporter Management
+│   ├── Transporter registration list
+│   ├── Approval workflow
+│   ├── Commission management
+│   ├── Revenue tracking
+│   ├── Compliance documents
+│   ├── Transporter analytics
+│   └── Mass email/notifications
+├── Revenue & Analytics
+│   ├── Revenue trends chart (daily/monthly/yearly)
+│   ├── Commission breakdown
+│   ├── Payout summary
+│   ├── User acquisition metrics
+│   ├── Ride completion rate
+│   ├── Average ride value
+│   ├── Peak hours analysis
+│   └── Geographic heatmap
+├── System Health
+│   ├── API health status
+│   ├── Database metrics
+│   ├── Server uptime/downtime
+│   ├── Error logs viewer
+│   ├── Performance metrics
+│   ├── Server resource usage
+│   ├── Cache status
+│   └── Alert configuration
+├── Reports & Compliance
+│   ├── Custom report builder
+│   ├── Compliance reports
+│   ├── Financial reports (monthly/yearly)
+│   ├── User acquisition report
+│   ├── Driver performance report
+│   ├── Export to CSV/PDF
+│   ├── Scheduled reports
+│   └── Report history
+└── Admin Settings
+    ├── Platform settings
+    ├── Fare structure configuration
+    ├── Commission rates
+    ├── Surge pricing rules
+    ├── Feature flags
+    ├── Admin user management
+    ├── Role permissions
+    ├── Email templates
+    ├── SMS templates
+    └── System configuration
+🏗️ TECHNICAL ARCHITECTURE
+Technology Stack
+Frontend Stack
+text
+Mobile Apps (iOS + Android):
+├── React Native + Expo
+├── Expo Router (Navigation)
+├── React Native Maps
+├── Socket.IO Client
+├── Zustand (State Management)
+├── Axios (HTTP Client)
+├── React Native Paper (UI Components)
+└── Firebase Cloud Messaging (Notifications)
+
+Web Dashboards:
+├── React.js (18+)
+├── Vite (Build Tool)
+├── React Router v6 (Navigation)
+├── Zustand (State Management)
+├── Axios (HTTP Client)
+├── TailwindCSS (Styling)
+├── Recharts (Analytics Charts)
+├── React Hook Form (Forms)
+├── React Icons
+└── Material-UI Components
+Backend Stack
+text
+├── Node.js (Runtime)
+├── Express.js (Framework)
+├── MongoDB + Mongoose (Database)
+├── Socket.IO (Real-time Communication)
+├── JWT (Authentication)
+├── bcrypt (Password Hashing)
+├── Stripe & Razorpay (Payment Gateways)
+├── Firebase Admin SDK (Cloud Messaging)
+├── Twilio (SMS Service)
+├── Nodemailer (Email Service)
+├── Multer + Cloudinary (File Upload)
+├── Helmet (Security)
+└── Express Rate Limiter (Rate Limiting)
+DevOps & Infrastructure
+text
+├── MongoDB Atlas (Database Hosting)
+├── Firebase (Push Notifications, Storage)
+├── Cloudinary (Media Storage)
+├── Render/Railway (Backend Deployment)
+├── Vercel (Web Frontend Deployment)
+├── GitHub (Version Control)
+├── Postman (API Testing)
+└── Sentry (Error Tracking)
+Database Schema (MongoDB)
+javascript
+Collections:
+├── users
+│   ├── name, email, phone, password
+│   ├── role (customer/driver/transporter/admin)
+│   ├── profilePic, address
+│   ├── paymentMethods[], wallet
+│   ├── rideHistory[], ratings[]
+│   ├── isVerified, isActive
+│   └── timestamps
+├── drivers
+│   ├── userId (reference)
+│   ├── licenseNumber, licenseExpiry
+│   ├── vehicle (make, model, year, licensePlate)
+│   ├── backgroundCheckStatus
+│   ├── bankAccount (details)
+│   ├── status (online/offline/onRide)
+│   ├── currentLocation (geospatial)
+│   ├── rideCount, earnings, averageRating
+│   ├── documents[] (with expiry dates)
+│   └── timestamps
+├── rides
+│   ├── rideNumber (unique)
+│   ├── customerId, driverId, transporterId
+│   ├── pickupLocation (address + coordinates)
+│   ├── dropoffLocation (address + coordinates)
+│   ├── rideType (economy/premium/xl)
+│   ├── status (requested/accepted/arrived/started/completed/cancelled)
+│   ├── fare (baseFare, perKmRate, totalFare, finalAmount, tax)
+│   ├── paymentMethod, paymentStatus
+│   ├── riderRating, riderReview
+│   ├── driverRating, driverReview
+│   ├── startTime, endTime
+│   └── timestamps
+├── payments
+│   ├── rideId (reference)
+│   ├── userId (reference)
+│   ├── amount, method, status
+│   ├── transactionId, orderId
+│   ├── gateway (stripe/razorpay/internal)
+│   ├── metadata (custom data)
+│   └── timestamps
+├── admins
+│   ├── userId (reference)
+│   ├── adminType (transporter/super)
+│   ├── permissions[] (role-based)
+│   ├── transporterId (if transporter admin)
+│   ├── activityLogs[]
+│   └── timestamps
+├── notifications
+│   ├── userId (reference)
+│   ├── type (ride/payment/alert)
+│   ├── title, message, data
+│   ├── read, readAt
+│   └── timestamps
+├── supportTickets
+│   ├── userId (reference)
+│   ├── subject, description
+│   ├── status (open/in-progress/resolved)
+│   ├── priority (low/medium/high)
+│   ├── messages[] (chat history)
+│   ├── attachments[]
+│   └── timestamps
+└── analytics
+    ├── date, metric, value
+    ├── type (ride/revenue/user/driver)
+    └── timestamps
