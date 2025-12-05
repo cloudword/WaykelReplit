@@ -447,6 +447,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       res.json(result);
     } catch (error) {
+      console.error("Error fetching documents:", error);
       res.status(500).json({ error: "Failed to fetch documents" });
     }
   });
