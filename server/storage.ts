@@ -48,6 +48,7 @@ export interface IStorage {
   getBid(id: string): Promise<Bid | undefined>;
   getRideBids(rideId: string): Promise<Bid[]>;
   getUserBids(userId: string): Promise<Bid[]>;
+  getAllBids(): Promise<Bid[]>;
   createBid(bid: InsertBid): Promise<Bid>;
   updateBidStatus(id: string, status: "pending" | "accepted" | "rejected"): Promise<void>;
   
@@ -188,6 +189,10 @@ export class DatabaseStorage implements IStorage {
 
   async getUserBids(userId: string): Promise<Bid[]> {
     return await db.select().from(bids).where(eq(bids.userId, userId)).orderBy(desc(bids.createdAt));
+  }
+
+  async getAllBids(): Promise<Bid[]> {
+    return await db.select().from(bids).orderBy(desc(bids.createdAt));
   }
 
   async createBid(insertBid: InsertBid): Promise<Bid> {

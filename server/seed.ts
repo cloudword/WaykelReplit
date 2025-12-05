@@ -115,6 +115,21 @@ async function seed() {
 
     console.log("✅ Drivers created");
 
+    // Create customer user
+    const customerPassword = await HASH_PASSWORD("customer123");
+    const customer1 = await db
+      .insert(users)
+      .values({
+        name: "Rahul Mehta",
+        email: "rahul@example.com",
+        phone: "9000000001",
+        password: customerPassword,
+        role: "customer",
+      })
+      .returning();
+
+    console.log("✅ Customer created");
+
     // Create vehicles for drivers
     const vehicle1 = await db
       .insert(vehicles)
@@ -276,7 +291,8 @@ async function seed() {
 
     console.log("\n✨ Database seeded successfully!\n");
     console.log("📝 Test Credentials:");
-    console.log("   Admin: admin@waykel.com / admin123");
+    console.log("   Super Admin: 9999999999 / admin123 (or admin@waykel.com)");
+    console.log("   Customer: 9000000001 / customer123");
     console.log("   Driver: 9111111111 / driver123");
     console.log("   Driver: 9222222222 / driver123");
     console.log("   Driver: 9333333333 / driver123");

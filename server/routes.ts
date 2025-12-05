@@ -117,13 +117,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const { rideId, userId } = req.query;
     
     try {
-      let result;
+      let result: any[];
       if (rideId) {
         result = await storage.getRideBids(rideId as string);
       } else if (userId) {
         result = await storage.getUserBids(userId as string);
       } else {
-        result = [];
+        result = await storage.getAllBids();
       }
       res.json(result);
     } catch (error) {
@@ -169,13 +169,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const { userId, transporterId } = req.query;
     
     try {
-      let result;
+      let result: any[] = [];
       if (userId) {
         result = await storage.getUserVehicles(userId as string);
       } else if (transporterId) {
         result = await storage.getTransporterVehicles(transporterId as string);
-      } else {
-        result = [];
       }
       res.json(result);
     } catch (error) {
