@@ -1,19 +1,24 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Users, Truck, Wallet, Settings, LogOut, Building2, Gavel, Calendar } from "lucide-react";
+import { LayoutDashboard, Users, Truck, Wallet, Settings, LogOut, Building2, Gavel, Calendar, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 export function AdminSidebar() {
   const [location] = useLocation();
 
+  const handleLogout = () => {
+    localStorage.removeItem("currentUser");
+    window.location.href = "/auth/login";
+  };
+
   const navItems = [
     { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
+    { href: "/admin/rides", icon: Gavel, label: "Bid Approvals" },
     { href: "/admin/transporters", icon: Building2, label: "Transporters" },
-    { href: "/admin/bids", icon: Gavel, label: "Manage Bids" },
     { href: "/admin/drivers", icon: Users, label: "Drivers" },
     { href: "/admin/vehicles", icon: Truck, label: "Vehicles" },
-    { href: "/admin/calendar", icon: Calendar, label: "Schedule" },
-    { href: "/admin/earnings", icon: Wallet, label: "Earnings" },
+    { href: "/admin/calendar", icon: Calendar, label: "Trip Schedule" },
+    { href: "/admin/earnings", icon: Wallet, label: "Revenue" },
     { href: "/admin/settings", icon: Settings, label: "Settings" },
   ];
 
@@ -23,7 +28,10 @@ export function AdminSidebar() {
         <h1 className="text-2xl font-black tracking-tighter">
           WAY<span className="text-blue-500">KEL</span>
         </h1>
-        <p className="text-xs text-slate-400 mt-1">Admin Panel</p>
+        <div className="flex items-center gap-2 mt-2">
+          <Shield className="h-4 w-4 text-yellow-500" />
+          <p className="text-xs text-yellow-500 font-semibold">Super Admin Panel</p>
+        </div>
       </div>
 
       <nav className="flex-1 px-4 space-y-2">
@@ -43,7 +51,15 @@ export function AdminSidebar() {
       </nav>
 
       <div className="p-4 border-t border-slate-800">
-        <Button variant="ghost" className="w-full justify-start text-slate-400 hover:text-white hover:bg-slate-800 gap-3">
+        <div className="mb-4 px-4">
+          <p className="text-xs text-slate-500">Logged in as</p>
+          <p className="text-sm font-medium text-white">Super Admin</p>
+        </div>
+        <Button 
+          variant="ghost" 
+          className="w-full justify-start text-slate-400 hover:text-white hover:bg-slate-800 gap-3"
+          onClick={handleLogout}
+        >
           <LogOut size={20} />
           Logout
         </Button>

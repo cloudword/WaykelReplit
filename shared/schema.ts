@@ -10,7 +10,7 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   phone: text("phone").notNull().unique(),
   password: text("password").notNull(),
-  role: text("role").notNull().$type<"driver" | "transporter" | "admin">(),
+  role: text("role").notNull().$type<"driver" | "transporter" | "admin" | "customer">(),
   transporterId: varchar("transporter_id"),
   isOnline: boolean("is_online").default(false),
   rating: decimal("rating", { precision: 3, scale: 2 }).default("0"),

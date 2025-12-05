@@ -5,8 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { Truck, User, Building2 } from "lucide-react";
 
 export default function AuthPage() {
   const [_, setLocation] = useLocation();
@@ -15,7 +17,9 @@ export default function AuthPage() {
   const [loginPassword, setLoginPassword] = useState("");
   const [signupName, setSignupName] = useState("");
   const [signupPhone, setSignupPhone] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
+  const [signupRole, setSignupRole] = useState<"customer" | "driver">("customer");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +34,7 @@ export default function AuthPage() {
         if (role === "driver") setLocation("/driver");
         else if (role === "transporter") setLocation("/transporter");
         else if (role === "admin") setLocation("/admin");
+        else if (role === "customer") setLocation("/customer");
         toast.success("Logged in successfully!");
       }
     } catch (error) {
@@ -45,17 +50,21 @@ export default function AuthPage() {
     try {
       const user = await api.auth.register({
         name: signupName,
-        email: `${signupPhone}@waykel.com`,
+        email: signupEmail || `${signupPhone}@waykel.com`,
         phone: signupPhone,
         password: signupPassword,
-        role: "driver",
+        role: signupRole,
       });
       if (user.error) {
         toast.error(user.error);
       } else {
-        toast.success("Registration successful! Please login.");
-        setLoginPhone(signupPhone);
-        setLoginPassword(signupPassword);
+        localStorage.setItem("currentUser", JSON.stringify(user));
+        if (signupRole === "customer") {
+          setLocation("/customer");
+        } else {
+          setLocation("/driver");
+        }
+        toast.success("Registration successful!");
       }
     } catch (error) {
       toast.error("Registration failed");
@@ -100,7 +109,9 @@ export default function AuthPage() {
                     onChange={(e) => setLoginPhone(e.target.value)}
                     data-testid="input-phone"
                   />
-                  <p className="text-xs text-gray-500">Test: 9111111111 / 9222222222 / 9333333333</p>
+                  <p className="text-xs text-gray-500">
+                    Test accounts: 9111111111 (Driver) / 9999999999 (Admin)
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
@@ -110,7 +121,7 @@ export default function AuthPage() {
                     required 
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
-                    placeholder="driver123"
+                    placeholder="driver123 or admin123"
                     data-testid="input-password"
                   />
                 </div>
@@ -122,6 +133,30 @@ export default function AuthPage() {
             
             <TabsContent value="signup">
               <form onSubmit={handleSignup} className="space-y-4">
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">I want to:</Label>
+                  <RadioGroup 
+                    value={signupRole} 
+                    onValueChange={(v) => setSignupRole(v as "customer" | "driver")}
+                    className="grid grid-cols-2 gap-3"
+                  >
+                    <div className={`flex items-center space-x-2 border rounded-lg p-3 cursor-pointer transition-colors ${signupRole === "customer" ? "border-primary bg-primary/5" : "border-gray-200"}`}>
+                      <RadioGroupItem value="customer" id="customer" />
+                      <Label htmlFor="customer" className="flex items-center gap-2 cursor-pointer">
+                        <User className="h-4 w-4" />
+                        <span className="text-sm">Book Transport</span>
+                      </Label>
+                    </div>
+                    <div className={`flex items-center space-x-2 border rounded-lg p-3 cursor-pointer transition-colors ${signupRole === "driver" ? "border-primary bg-primary/5" : "border-gray-200"}`}>
+                      <RadioGroupItem value="driver" id="driver" />
+                      <Label htmlFor="driver" className="flex items-center gap-2 cursor-pointer">
+                        <Truck className="h-4 w-4" />
+                        <span className="text-sm">Drive/Transport</span>
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name</Label>
                   <Input 
@@ -146,6 +181,17 @@ export default function AuthPage() {
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="signup-email">Email (Optional)</Label>
+                  <Input 
+                    id="signup-email" 
+                    placeholder="email@example.com" 
+                    type="email" 
+                    value={signupEmail}
+                    onChange={(e) => setSignupEmail(e.target.value)}
+                    data-testid="input-signup-email"
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="password-signup">Password</Label>
                   <Input 
                     id="password-signup" 
@@ -157,7 +203,7 @@ export default function AuthPage() {
                   />
                 </div>
                 <Button className="w-full h-12 text-base" type="submit" disabled={isLoading} data-testid="button-signup">
-                  {isLoading ? "Registering..." : "Register as Driver"}
+                  {isLoading ? "Creating Account..." : signupRole === "customer" ? "Create Customer Account" : "Register as Driver"}
                 </Button>
               </form>
             </TabsContent>

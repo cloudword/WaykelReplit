@@ -53,7 +53,7 @@ export default function DriverDashboard() {
     setShowVehicleSelector(true);
   };
 
-  const handleBidConfirm = async (vehicleId: string, bidAmount: number) => {
+  const handleBidConfirm = async (vehicleId: string, bidAmount: string) => {
     if (!selectedRideId || !user?.id) return;
     
     try {
@@ -62,7 +62,7 @@ export default function DriverDashboard() {
         userId: user.id,
         transporterId: user.transporterId,
         vehicleId,
-        amount: bidAmount.toString(),
+        amount: bidAmount,
       });
       setShowVehicleSelector(false);
       setLocation(`/driver/active-ride/${selectedRideId}`);

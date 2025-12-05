@@ -23,11 +23,16 @@ import AdminCalendar from "@/pages/admin/calendar";
 import TransporterDashboard from "@/pages/transporter/dashboard";
 import TransporterBids from "@/pages/transporter/bids";
 
+import CustomerDashboard from "@/pages/customer/dashboard";
+import CustomerRides from "@/pages/customer/rides";
+import CustomerProfile from "@/pages/customer/profile";
+
 function Router() {
   return (
     <Switch>
       <Route path="/" component={SplashScreen} />
       <Route path="/auth" component={AuthPage} />
+      <Route path="/auth/login" component={AuthPage} />
       
       {/* Driver App Routes */}
       <Route path="/driver" component={DriverDashboard} />
@@ -42,10 +47,17 @@ function Router() {
       <Route path="/transporter" component={TransporterDashboard} />
       <Route path="/transporter/bids" component={TransporterBids} />
 
-      {/* Admin Panel Routes */}
+      {/* Customer/Rider App Routes */}
+      <Route path="/customer" component={CustomerDashboard} />
+      <Route path="/customer/rides" component={CustomerRides} />
+      <Route path="/customer/profile" component={CustomerProfile} />
+      <Route path="/customer/notifications" component={Notifications} />
+
+      {/* Super Admin Panel Routes */}
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/admin/drivers" component={AdminDrivers} />
       <Route path="/admin/vehicles" component={AdminVehicles} />
+      <Route path="/admin/rides" component={AdminBids} />
       <Route path="/admin/bids" component={AdminBids} />
       <Route path="/admin/transporters" component={AdminTransporters} />
       <Route path="/admin/calendar" component={AdminCalendar} />
