@@ -169,7 +169,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Ride routes
   app.get("/api/rides", async (req, res) => {
-    const { status, driverId, transporterId } = req.query;
+    const { status, driverId, transporterId, createdById } = req.query;
     
     try {
       let result;
@@ -177,6 +177,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         result = await storage.getDriverRides(driverId as string);
       } else if (transporterId) {
         result = await storage.getTransporterRides(transporterId as string);
+      } else if (createdById) {
+        result = await storage.getCustomerRides(createdById as string);
       } else if (status === "pending") {
         result = await storage.getPendingRides();
       } else if (status === "scheduled") {

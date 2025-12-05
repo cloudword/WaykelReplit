@@ -146,6 +146,23 @@ The architecture includes provisions for real-time features:
 - **TypeScript**: Type safety across frontend and backend
 - **TailwindCSS**: Utility-first styling framework
 
+### Customer Portal API
+
+The platform includes CORS support for a separate customer portal application:
+
+**Configuration:**
+- Set `CUSTOMER_PORTAL_URL` environment variable to allow cross-origin requests from the customer portal domain
+- CORS is pre-configured for localhost development (ports 3000 and 5173)
+
+**Customer-Specific Endpoints:**
+- `GET /api/rides?createdById={customerId}` - Fetch customer's trip history
+- `POST /api/rides` - Create new trip request (booking)
+- `GET /api/bids?rideId={rideId}` - View bids on a customer's trip
+
+**API Documentation:**
+- Full API documentation available at `docs/CUSTOMER_PORTAL_API.md`
+- Includes all endpoints, data structures, and example integration code
+
 ### Planned Integrations (Referenced but not implemented)
 - **Payment Processing**: Stripe and Razorpay mentioned in documentation
 - **Maps/Geolocation**: Google Maps integration for route tracking

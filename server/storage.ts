@@ -47,6 +47,7 @@ export interface IStorage {
   getCompletedRides(): Promise<Ride[]>;
   getDriverRides(driverId: string): Promise<Ride[]>;
   getTransporterRides(transporterId: string): Promise<Ride[]>;
+  getCustomerRides(customerId: string): Promise<Ride[]>;
   createRide(ride: InsertRide): Promise<Ride>;
   updateRideStatus(id: string, status: string): Promise<void>;
   assignRideToDriver(rideId: string, driverId: string, vehicleId: string): Promise<void>;
@@ -200,6 +201,10 @@ export class DatabaseStorage implements IStorage {
 
   async getTransporterRides(transporterId: string): Promise<Ride[]> {
     return await db.select().from(rides).where(eq(rides.transporterId, transporterId)).orderBy(desc(rides.createdAt));
+  }
+
+  async getCustomerRides(customerId: string): Promise<Ride[]> {
+    return await db.select().from(rides).where(eq(rides.createdById, customerId)).orderBy(desc(rides.createdAt));
   }
 
   async createRide(insertRide: InsertRide): Promise<Ride> {
