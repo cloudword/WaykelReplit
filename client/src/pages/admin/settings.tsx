@@ -7,12 +7,12 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Settings, Bell, Shield, CreditCard, Building2, Users, Save } from "lucide-react";
+import { Settings, Bell, Shield, CreditCard, Building2, User, Save, Key } from "lucide-react";
 import { useState } from "react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
+import { api } from "@/lib/api";
 
 export default function AdminSettings() {
-  const { toast } = useToast();
   const [platformName, setPlatformName] = useState("WAYKEL");
   const [supportEmail, setSupportEmail] = useState("support@waykel.com");
   const [supportPhone, setSupportPhone] = useState("+91 98765 43210");
@@ -31,11 +31,48 @@ export default function AdminSettings() {
   const [autoApproveTransporters, setAutoApproveTransporters] = useState(false);
   const [requireDocVerification, setRequireDocVerification] = useState(true);
 
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
   const handleSave = () => {
-    toast({
-      title: "Settings Saved",
-      description: "Your settings have been updated successfully.",
-    });
+    toast.success("Settings saved successfully!");
+  };
+
+  const handlePasswordChange = async () => {
+    if (newPassword !== confirmPassword) {
+      toast.error("New passwords don't match");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+
+    const currentUser = JSON.parse(localStorage.getItem("currentUser") || "{}");
+    if (!currentUser.id) {
+      toast.error("User not found. Please log in again.");
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const result = await api.auth.changePassword(currentUser.id, currentPassword, newPassword);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success("Password changed successfully!");
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      }
+    } catch (error) {
+      toast.error("Failed to change password");
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   return (
@@ -56,6 +93,10 @@ export default function AdminSettings() {
 
         <Tabs defaultValue="general" className="space-y-6">
           <TabsList className="bg-white shadow-sm">
+            <TabsTrigger value="account" data-testid="tab-account">
+              <User className="h-4 w-4 mr-2" />
+              Account
+            </TabsTrigger>
             <TabsTrigger value="general" data-testid="tab-general">
               <Settings className="h-4 w-4 mr-2" />
               General
@@ -77,6 +118,74 @@ export default function AdminSettings() {
               Transporters
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="account">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Key className="h-5 w-5" />
+                  Change Password
+                </CardTitle>
+                <CardDescription>Update your account password</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="max-w-md space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="currentPassword">Current Password</Label>
+                    <Input 
+                      id="currentPassword" 
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="Enter your current password"
+                      data-testid="input-current-password"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword">New Password</Label>
+                    <Input 
+                      id="newPassword" 
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new password (min 8 characters)"
+                      data-testid="input-new-password"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                    <Input 
+                      id="confirmPassword" 
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm new password"
+                      data-testid="input-confirm-password"
+                    />
+                  </div>
+                  <Button 
+                    onClick={handlePasswordChange} 
+                    disabled={isChangingPassword || !currentPassword || !newPassword || !confirmPassword}
+                    data-testid="button-change-password"
+                  >
+                    {isChangingPassword ? "Changing..." : "Change Password"}
+                  </Button>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-2">
+                  <Label>Password Requirements</Label>
+                  <div className="space-y-2 text-sm text-gray-600">
+                    <p>• Minimum 8 characters</p>
+                    <p>• At least one uppercase letter</p>
+                    <p>• At least one number</p>
+                    <p>• At least one special character</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="general">
             <Card>

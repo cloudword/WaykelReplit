@@ -15,20 +15,22 @@ async function seed() {
     await db.delete(transporters);
     await db.delete(users);
 
-    // Create admin user
-    const adminPassword = await HASH_PASSWORD("admin123");
+    // Create Super Admin user with specified credentials
+    const superAdminPassword = await HASH_PASSWORD("Wakel6@singh");
     const admin = await db
       .insert(users)
       .values({
         name: "Super Admin",
+        username: "waykelAdmin",
         email: "admin@waykel.com",
         phone: "9999999999",
-        password: adminPassword,
+        password: superAdminPassword,
         role: "admin",
+        isSuperAdmin: true,
       })
       .returning();
 
-    console.log("✅ Admin created");
+    console.log("✅ Super Admin created");
 
     // Create transporters
     const transporter1 = await db
@@ -291,7 +293,7 @@ async function seed() {
 
     console.log("\n✨ Database seeded successfully!\n");
     console.log("📝 Test Credentials:");
-    console.log("   Super Admin: 9999999999 / admin123 (or admin@waykel.com)");
+    console.log("   Super Admin: waykelAdmin / Wakel6@singh (or phone: 9999999999)");
     console.log("   Customer: 9000000001 / customer123");
     console.log("   Driver: 9111111111 / driver123");
     console.log("   Driver: 9222222222 / driver123");

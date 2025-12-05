@@ -52,8 +52,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.post("/api/auth/login", async (req, res) => {
     try {
-      const { phone, password } = req.body;
-      const user = await storage.getUserByPhone(phone);
+      const { phone, password, username } = req.body;
+      
+      let user;
+      if (username) {
+        user = await storage.getUserByUsername(username);
+      } else if (phone) {
+        user = await storage.getUserByPhone(phone);
+      }
       
       if (!user || !(await bcrypt.compare(password, user.password))) {
         return res.status(401).json({ error: "Invalid credentials" });
@@ -63,6 +69,44 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json(userWithoutPassword);
     } catch (error) {
       res.status(400).json({ error: "Login failed" });
+    }
+  });
+
+  app.post("/api/auth/change-password", async (req, res) => {
+    try {
+      const { userId, currentPassword, newPassword } = req.body;
+      
+      if (!userId || !currentPassword || !newPassword) {
+        return res.status(400).json({ error: "All fields are required" });
+      }
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({ error: "New password must be at least 8 characters" });
+      }
+
+      if (!/[A-Z]/.test(newPassword)) {
+        return res.status(400).json({ error: "New password must contain at least one uppercase letter" });
+      }
+
+      if (!/[0-9]/.test(newPassword)) {
+        return res.status(400).json({ error: "New password must contain at least one number" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (!(await bcrypt.compare(currentPassword, user.password))) {
+        return res.status(401).json({ error: "Current password is incorrect" });
+      }
+
+      const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+      await storage.updateUserPassword(userId, hashedNewPassword);
+      
+      res.json({ success: true, message: "Password updated successfully" });
+    } catch (error) {
+      res.status(400).json({ error: "Failed to change password" });
     }
   });
 

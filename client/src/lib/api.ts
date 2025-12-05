@@ -10,11 +10,19 @@ export const api = {
       });
       return res.json();
     },
-    login: async (phone: string, password: string) => {
+    login: async (credentials: { phone?: string; username?: string; password: string }) => {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, password }),
+        body: JSON.stringify(credentials),
+      });
+      return res.json();
+    },
+    changePassword: async (userId: string, currentPassword: string, newPassword: string) => {
+      const res = await fetch(`${API_BASE}/auth/change-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, currentPassword, newPassword }),
       });
       return res.json();
     },

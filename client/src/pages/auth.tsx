@@ -13,7 +13,7 @@ import { Truck, User, Building2 } from "lucide-react";
 export default function AuthPage() {
   const [_, setLocation] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
-  const [loginPhone, setLoginPhone] = useState("");
+  const [loginIdentifier, setLoginIdentifier] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [signupName, setSignupName] = useState("");
   const [signupPhone, setSignupPhone] = useState("");
@@ -25,7 +25,12 @@ export default function AuthPage() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const user = await api.auth.login(loginPhone, loginPassword);
+      const isPhone = /^\d+$/.test(loginIdentifier);
+      const credentials = isPhone 
+        ? { phone: loginIdentifier, password: loginPassword }
+        : { username: loginIdentifier, password: loginPassword };
+      
+      const user = await api.auth.login(credentials);
       if (user.error) {
         toast.error(user.error);
       } else {
@@ -99,18 +104,17 @@ export default function AuthPage() {
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
+                  <Label htmlFor="identifier">Phone Number or Username</Label>
                   <Input 
-                    id="phone" 
-                    placeholder="9111111111" 
-                    type="tel" 
+                    id="identifier" 
+                    placeholder="9111111111 or waykelAdmin" 
                     required 
-                    value={loginPhone}
-                    onChange={(e) => setLoginPhone(e.target.value)}
-                    data-testid="input-phone"
+                    value={loginIdentifier}
+                    onChange={(e) => setLoginIdentifier(e.target.value)}
+                    data-testid="input-identifier"
                   />
                   <p className="text-xs text-gray-500">
-                    Test accounts: 9111111111 (Driver) / 9999999999 (Admin)
+                    Super Admin: waykelAdmin | Driver: 9111111111
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -121,7 +125,7 @@ export default function AuthPage() {
                     required 
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
-                    placeholder="driver123 or admin123"
+                    placeholder="Enter your password"
                     data-testid="input-password"
                   />
                 </div>
