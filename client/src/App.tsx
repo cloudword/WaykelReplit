@@ -19,6 +19,8 @@ import AdminVehicles from "@/pages/admin/vehicles";
 import AdminBids from "@/pages/admin/rides";
 import AdminTransporters from "@/pages/admin/transporters";
 import AdminCalendar from "@/pages/admin/calendar";
+import AdminEarnings from "@/pages/admin/earnings";
+import AdminSettings from "@/pages/admin/settings";
 
 import TransporterDashboard from "@/pages/transporter/dashboard";
 import TransporterBids from "@/pages/transporter/bids";
@@ -61,6 +63,8 @@ function Router() {
       <Route path="/admin/bids" component={AdminBids} />
       <Route path="/admin/transporters" component={AdminTransporters} />
       <Route path="/admin/calendar" component={AdminCalendar} />
+      <Route path="/admin/earnings" component={AdminEarnings} />
+      <Route path="/admin/settings" component={AdminSettings} />
       
       <Route component={NotFound} />
     </Switch>
