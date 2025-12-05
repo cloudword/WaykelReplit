@@ -16,6 +16,9 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByPhone(phone: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
+  getUsersByTransporter(transporterId: string): Promise<User[]>;
+  getUsersByTransporterAndRole(transporterId: string, role: string): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   updateUserOnlineStatus(id: string, isOnline: boolean): Promise<void>;
   updateUserPassword(id: string, hashedPassword: string): Promise<void>;
@@ -93,6 +96,20 @@ export class DatabaseStorage implements IStorage {
 
   async updateUserPassword(id: string, hashedPassword: string): Promise<void> {
     await db.update(users).set({ password: hashedPassword }).where(eq(users.id, id));
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users);
+  }
+
+  async getUsersByTransporter(transporterId: string): Promise<User[]> {
+    return await db.select().from(users).where(eq(users.transporterId, transporterId));
+  }
+
+  async getUsersByTransporterAndRole(transporterId: string, role: string): Promise<User[]> {
+    return await db.select().from(users).where(
+      and(eq(users.transporterId, transporterId), eq(users.role, role as any))
+    );
   }
 
   // Transporters

@@ -140,6 +140,13 @@ export const api = {
     },
   },
   users: {
+    list: async (filters?: any) => {
+      const params = new URLSearchParams(filters || {});
+      const res = await fetch(`${API_BASE}/users?${params}`, {
+        credentials: "include",
+      });
+      return res.json();
+    },
     updateOnlineStatus: async (id: string, isOnline: boolean) => {
       const res = await fetch(`${API_BASE}/users/${id}/online-status`, {
         method: "PATCH",

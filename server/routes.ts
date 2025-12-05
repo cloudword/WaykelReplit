@@ -351,6 +351,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // User routes
+  app.get("/api/users", async (req, res) => {
+    try {
+      const { transporterId, role } = req.query;
+      let users;
+      if (transporterId && role) {
+        users = await storage.getUsersByTransporterAndRole(transporterId as string, role as string);
+      } else if (transporterId) {
+        users = await storage.getUsersByTransporter(transporterId as string);
+      } else {
+        users = await storage.getAllUsers();
+      }
+      const usersWithoutPasswords = users.map(({ password, ...user }) => user);
+      res.json(usersWithoutPasswords);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
   app.patch("/api/users/:id/online-status", async (req, res) => {
     try {
       const { isOnline } = req.body;

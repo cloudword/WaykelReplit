@@ -24,6 +24,9 @@ import AdminSettings from "@/pages/admin/settings";
 
 import TransporterDashboard from "@/pages/transporter/dashboard";
 import TransporterBids from "@/pages/transporter/bids";
+import TransporterDrivers from "@/pages/transporter/drivers";
+import TransporterVehicles from "@/pages/transporter/vehicles";
+import TransporterMarketplace from "@/pages/transporter/marketplace";
 
 import CustomerDashboard from "@/pages/customer/dashboard";
 import CustomerRides from "@/pages/customer/rides";
@@ -45,9 +48,12 @@ function Router() {
       <Route path="/driver/book-ride" component={BookRide} />
       <Route path="/driver/notifications" component={Notifications} />
 
-      {/* Transporter App Routes */}
+      {/* Transporter Admin Panel Routes */}
       <Route path="/transporter" component={TransporterDashboard} />
       <Route path="/transporter/bids" component={TransporterBids} />
+      <Route path="/transporter/drivers" component={TransporterDrivers} />
+      <Route path="/transporter/vehicles" component={TransporterVehicles} />
+      <Route path="/transporter/marketplace" component={TransporterMarketplace} />
 
       {/* Customer/Rider App Routes */}
       <Route path="/customer" component={CustomerDashboard} />
