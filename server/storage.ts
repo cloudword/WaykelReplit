@@ -8,7 +8,7 @@ import {
   type Document, type InsertDocument
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, asc } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -57,6 +57,7 @@ export interface IStorage {
   // Bids
   getBid(id: string): Promise<Bid | undefined>;
   getRideBids(rideId: string): Promise<Bid[]>;
+  getCheapestRideBids(rideId: string, limit?: number): Promise<Bid[]>;
   getUserBids(userId: string): Promise<Bid[]>;
   getTransporterBids(transporterId: string): Promise<Bid[]>;
   getAllBids(): Promise<Bid[]>;
@@ -242,6 +243,10 @@ export class DatabaseStorage implements IStorage {
 
   async getRideBids(rideId: string): Promise<Bid[]> {
     return await db.select().from(bids).where(eq(bids.rideId, rideId)).orderBy(desc(bids.createdAt));
+  }
+
+  async getCheapestRideBids(rideId: string, limit: number = 5): Promise<Bid[]> {
+    return await db.select().from(bids).where(eq(bids.rideId, rideId)).orderBy(asc(bids.amount)).limit(limit);
   }
 
   async getUserBids(userId: string): Promise<Bid[]> {

@@ -295,6 +295,52 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Get cheapest bids for a ride (for customer view)
+  app.get("/api/rides/:rideId/cheapest-bids", async (req, res) => {
+    try {
+      const { rideId } = req.params;
+      const limit = parseInt(req.query.limit as string) || 5;
+      const bids = await storage.getCheapestRideBids(rideId, Math.min(limit, 5));
+      
+      // Enrich bids with transporter info
+      const enrichedBids = await Promise.all(bids.map(async (bid) => {
+        let transporterName = "Unknown Transporter";
+        if (bid.transporterId) {
+          const transporter = await storage.getTransporter(bid.transporterId);
+          if (transporter) {
+            transporterName = transporter.companyName;
+          }
+        }
+        
+        let vehicleInfo = null;
+        if (bid.vehicleId) {
+          const vehicle = await storage.getVehicle(bid.vehicleId);
+          if (vehicle) {
+            vehicleInfo = {
+              type: vehicle.type,
+              model: vehicle.model,
+              plateNumber: vehicle.plateNumber
+            };
+          }
+        }
+        
+        return {
+          id: bid.id,
+          amount: bid.amount,
+          status: bid.status,
+          transporterName,
+          vehicle: vehicleInfo,
+          createdAt: bid.createdAt
+        };
+      }));
+      
+      res.json(enrichedBids);
+    } catch (error) {
+      console.error("Failed to fetch cheapest bids:", error);
+      res.status(500).json({ error: "Failed to fetch bids" });
+    }
+  });
+
   // Vehicle routes
   app.get("/api/vehicles", async (req, res) => {
     const { userId, transporterId } = req.query;

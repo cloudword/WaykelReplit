@@ -77,6 +77,10 @@ export const api = {
       });
       return res.json();
     },
+    getCheapestBids: async (rideId: string, limit: number = 5) => {
+      const res = await fetch(`${API_BASE}/rides/${rideId}/cheapest-bids?limit=${limit}`);
+      return res.json();
+    },
   },
   bids: {
     list: async (filters?: any) => {
