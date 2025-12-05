@@ -9,25 +9,54 @@ import {
   setObjectAclPolicy,
 } from "./objectAcl";
 
+// Check if running on Replit
+const isReplit = process.env.REPL_ID !== undefined;
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 
-export const objectStorageClient = new Storage({
-  credentials: {
-    audience: "replit",
-    subject_token_type: "access_token",
-    token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
-    type: "external_account",
-    credential_source: {
-      url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
-      format: {
-        type: "json",
-        subject_token_field_name: "access_token",
+// Create storage client based on environment
+function createStorageClient(): Storage {
+  if (isReplit) {
+    // Use Replit sidecar for authentication
+    return new Storage({
+      credentials: {
+        audience: "replit",
+        subject_token_type: "access_token",
+        token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
+        type: "external_account",
+        credential_source: {
+          url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
+          format: {
+            type: "json",
+            subject_token_field_name: "access_token",
+          },
+        },
+        universe_domain: "googleapis.com",
       },
-    },
-    universe_domain: "googleapis.com",
-  },
-  projectId: "",
-});
+      projectId: process.env.GCS_PROJECT_ID || "",
+    });
+  }
+
+  // For self-hosted environments, use standard GCS authentication
+  // Options:
+  // 1. GOOGLE_APPLICATION_CREDENTIALS env var pointing to service account JSON
+  // 2. GCS_KEY_FILE env var pointing to service account JSON
+  // 3. Application Default Credentials (ADC)
+  const keyFilename = process.env.GCS_KEY_FILE || process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  
+  if (keyFilename) {
+    return new Storage({
+      keyFilename,
+      projectId: process.env.GCS_PROJECT_ID,
+    });
+  }
+
+  // Fall back to Application Default Credentials
+  return new Storage({
+    projectId: process.env.GCS_PROJECT_ID,
+  });
+}
+
+export const objectStorageClient = createStorageClient();
 
 export class ObjectNotFoundError extends Error {
   constructor() {
