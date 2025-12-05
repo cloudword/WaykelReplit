@@ -1,7 +1,9 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import MemoryStore from "memorystore";
 
 const app = express();
 const httpServer = createServer(app);
@@ -11,6 +13,43 @@ declare module "http" {
     rawBody: unknown;
   }
 }
+
+declare module "express-session" {
+  interface SessionData {
+    user: {
+      id: string;
+      role: string;
+      isSuperAdmin?: boolean;
+    };
+  }
+}
+
+const MemoryStoreSession = MemoryStore(session);
+
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret && process.env.NODE_ENV === "production") {
+  throw new Error("SESSION_SECRET environment variable is required in production");
+}
+if (!sessionSecret) {
+  console.warn("WARNING: SESSION_SECRET not set. Using a randomly generated secret for development.");
+}
+
+app.use(
+  session({
+    secret: sessionSecret || require("crypto").randomBytes(32).toString("hex"),
+    resave: false,
+    saveUninitialized: false,
+    store: new MemoryStoreSession({
+      checkPeriod: 86400000,
+    }),
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000,
+      sameSite: "lax",
+    },
+  })
+);
 
 app.use(
   express.json({

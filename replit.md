@@ -4,10 +4,34 @@
 
 Waykel is a production-ready commercial vehicle logistics platform similar to ride-sharing services (Uber/Ola) but focused on commercial vehicle transportation. The system connects drivers/transporters with loads across India, enabling them to find work, bid on rides, and earn through the platform.
 
-The application serves three distinct user roles:
-- **Drivers**: Mobile-first interface for accepting rides, tracking earnings, and managing their fleet
-- **Transporters**: Web dashboard for managing company fleets and placing bids on available loads
-- **Super Admin**: Comprehensive web panel for overseeing the entire platform, approving bids, managing users, and monitoring operations
+## User Role Hierarchy
+
+The platform has a clear hierarchy of user roles:
+
+1. **Super Admin (Waykel)** - Platform owner with full control
+   - Username: waykelAdmin / Password: Waykel6@singh
+   - Manages all transporters, drivers, vehicles, bids, and rides
+   - Approves/suspends transporters
+   - Approves/rejects bids
+   - Web-based admin panel at `/admin/*`
+
+2. **Transporters** - Fleet owners/companies (like sub-admins)
+   - Have their own admin panel at `/transporter/*`
+   - Manage their fleet of drivers and vehicles
+   - Browse marketplace and place bids on available loads
+   - Track their bids, earnings, and operations
+   - Must be approved by Super Admin before they can access the platform
+   - A transporter and driver CAN be the same user (owner-operator)
+
+3. **Drivers** - Work under transporters
+   - Mobile app only at `/driver/*` (no admin panel)
+   - Accept rides, track earnings, manage their profile
+   - Can be independent or linked to a transporter via `transporterId`
+   - Simple mobile-first interface for field operations
+
+4. **Customers** - Book transportation services
+   - Have both dashboard and mobile app at `/customer/*`
+   - Book rides, track deliveries, view history
 
 ## User Preferences
 
@@ -50,9 +74,17 @@ The backend follows a traditional REST API architecture serving JSON responses. 
 - `/api/transporters/*` - Transporter company management
 
 **Authentication Strategy**: 
+- Session-based authentication using express-session with PostgreSQL session store (connect-pg-simple)
 - Password-based authentication using bcrypt for hashing
-- JWT tokens for session management (not yet fully implemented in routes)
-- Phone number as primary identifier instead of email (common in Indian logistics)
+- Session regeneration on login to prevent session fixation attacks
+- Phone number as primary identifier for regular users; username for Super Admin
+- Super Admin credentials: username "waykelAdmin" with password "Waykel6@singh"
+
+**Transporter Approval Workflow**:
+- New transporters register with "pending_approval" status
+- Backend enforces status check during login - pending/suspended transporters cannot authenticate
+- Admin approves transporters via the admin dashboard before they can access the platform
+- Status options: pending_approval, active, suspended
 
 **Storage Layer Abstraction**:
 The `storage.ts` module provides an interface-based abstraction over database operations, making it easy to swap ORM implementations or databases. All database interactions go through this storage interface rather than direct ORM calls in routes.

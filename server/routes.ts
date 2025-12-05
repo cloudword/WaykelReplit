@@ -52,17 +52,118 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.post("/api/auth/login", async (req, res) => {
     try {
-      const { phone, password } = req.body;
-      const user = await storage.getUserByPhone(phone);
+      const { phone, password, username } = req.body;
+      
+      let user;
+      if (username) {
+        user = await storage.getUserByUsername(username);
+      }
+      if (!user && phone) {
+        user = await storage.getUserByPhone(phone);
+      }
+      // Also try looking up by phone using the username value (for flexible login)
+      if (!user && username) {
+        user = await storage.getUserByPhone(username);
+      }
       
       if (!user || !(await bcrypt.compare(password, user.password))) {
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
-      const { password: _, ...userWithoutPassword } = user;
-      res.json(userWithoutPassword);
+      if (user.role === "transporter" && user.transporterId) {
+        const transporter = await storage.getTransporter(user.transporterId);
+        if (transporter) {
+          if (transporter.status === "pending_approval") {
+            return res.status(403).json({ error: "Your account is pending admin approval. Please wait for approval before logging in." });
+          }
+          if (transporter.status === "suspended") {
+            return res.status(403).json({ error: "Your account has been suspended. Please contact support." });
+          }
+        }
+      }
+
+      req.session.regenerate((err) => {
+        if (err) {
+          return res.status(500).json({ error: "Session error" });
+        }
+
+        req.session.user = {
+          id: user.id,
+          role: user.role,
+          isSuperAdmin: user.isSuperAdmin || false,
+        };
+
+        req.session.save((saveErr) => {
+          if (saveErr) {
+            return res.status(500).json({ error: "Session save error" });
+          }
+          const { password: _, ...userWithoutPassword } = user;
+          res.json(userWithoutPassword);
+        });
+      });
     } catch (error) {
       res.status(400).json({ error: "Login failed" });
+    }
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Logout failed" });
+      }
+      res.clearCookie("connect.sid");
+      res.json({ success: true, message: "Logged out successfully" });
+    });
+  });
+
+  app.get("/api/auth/session", (req, res) => {
+    if (req.session.user) {
+      res.json({ authenticated: true, user: req.session.user });
+    } else {
+      res.json({ authenticated: false });
+    }
+  });
+
+  app.post("/api/auth/change-password", async (req, res) => {
+    try {
+      if (!req.session.user) {
+        return res.status(401).json({ error: "Not authenticated. Please log in again." });
+      }
+
+      const sessionUserId = req.session.user.id;
+      const { currentPassword, newPassword } = req.body;
+      
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: "Current and new password are required" });
+      }
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({ error: "New password must be at least 8 characters" });
+      }
+
+      if (!/[A-Z]/.test(newPassword)) {
+        return res.status(400).json({ error: "New password must contain at least one uppercase letter" });
+      }
+
+      if (!/[0-9]/.test(newPassword)) {
+        return res.status(400).json({ error: "New password must contain at least one number" });
+      }
+
+      const user = await storage.getUser(sessionUserId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (!(await bcrypt.compare(currentPassword, user.password))) {
+        return res.status(401).json({ error: "Current password is incorrect" });
+      }
+
+      const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+      await storage.updateUserPassword(sessionUserId, hashedNewPassword);
+      
+      res.json({ success: true, message: "Password updated successfully" });
+    } catch (error) {
+      res.status(400).json({ error: "Failed to change password" });
     }
   });
 
@@ -250,6 +351,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // User routes
+  app.get("/api/users", async (req, res) => {
+    try {
+      const { transporterId, role } = req.query;
+      let users;
+      if (transporterId && role) {
+        users = await storage.getUsersByTransporterAndRole(transporterId as string, role as string);
+      } else if (transporterId) {
+        users = await storage.getUsersByTransporter(transporterId as string);
+      } else {
+        users = await storage.getAllUsers();
+      }
+      const usersWithoutPasswords = users.map(({ password, ...user }) => user);
+      res.json(usersWithoutPasswords);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
   app.patch("/api/users/:id/online-status", async (req, res) => {
     try {
       const { isOnline } = req.body;

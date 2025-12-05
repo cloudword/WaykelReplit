@@ -7,10 +7,12 @@ import { z } from "zod";
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
+  username: text("username").unique(),
   email: text("email").notNull().unique(),
   phone: text("phone").notNull().unique(),
   password: text("password").notNull(),
   role: text("role").notNull().$type<"driver" | "transporter" | "admin" | "customer">(),
+  isSuperAdmin: boolean("is_super_admin").default(false),
   transporterId: varchar("transporter_id"),
   isOnline: boolean("is_online").default(false),
   rating: decimal("rating", { precision: 3, scale: 2 }).default("0"),

@@ -6,15 +6,39 @@ export const api = {
       const res = await fetch(`${API_BASE}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(data),
       });
       return res.json();
     },
-    login: async (phone: string, password: string) => {
+    login: async (credentials: { phone?: string; username?: string; password: string }) => {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, password }),
+        credentials: "include",
+        body: JSON.stringify(credentials),
+      });
+      return res.json();
+    },
+    logout: async () => {
+      const res = await fetch(`${API_BASE}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+      return res.json();
+    },
+    checkSession: async () => {
+      const res = await fetch(`${API_BASE}/auth/session`, {
+        credentials: "include",
+      });
+      return res.json();
+    },
+    changePassword: async (currentPassword: string, newPassword: string) => {
+      const res = await fetch(`${API_BASE}/auth/change-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ currentPassword, newPassword }),
       });
       return res.json();
     },
@@ -116,6 +140,13 @@ export const api = {
     },
   },
   users: {
+    list: async (filters?: any) => {
+      const params = new URLSearchParams(filters || {});
+      const res = await fetch(`${API_BASE}/users?${params}`, {
+        credentials: "include",
+      });
+      return res.json();
+    },
     updateOnlineStatus: async (id: string, isOnline: boolean) => {
       const res = await fetch(`${API_BASE}/users/${id}/online-status`, {
         method: "PATCH",

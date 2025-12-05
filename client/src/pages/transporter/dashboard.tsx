@@ -1,18 +1,29 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { RideCard } from "@/components/ride-card";
 import { Button } from "@/components/ui/button";
-import { Bell, Building2, FileText, Truck, User } from "lucide-react";
-import { VehicleSelector } from "@/components/vehicle-selector";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  Bell, Building2, Truck, Users, FileText, TrendingUp, 
+  Plus, LogOut, Settings, Calendar, IndianRupee
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
 export default function TransporterDashboard() {
   const [_, setLocation] = useLocation();
-  const [showVehicleSelector, setShowVehicleSelector] = useState(false);
-  const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
-  const [selectedRidePrice, setSelectedRidePrice] = useState<number>(0);
-  const [rides, setRides] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    totalDrivers: 0,
+    totalVehicles: 0,
+    activeBids: 0,
+    completedRides: 0,
+    pendingBids: 0,
+    totalEarnings: 0,
+  });
+  const [recentBids, setRecentBids] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [user] = useState<any>(() => {
     const stored = localStorage.getItem("currentUser");
@@ -20,135 +31,297 @@ export default function TransporterDashboard() {
   });
 
   useEffect(() => {
-    const loadRides = async () => {
+    const loadDashboardData = async () => {
+      if (!user?.transporterId) return;
+      
       try {
-        const data = await api.rides.list({ status: "pending" });
-        setRides(Array.isArray(data) ? data : []);
+        const [bidsData, vehiclesData, usersData] = await Promise.all([
+          api.bids.list({ transporterId: user.transporterId }),
+          api.vehicles.list({ transporterId: user.transporterId }),
+          api.users.list({ transporterId: user.transporterId, role: "driver" }),
+        ]);
+
+        const bids = Array.isArray(bidsData) ? bidsData : [];
+        const vehiclesList = Array.isArray(vehiclesData) ? vehiclesData : [];
+        const driversList = Array.isArray(usersData) ? usersData : [];
+
+        setRecentBids(bids.slice(0, 5));
+        setVehicles(vehiclesList);
+        setDrivers(driversList);
+
+        const pendingBids = bids.filter((b: any) => b.status === "pending").length;
+        const acceptedBids = bids.filter((b: any) => b.status === "accepted");
+        const totalEarnings = acceptedBids.reduce((sum: number, b: any) => sum + parseFloat(b.amount || 0), 0);
+
+        setStats({
+          totalDrivers: driversList.length,
+          totalVehicles: vehiclesList.length,
+          activeBids: bids.length,
+          completedRides: acceptedBids.length,
+          pendingBids,
+          totalEarnings,
+        });
       } catch (error) {
-        console.error("Failed to load rides:", error);
+        console.error("Failed to load dashboard data:", error);
       } finally {
         setLoading(false);
       }
     };
-    loadRides();
-  }, []);
 
-  const handlePlaceBid = (rideId: string, price: number) => {
-    setSelectedRideId(rideId);
-    setSelectedRidePrice(price);
-    setShowVehicleSelector(true);
-  };
+    loadDashboardData();
+  }, [user?.transporterId]);
 
-  const handleBidConfirm = async (vehicleId: string, bidAmount: string) => {
-    if (!selectedRideId || !user?.id) return;
-    
+  const handleLogout = async () => {
     try {
-      await api.bids.create({
-        rideId: selectedRideId,
-        userId: user.id,
-        transporterId: user.transporterId,
-        vehicleId,
-        amount: bidAmount,
-      });
-      setShowVehicleSelector(false);
-      toast.success("Bid submitted! Awaiting Super Admin approval.");
-      setLocation("/transporter/bids");
+      await api.auth.logout();
+      localStorage.removeItem("currentUser");
+      setLocation("/auth");
+      toast.success("Logged out successfully");
     } catch (error) {
-      toast.error("Failed to place bid");
+      toast.error("Logout failed");
     }
   };
 
   if (!user) {
-    setLocation("/auth/login");
+    setLocation("/auth");
     return null;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      <header className="bg-white px-4 py-4 flex justify-between items-center sticky top-0 z-10 shadow-sm">
-        <div>
-          <div className="flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-blue-600" />
-            <h1 className="text-xl font-bold text-primary">Waykel Business</h1>
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center gap-3">
+              <Building2 className="h-8 w-8 text-blue-600" />
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">Transporter Panel</h1>
+                <p className="text-xs text-gray-500">{user.name}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" data-testid="button-notifications">
+                <Bell className="h-5 w-5" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => setLocation("/transporter/settings")} data-testid="button-settings">
+                <Settings className="h-5 w-5" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleLogout} data-testid="button-logout">
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </Button>
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground">{user.name} • Transporter</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <Button size="icon" variant="ghost" className="rounded-full h-8 w-8">
-            <Bell className="h-5 w-5 text-gray-600" />
-          </Button>
         </div>
       </header>
 
-      <main className="p-4 space-y-6">
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <h3 className="font-semibold text-blue-800 text-sm">How it works</h3>
-          <p className="text-xs text-blue-600 mt-1">
-            1. Browse loads → 2. Place your bid → 3. Wait for Super Admin approval → 4. Start delivery
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="font-bold text-lg">Marketplace (Available Loads)</h2>
-            <span className="text-xs font-medium bg-primary text-white px-2 py-0.5 rounded-full">
-              {rides.length}
-            </span>
+      <nav className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex gap-4 overflow-x-auto py-2">
+            <Button variant="ghost" className="text-blue-600 border-b-2 border-blue-600 rounded-none" data-testid="nav-dashboard">
+              Dashboard
+            </Button>
+            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/drivers")} data-testid="nav-drivers">
+              Drivers
+            </Button>
+            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/vehicles")} data-testid="nav-vehicles">
+              Vehicles
+            </Button>
+            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/bids")} data-testid="nav-bids">
+              Bids
+            </Button>
+            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/marketplace")} data-testid="nav-marketplace">
+              Marketplace
+            </Button>
           </div>
-
-          {loading ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <p>Loading available loads...</p>
-            </div>
-          ) : rides.length > 0 ? (
-            rides.map((ride) => (
-              <div key={ride.id} className="relative">
-                <RideCard 
-                  ride={ride} 
-                  data-testid={`ride-card-${ride.id}`}
-                />
-                <div className="absolute bottom-4 right-4">
-                   <Button 
-                     onClick={() => handlePlaceBid(ride.id, parseFloat(ride.price))} 
-                     className="h-9 shadow-lg"
-                     data-testid={`button-bid-${ride.id}`}
-                   >
-                     Place Bid
-                   </Button>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <p>No loads available for bidding.</p>
-            </div>
-          )}
-        </div>
-      </main>
-      
-      <VehicleSelector 
-        open={showVehicleSelector} 
-        onOpenChange={setShowVehicleSelector}
-        basePrice={selectedRidePrice}
-        onConfirm={handleBidConfirm}
-      />
-      
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 pb-safe-area-bottom z-50">
-        <div className="flex justify-around items-center h-16">
-           <Button variant="ghost" className="flex flex-col gap-1 h-full w-full text-primary">
-             <Truck size={20} />
-             <span className="text-[10px]">Marketplace</span>
-           </Button>
-           <Button variant="ghost" className="flex flex-col gap-1 h-full w-full text-gray-400 hover:text-gray-600" onClick={() => setLocation("/transporter/bids")}>
-             <FileText size={20} />
-             <span className="text-[10px]">My Bids</span>
-           </Button>
-           <Button variant="ghost" className="flex flex-col gap-1 h-full w-full text-gray-400 hover:text-gray-600" onClick={() => setLocation("/transporter/profile")}>
-             <User size={20} />
-             <span className="text-[10px]">Profile</span>
-           </Button>
         </div>
       </nav>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <Card data-testid="stat-drivers">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Total Drivers</CardTitle>
+              <Users className="h-4 w-4 text-blue-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalDrivers}</div>
+              <p className="text-xs text-gray-500">Active drivers in your fleet</p>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="stat-vehicles">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Total Vehicles</CardTitle>
+              <Truck className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalVehicles}</div>
+              <p className="text-xs text-gray-500">Registered vehicles</p>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="stat-bids">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Pending Bids</CardTitle>
+              <FileText className="h-4 w-4 text-orange-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.pendingBids}</div>
+              <p className="text-xs text-gray-500">Awaiting approval</p>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="stat-earnings">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Total Earnings</CardTitle>
+              <IndianRupee className="h-4 w-4 text-purple-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">₹{stats.totalEarnings.toLocaleString()}</div>
+              <p className="text-xs text-gray-500">From completed rides</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card className="lg:col-span-2" data-testid="recent-bids-card">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Recent Bids</CardTitle>
+                <CardDescription>Your latest bid submissions</CardDescription>
+              </div>
+              <Button size="sm" onClick={() => setLocation("/transporter/marketplace")} data-testid="button-new-bid">
+                <Plus className="h-4 w-4 mr-1" />
+                New Bid
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <p className="text-gray-500 text-center py-8">Loading...</p>
+              ) : recentBids.length > 0 ? (
+                <div className="space-y-4">
+                  {recentBids.map((bid) => (
+                    <div key={bid.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg" data-testid={`bid-row-${bid.id}`}>
+                      <div>
+                        <p className="font-medium text-sm">Bid #{bid.id.slice(0, 8)}</p>
+                        <p className="text-xs text-gray-500">₹{parseFloat(bid.amount).toLocaleString()}</p>
+                      </div>
+                      <Badge variant={
+                        bid.status === "accepted" ? "default" :
+                        bid.status === "pending" ? "secondary" : "destructive"
+                      }>
+                        {bid.status}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-center py-8">No bids yet. Browse the marketplace to place bids.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card data-testid="quick-actions-card">
+            <CardHeader>
+              <CardTitle>Quick Actions</CardTitle>
+              <CardDescription>Manage your fleet</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button className="w-full justify-start" variant="outline" onClick={() => setLocation("/transporter/drivers/add")} data-testid="button-add-driver">
+                <Users className="h-4 w-4 mr-2" />
+                Add New Driver
+              </Button>
+              <Button className="w-full justify-start" variant="outline" onClick={() => setLocation("/transporter/vehicles/add")} data-testid="button-add-vehicle">
+                <Truck className="h-4 w-4 mr-2" />
+                Add New Vehicle
+              </Button>
+              <Button className="w-full justify-start" variant="outline" onClick={() => setLocation("/transporter/marketplace")} data-testid="button-browse-loads">
+                <FileText className="h-4 w-4 mr-2" />
+                Browse Available Loads
+              </Button>
+              <Button className="w-full justify-start" variant="outline" onClick={() => setLocation("/transporter/earnings")} data-testid="button-view-earnings">
+                <TrendingUp className="h-4 w-4 mr-2" />
+                View Earnings Report
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          <Card data-testid="drivers-overview-card">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Drivers</CardTitle>
+                <CardDescription>Your fleet drivers</CardDescription>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => setLocation("/transporter/drivers")} data-testid="button-view-all-drivers">
+                View All
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {drivers.length > 0 ? (
+                <div className="space-y-3">
+                  {drivers.slice(0, 3).map((driver) => (
+                    <div key={driver.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg" data-testid={`driver-row-${driver.id}`}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                          <Users className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{driver.name}</p>
+                          <p className="text-xs text-gray-500">{driver.phone}</p>
+                        </div>
+                      </div>
+                      <Badge variant={driver.isOnline ? "default" : "secondary"}>
+                        {driver.isOnline ? "Online" : "Offline"}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-center py-4">No drivers added yet</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card data-testid="vehicles-overview-card">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Vehicles</CardTitle>
+                <CardDescription>Your fleet vehicles</CardDescription>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => setLocation("/transporter/vehicles")} data-testid="button-view-all-vehicles">
+                View All
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {vehicles.length > 0 ? (
+                <div className="space-y-3">
+                  {vehicles.slice(0, 3).map((vehicle) => (
+                    <div key={vehicle.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg" data-testid={`vehicle-row-${vehicle.id}`}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                          <Truck className="h-5 w-5 text-green-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{vehicle.plateNumber}</p>
+                          <p className="text-xs text-gray-500">{vehicle.type}</p>
+                        </div>
+                      </div>
+                      <Badge variant={vehicle.status === "active" ? "default" : "secondary"}>
+                        {vehicle.status}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-center py-4">No vehicles added yet</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </main>
     </div>
   );
 }
