@@ -17,6 +17,8 @@ export interface IStorage {
   getUserByPhone(phone: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
+  getCustomers(): Promise<User[]>;
+  getDrivers(): Promise<User[]>;
   getUsersByTransporter(transporterId: string): Promise<User[]>;
   getUsersByTransporterAndRole(transporterId: string, role: string): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
@@ -107,6 +109,14 @@ export class DatabaseStorage implements IStorage {
 
   async getAllUsers(): Promise<User[]> {
     return await db.select().from(users);
+  }
+
+  async getCustomers(): Promise<User[]> {
+    return await db.select().from(users).where(eq(users.role, "customer")).orderBy(desc(users.createdAt));
+  }
+
+  async getDrivers(): Promise<User[]> {
+    return await db.select().from(users).where(eq(users.role, "driver")).orderBy(desc(users.createdAt));
   }
 
   async getUsersByTransporter(transporterId: string): Promise<User[]> {

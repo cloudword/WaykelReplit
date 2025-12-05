@@ -384,6 +384,39 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Get all customers (for admin panel) with trip counts
+  app.get("/api/customers", async (req, res) => {
+    try {
+      const customers = await storage.getCustomers();
+      const allRides = await storage.getAllRides();
+      
+      const customersWithStats = await Promise.all(
+        customers.map(async ({ password, ...customer }) => {
+          const customerRides = allRides.filter(r => r.createdById === customer.id);
+          return {
+            ...customer,
+            totalTrips: customerRides.length,
+          };
+        })
+      );
+      
+      res.json(customersWithStats);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch customers" });
+    }
+  });
+
+  // Get all drivers (for admin panel)
+  app.get("/api/drivers", async (req, res) => {
+    try {
+      const drivers = await storage.getDrivers();
+      const driversWithoutPasswords = drivers.map(({ password, ...driver }) => driver);
+      res.json(driversWithoutPasswords);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch drivers" });
+    }
+  });
+
   app.patch("/api/users/:id/online-status", async (req, res) => {
     try {
       const { isOnline } = req.body;
