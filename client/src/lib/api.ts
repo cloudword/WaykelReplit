@@ -160,4 +160,27 @@ export const api = {
       return res.json();
     },
   },
+  documents: {
+    list: async (filters?: { userId?: string; vehicleId?: string; transporterId?: string }) => {
+      const params = new URLSearchParams(filters as any || {});
+      const res = await fetch(`${API_BASE}/documents?${params}`);
+      return res.json();
+    },
+    create: async (data: any) => {
+      const res = await fetch(`${API_BASE}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      return res.json();
+    },
+    updateStatus: async (id: string, status: string) => {
+      const res = await fetch(`${API_BASE}/documents/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      return res.json();
+    },
+  },
 };

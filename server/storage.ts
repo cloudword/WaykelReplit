@@ -46,6 +46,7 @@ export interface IStorage {
   getActiveRides(): Promise<Ride[]>;
   getCompletedRides(): Promise<Ride[]>;
   getDriverRides(driverId: string): Promise<Ride[]>;
+  getTransporterRides(transporterId: string): Promise<Ride[]>;
   createRide(ride: InsertRide): Promise<Ride>;
   updateRideStatus(id: string, status: string): Promise<void>;
   assignRideToDriver(rideId: string, driverId: string, vehicleId: string): Promise<void>;
@@ -54,6 +55,7 @@ export interface IStorage {
   getBid(id: string): Promise<Bid | undefined>;
   getRideBids(rideId: string): Promise<Bid[]>;
   getUserBids(userId: string): Promise<Bid[]>;
+  getTransporterBids(transporterId: string): Promise<Bid[]>;
   getAllBids(): Promise<Bid[]>;
   createBid(bid: InsertBid): Promise<Bid>;
   updateBidStatus(id: string, status: "pending" | "accepted" | "rejected"): Promise<void>;
@@ -61,7 +63,10 @@ export interface IStorage {
   // Documents
   getUserDocuments(userId: string): Promise<Document[]>;
   getTransporterDocuments(transporterId: string): Promise<Document[]>;
+  getVehicleDocuments(vehicleId: string): Promise<Document[]>;
+  getAllDocuments(): Promise<Document[]>;
   createDocument(document: InsertDocument): Promise<Document>;
+  updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected"): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -193,6 +198,10 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(rides).where(eq(rides.assignedDriverId, driverId)).orderBy(desc(rides.createdAt));
   }
 
+  async getTransporterRides(transporterId: string): Promise<Ride[]> {
+    return await db.select().from(rides).where(eq(rides.transporterId, transporterId)).orderBy(desc(rides.createdAt));
+  }
+
   async createRide(insertRide: InsertRide): Promise<Ride> {
     const [ride] = await db.insert(rides).values(insertRide).returning();
     return ride;
@@ -224,6 +233,10 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(bids).where(eq(bids.userId, userId)).orderBy(desc(bids.createdAt));
   }
 
+  async getTransporterBids(transporterId: string): Promise<Bid[]> {
+    return await db.select().from(bids).where(eq(bids.transporterId, transporterId)).orderBy(desc(bids.createdAt));
+  }
+
   async getAllBids(): Promise<Bid[]> {
     return await db.select().from(bids).orderBy(desc(bids.createdAt));
   }
@@ -239,16 +252,28 @@ export class DatabaseStorage implements IStorage {
 
   // Documents
   async getUserDocuments(userId: string): Promise<Document[]> {
-    return await db.select().from(documents).where(eq(documents.userId, userId));
+    return await db.select().from(documents).where(eq(documents.userId, userId)).orderBy(desc(documents.createdAt));
   }
 
   async getTransporterDocuments(transporterId: string): Promise<Document[]> {
-    return await db.select().from(documents).where(eq(documents.transporterId, transporterId));
+    return await db.select().from(documents).where(eq(documents.transporterId, transporterId)).orderBy(desc(documents.createdAt));
+  }
+
+  async getVehicleDocuments(vehicleId: string): Promise<Document[]> {
+    return await db.select().from(documents).where(eq(documents.vehicleId, vehicleId)).orderBy(desc(documents.createdAt));
+  }
+
+  async getAllDocuments(): Promise<Document[]> {
+    return await db.select().from(documents).orderBy(desc(documents.createdAt));
   }
 
   async createDocument(insertDocument: InsertDocument): Promise<Document> {
     const [document] = await db.insert(documents).values(insertDocument).returning();
     return document;
+  }
+
+  async updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected"): Promise<void> {
+    await db.update(documents).set({ status }).where(eq(documents.id, id));
   }
 }
 

@@ -133,6 +133,12 @@ export default function TransporterDashboard() {
             <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/marketplace")} data-testid="nav-marketplace">
               Marketplace
             </Button>
+            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/trips")} data-testid="nav-trips">
+              Trips
+            </Button>
+            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/documents")} data-testid="nav-documents">
+              Documents
+            </Button>
           </div>
         </div>
       </nav>

@@ -28,6 +28,8 @@ import TransporterBids from "@/pages/transporter/bids";
 import TransporterDrivers from "@/pages/transporter/drivers";
 import TransporterVehicles from "@/pages/transporter/vehicles";
 import TransporterMarketplace from "@/pages/transporter/marketplace";
+import TransporterTrips from "@/pages/transporter/trips";
+import TransporterDocuments from "@/pages/transporter/documents";
 
 import CustomerDashboard from "@/pages/customer/dashboard";
 import CustomerRides from "@/pages/customer/rides";
@@ -56,6 +58,8 @@ function Router() {
       <Route path="/transporter/drivers" component={TransporterDrivers} />
       <Route path="/transporter/vehicles" component={TransporterVehicles} />
       <Route path="/transporter/marketplace" component={TransporterMarketplace} />
+      <Route path="/transporter/trips" component={TransporterTrips} />
+      <Route path="/transporter/documents" component={TransporterDocuments} />
 
       {/* Customer/Rider App Routes */}
       <Route path="/customer" component={CustomerDashboard} />

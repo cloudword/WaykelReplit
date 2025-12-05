@@ -1,0 +1,339 @@
+import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, Building2, FileText, Upload, Users, Truck, RefreshCw, Loader2 } from "lucide-react";
+import { DocumentUpload } from "@/components/document-upload";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+
+export default function TransporterDocuments() {
+  const [_, setLocation] = useLocation();
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [uploadEntityType, setUploadEntityType] = useState<"driver" | "vehicle">("driver");
+  const [selectedEntityId, setSelectedEntityId] = useState("");
+  const [user] = useState<any>(() => {
+    const stored = localStorage.getItem("currentUser");
+    return stored ? JSON.parse(stored) : null;
+  });
+
+  const loadData = async () => {
+    if (!user?.transporterId) return;
+    setLoading(true);
+    try {
+      const [docsData, usersData, vehiclesData] = await Promise.all([
+        api.documents.list({ transporterId: user.transporterId }),
+        api.users.list({ transporterId: user.transporterId, role: "driver" }),
+        api.vehicles.list({ transporterId: user.transporterId }),
+      ]);
+      setDocuments(Array.isArray(docsData) ? docsData : []);
+      setDrivers(Array.isArray(usersData) ? usersData : []);
+      setVehicles(Array.isArray(vehiclesData) ? vehiclesData : []);
+    } catch (error) {
+      console.error("Failed to load data:", error);
+      toast.error("Failed to load documents");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [user?.transporterId]);
+
+  const driverDocs = documents.filter(d => d.entityType === "driver");
+  const vehicleDocs = documents.filter(d => d.entityType === "vehicle");
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "verified": return "bg-green-100 text-green-800";
+      case "pending": return "bg-yellow-100 text-yellow-800";
+      case "expired": return "bg-red-100 text-red-800";
+      case "rejected": return "bg-red-100 text-red-800";
+      default: return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const getDriverName = (userId: string) => {
+    const driver = drivers.find(d => d.id === userId);
+    return driver?.name || "Unknown Driver";
+  };
+
+  const getVehiclePlate = (vehicleId: string) => {
+    const vehicle = vehicles.find(v => v.id === vehicleId);
+    return vehicle?.plateNumber || "Unknown Vehicle";
+  };
+
+  const openUploadDialog = (type: "driver" | "vehicle") => {
+    setUploadEntityType(type);
+    setSelectedEntityId("");
+    setShowUploadDialog(true);
+  };
+
+  if (!user) {
+    setLocation("/auth");
+    return null;
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center h-16 gap-4">
+            <Button variant="ghost" size="icon" onClick={() => setLocation("/transporter")} data-testid="button-back">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex items-center gap-3 flex-1">
+              <FileText className="h-6 w-6 text-blue-600" />
+              <h1 className="text-xl font-bold text-gray-900">Documents</h1>
+            </div>
+            <Button variant="outline" size="sm" onClick={loadData} data-testid="button-refresh">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <Card className="cursor-pointer hover:bg-gray-50" onClick={() => openUploadDialog("driver")}>
+            <CardContent className="p-6 flex items-center gap-4">
+              <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Users className="h-6 w-6 text-blue-600" />
+              </div>
+              <div>
+                <p className="font-medium">Upload Driver Document</p>
+                <p className="text-sm text-gray-500">License, Aadhar, PAN</p>
+              </div>
+              <Upload className="h-5 w-5 text-gray-400 ml-auto" />
+            </CardContent>
+          </Card>
+
+          <Card className="cursor-pointer hover:bg-gray-50" onClick={() => openUploadDialog("vehicle")}>
+            <CardContent className="p-6 flex items-center gap-4">
+              <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
+                <Truck className="h-6 w-6 text-green-600" />
+              </div>
+              <div>
+                <p className="font-medium">Upload Vehicle Document</p>
+                <p className="text-sm text-gray-500">RC, Insurance, Fitness</p>
+              </div>
+              <Upload className="h-5 w-5 text-gray-400 ml-auto" />
+            </CardContent>
+          </Card>
+        </div>
+
+        <Tabs defaultValue="driver" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsTrigger value="driver" data-testid="tab-driver-docs">
+              <Users className="h-4 w-4 mr-2" />
+              Driver Documents ({driverDocs.length})
+            </TabsTrigger>
+            <TabsTrigger value="vehicle" data-testid="tab-vehicle-docs">
+              <Truck className="h-4 w-4 mr-2" />
+              Vehicle Documents ({vehicleDocs.length})
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="driver">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+              </div>
+            ) : driverDocs.length > 0 ? (
+              <div className="space-y-3">
+                {driverDocs.map(doc => (
+                  <Card key={doc.id} data-testid={`doc-card-${doc.id}`}>
+                    <CardContent className="p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <FileText className="h-5 w-5 text-gray-400" />
+                        <div>
+                          <p className="font-medium">{doc.documentName}</p>
+                          <p className="text-sm text-gray-500">Driver: {getDriverName(doc.userId)}</p>
+                          {doc.expiryDate && (
+                            <p className="text-xs text-gray-400">Expires: {doc.expiryDate}</p>
+                          )}
+                        </div>
+                      </div>
+                      <Badge className={getStatusColor(doc.status)}>{doc.status}</Badge>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-gray-500">
+                <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>No driver documents uploaded yet</p>
+                <Button className="mt-4" onClick={() => openUploadDialog("driver")}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload First Document
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="vehicle">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+              </div>
+            ) : vehicleDocs.length > 0 ? (
+              <div className="space-y-3">
+                {vehicleDocs.map(doc => (
+                  <Card key={doc.id} data-testid={`doc-card-${doc.id}`}>
+                    <CardContent className="p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <FileText className="h-5 w-5 text-gray-400" />
+                        <div>
+                          <p className="font-medium">{doc.documentName}</p>
+                          <p className="text-sm text-gray-500">Vehicle: {getVehiclePlate(doc.vehicleId)}</p>
+                          {doc.expiryDate && (
+                            <p className="text-xs text-gray-400">Expires: {doc.expiryDate}</p>
+                          )}
+                        </div>
+                      </div>
+                      <Badge className={getStatusColor(doc.status)}>{doc.status}</Badge>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-gray-500">
+                <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>No vehicle documents uploaded yet</p>
+                <Button className="mt-4" onClick={() => openUploadDialog("vehicle")}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload First Document
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      </main>
+
+      {showUploadDialog && (
+        <DocumentUploadWithSelection
+          open={showUploadDialog}
+          onOpenChange={setShowUploadDialog}
+          entityType={uploadEntityType}
+          drivers={drivers}
+          vehicles={vehicles}
+          transporterId={user.transporterId}
+          onSuccess={loadData}
+        />
+      )}
+    </div>
+  );
+}
+
+function DocumentUploadWithSelection({
+  open,
+  onOpenChange,
+  entityType,
+  drivers,
+  vehicles,
+  transporterId,
+  onSuccess,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  entityType: "driver" | "vehicle";
+  drivers: any[];
+  vehicles: any[];
+  transporterId: string;
+  onSuccess?: () => void;
+}) {
+  const [selectedId, setSelectedId] = useState("");
+  const [showDocUpload, setShowDocUpload] = useState(false);
+
+  const entities = entityType === "driver" ? drivers : vehicles;
+
+  if (showDocUpload && selectedId) {
+    return (
+      <DocumentUpload
+        open={open}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setShowDocUpload(false);
+            setSelectedId("");
+          }
+          onOpenChange(isOpen);
+        }}
+        entityType={entityType}
+        entityId={selectedId}
+        transporterId={transporterId}
+        onSuccess={onSuccess}
+      />
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <h2 className="text-lg font-semibold mb-4">
+          Select {entityType === "driver" ? "Driver" : "Vehicle"}
+        </h2>
+        
+        {entities.length === 0 ? (
+          <div className="text-center py-4 text-gray-500">
+            <p>No {entityType}s found</p>
+            <p className="text-sm mt-2">Add a {entityType} first before uploading documents</p>
+          </div>
+        ) : (
+          <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
+            {entities.map(entity => (
+              <div
+                key={entity.id}
+                className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                  selectedId === entity.id ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:bg-gray-50"
+                }`}
+                onClick={() => setSelectedId(entity.id)}
+                data-testid={`select-entity-${entity.id}`}
+              >
+                {entityType === "driver" ? (
+                  <div className="flex items-center gap-3">
+                    <Users className="h-5 w-5 text-gray-400" />
+                    <div>
+                      <p className="font-medium">{entity.name}</p>
+                      <p className="text-sm text-gray-500">{entity.phone}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <Truck className="h-5 w-5 text-gray-400" />
+                    <div>
+                      <p className="font-medium">{entity.plateNumber}</p>
+                      <p className="text-sm text-gray-500">{entity.model} • {entity.type}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button 
+            className="flex-1" 
+            disabled={!selectedId}
+            onClick={() => setShowDocUpload(true)}
+            data-testid="button-continue"
+          >
+            Continue
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
