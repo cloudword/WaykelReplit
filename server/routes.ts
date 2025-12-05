@@ -213,8 +213,21 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const data = insertRideSchema.parse(req.body);
       const ride = await storage.createRide(data);
       res.status(201).json(ride);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid ride data" });
+    } catch (error: any) {
+      console.error("Ride creation error:", error);
+      if (error.errors) {
+        const validationErrors = error.errors.map((e: any) => ({
+          field: e.path?.join('.') || 'unknown',
+          message: e.message
+        }));
+        return res.status(400).json({ 
+          error: "Invalid ride data", 
+          details: validationErrors,
+          requiredFields: ["pickupLocation", "dropLocation", "pickupTime", "date", "price", "distance", "cargoType", "weight"],
+          hint: "All required fields must be strings. Price should be a string like '5000.00'"
+        });
+      }
+      res.status(400).json({ error: "Invalid ride data", message: error.message });
     }
   });
 
