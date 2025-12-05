@@ -37,6 +37,10 @@ if (!sessionSecret) {
 // CORS middleware for customer portal
 const ALLOWED_ORIGINS = [
   process.env.CUSTOMER_PORTAL_URL,
+  'https://www.waykel.com',
+  'https://waykel.com',
+  'http://www.waykel.com',
+  'http://waykel.com',
   'http://localhost:3000',
   'http://localhost:5173',
 ].filter(Boolean);
