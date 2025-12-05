@@ -19,7 +19,10 @@ export default function AuthPage() {
   const [signupPhone, setSignupPhone] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
-  const [signupRole, setSignupRole] = useState<"customer" | "driver">("customer");
+  const [signupRole, setSignupRole] = useState<"customer" | "driver" | "transporter">("customer");
+  const [companyName, setCompanyName] = useState("");
+  const [fleetSize, setFleetSize] = useState("");
+  const [location, setLocationInput] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,23 +56,66 @@ export default function AuthPage() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const user = await api.auth.register({
-        name: signupName,
-        email: signupEmail || `${signupPhone}@waykel.com`,
-        phone: signupPhone,
-        password: signupPassword,
-        role: signupRole,
-      });
-      if (user.error) {
-        toast.error(user.error);
-      } else {
-        localStorage.setItem("currentUser", JSON.stringify(user));
-        if (signupRole === "customer") {
-          setLocation("/customer");
-        } else {
-          setLocation("/driver");
+      if (signupRole === "transporter") {
+        if (!companyName || !location) {
+          toast.error("Please fill in all company details");
+          setIsLoading(false);
+          return;
         }
-        toast.success("Registration successful!");
+        const transporter = await api.transporters.create({
+          companyName,
+          ownerName: signupName,
+          contact: signupPhone,
+          email: signupEmail || `${signupPhone}@waykel.com`,
+          location,
+          baseCity: location,
+          fleetSize: parseInt(fleetSize) || 1,
+          status: "pending_approval",
+        });
+        if (transporter.error) {
+          toast.error(transporter.error);
+        } else {
+          const user = await api.auth.register({
+            name: signupName,
+            email: signupEmail || `${signupPhone}@waykel.com`,
+            phone: signupPhone,
+            password: signupPassword,
+            role: "transporter",
+            transporterId: transporter.id,
+          });
+          if (user.error) {
+            toast.error(user.error);
+          } else {
+            toast.success("Registration submitted! Your account is pending admin approval. You will be able to login once approved.");
+            setSignupName("");
+            setSignupPhone("");
+            setSignupEmail("");
+            setSignupPassword("");
+            setCompanyName("");
+            setFleetSize("");
+            setLocationInput("");
+            setSignupRole("customer");
+          }
+        }
+      } else {
+        const user = await api.auth.register({
+          name: signupName,
+          email: signupEmail || `${signupPhone}@waykel.com`,
+          phone: signupPhone,
+          password: signupPassword,
+          role: signupRole,
+        });
+        if (user.error) {
+          toast.error(user.error);
+        } else {
+          localStorage.setItem("currentUser", JSON.stringify(user));
+          if (signupRole === "customer") {
+            setLocation("/customer");
+          } else {
+            setLocation("/driver");
+          }
+          toast.success("Registration successful!");
+        }
       }
     } catch (error) {
       toast.error("Registration failed");
@@ -138,28 +184,35 @@ export default function AuthPage() {
                   <Label className="text-sm font-medium">I want to:</Label>
                   <RadioGroup 
                     value={signupRole} 
-                    onValueChange={(v) => setSignupRole(v as "customer" | "driver")}
-                    className="grid grid-cols-2 gap-3"
+                    onValueChange={(v) => setSignupRole(v as "customer" | "driver" | "transporter")}
+                    className="grid grid-cols-3 gap-2"
                   >
-                    <div className={`flex items-center space-x-2 border rounded-lg p-3 cursor-pointer transition-colors ${signupRole === "customer" ? "border-primary bg-primary/5" : "border-gray-200"}`}>
+                    <div className={`flex items-center space-x-2 border rounded-lg p-2 cursor-pointer transition-colors ${signupRole === "customer" ? "border-primary bg-primary/5" : "border-gray-200"}`}>
                       <RadioGroupItem value="customer" id="customer" />
-                      <Label htmlFor="customer" className="flex items-center gap-2 cursor-pointer">
+                      <Label htmlFor="customer" className="flex items-center gap-1 cursor-pointer">
                         <User className="h-4 w-4" />
-                        <span className="text-sm">Book Transport</span>
+                        <span className="text-xs">Customer</span>
                       </Label>
                     </div>
-                    <div className={`flex items-center space-x-2 border rounded-lg p-3 cursor-pointer transition-colors ${signupRole === "driver" ? "border-primary bg-primary/5" : "border-gray-200"}`}>
+                    <div className={`flex items-center space-x-2 border rounded-lg p-2 cursor-pointer transition-colors ${signupRole === "driver" ? "border-primary bg-primary/5" : "border-gray-200"}`}>
                       <RadioGroupItem value="driver" id="driver" />
-                      <Label htmlFor="driver" className="flex items-center gap-2 cursor-pointer">
+                      <Label htmlFor="driver" className="flex items-center gap-1 cursor-pointer">
                         <Truck className="h-4 w-4" />
-                        <span className="text-sm">Drive/Transport</span>
+                        <span className="text-xs">Driver</span>
+                      </Label>
+                    </div>
+                    <div className={`flex items-center space-x-2 border rounded-lg p-2 cursor-pointer transition-colors ${signupRole === "transporter" ? "border-primary bg-primary/5" : "border-gray-200"}`}>
+                      <RadioGroupItem value="transporter" id="transporter" />
+                      <Label htmlFor="transporter" className="flex items-center gap-1 cursor-pointer">
+                        <Building2 className="h-4 w-4" />
+                        <span className="text-xs">Transporter</span>
                       </Label>
                     </div>
                   </RadioGroup>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
+                  <Label htmlFor="name">{signupRole === "transporter" ? "Owner Name" : "Full Name"}</Label>
                   <Input 
                     id="name" 
                     placeholder="Rajesh Kumar" 
@@ -169,6 +222,48 @@ export default function AuthPage() {
                     data-testid="input-name"
                   />
                 </div>
+
+                {signupRole === "transporter" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="company-name">Company Name</Label>
+                      <Input 
+                        id="company-name" 
+                        placeholder="ABC Logistics Pvt Ltd" 
+                        required 
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                        data-testid="input-company-name"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="location">City/Location</Label>
+                        <Input 
+                          id="location" 
+                          placeholder="Mumbai" 
+                          required 
+                          value={location}
+                          onChange={(e) => setLocationInput(e.target.value)}
+                          data-testid="input-location"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="fleet-size">Fleet Size</Label>
+                        <Input 
+                          id="fleet-size" 
+                          placeholder="5" 
+                          type="number"
+                          min="1"
+                          value={fleetSize}
+                          onChange={(e) => setFleetSize(e.target.value)}
+                          data-testid="input-fleet-size"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="signup-phone">Phone Number</Label>
                   <Input 
@@ -204,7 +299,10 @@ export default function AuthPage() {
                   />
                 </div>
                 <Button className="w-full h-12 text-base" type="submit" disabled={isLoading} data-testid="button-signup">
-                  {isLoading ? "Creating Account..." : signupRole === "customer" ? "Create Customer Account" : "Register as Driver"}
+                  {isLoading ? "Creating Account..." : 
+                    signupRole === "customer" ? "Create Customer Account" : 
+                    signupRole === "driver" ? "Register as Driver" : 
+                    "Register as Transporter"}
                 </Button>
               </form>
             </TabsContent>

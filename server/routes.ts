@@ -57,12 +57,29 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       let user;
       if (username) {
         user = await storage.getUserByUsername(username);
-      } else if (phone) {
+      }
+      if (!user && phone) {
         user = await storage.getUserByPhone(phone);
+      }
+      // Also try looking up by phone using the username value (for flexible login)
+      if (!user && username) {
+        user = await storage.getUserByPhone(username);
       }
       
       if (!user || !(await bcrypt.compare(password, user.password))) {
         return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      if (user.role === "transporter" && user.transporterId) {
+        const transporter = await storage.getTransporter(user.transporterId);
+        if (transporter) {
+          if (transporter.status === "pending_approval") {
+            return res.status(403).json({ error: "Your account is pending admin approval. Please wait for approval before logging in." });
+          }
+          if (transporter.status === "suspended") {
+            return res.status(403).json({ error: "Your account has been suspended. Please contact support." });
+          }
+        }
       }
 
       req.session.regenerate((err) => {

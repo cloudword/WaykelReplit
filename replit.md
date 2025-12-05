@@ -50,9 +50,17 @@ The backend follows a traditional REST API architecture serving JSON responses. 
 - `/api/transporters/*` - Transporter company management
 
 **Authentication Strategy**: 
+- Session-based authentication using express-session with PostgreSQL session store (connect-pg-simple)
 - Password-based authentication using bcrypt for hashing
-- JWT tokens for session management (not yet fully implemented in routes)
-- Phone number as primary identifier instead of email (common in Indian logistics)
+- Session regeneration on login to prevent session fixation attacks
+- Phone number as primary identifier for regular users; username for Super Admin
+- Super Admin credentials: username "waykelAdmin" with password "Waykel6@singh"
+
+**Transporter Approval Workflow**:
+- New transporters register with "pending_approval" status
+- Backend enforces status check during login - pending/suspended transporters cannot authenticate
+- Admin approves transporters via the admin dashboard before they can access the platform
+- Status options: pending_approval, active, suspended
 
 **Storage Layer Abstraction**:
 The `storage.ts` module provides an interface-based abstraction over database operations, making it easy to swap ORM implementations or databases. All database interactions go through this storage interface rather than direct ORM calls in routes.
