@@ -16,7 +16,7 @@ async function seed() {
     await db.delete(users);
 
     // Create Super Admin user with specified credentials
-    const superAdminPassword = await HASH_PASSWORD("Wakel6@singh");
+    const superAdminPassword = await HASH_PASSWORD("Waykel6@singh");
     const admin = await db
       .insert(users)
       .values({
@@ -292,12 +292,6 @@ async function seed() {
     console.log("✅ Bids created");
 
     console.log("\n✨ Database seeded successfully!\n");
-    console.log("📝 Test Credentials:");
-    console.log("   Super Admin: waykelAdmin / Wakel6@singh (or phone: 9999999999)");
-    console.log("   Customer: 9000000001 / customer123");
-    console.log("   Driver: 9111111111 / driver123");
-    console.log("   Driver: 9222222222 / driver123");
-    console.log("   Driver: 9333333333 / driver123");
   } catch (error) {
     console.error("❌ Seeding failed:", error);
     process.exit(1);

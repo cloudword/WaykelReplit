@@ -107,15 +107,12 @@ export default function AuthPage() {
                   <Label htmlFor="identifier">Phone Number or Username</Label>
                   <Input 
                     id="identifier" 
-                    placeholder="9111111111 or waykelAdmin" 
+                    placeholder="Enter phone number or username" 
                     required 
                     value={loginIdentifier}
                     onChange={(e) => setLoginIdentifier(e.target.value)}
                     data-testid="input-identifier"
                   />
-                  <p className="text-xs text-gray-500">
-                    Super Admin: waykelAdmin | Driver: 9111111111
-                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
