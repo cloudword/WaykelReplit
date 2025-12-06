@@ -1,14 +1,15 @@
 import { 
-  users, vehicles, rides, bids, transporters, documents,
+  users, vehicles, rides, bids, transporters, documents, notifications,
   type User, type InsertUser,
   type Vehicle, type InsertVehicle,
   type Ride, type InsertRide,
   type Bid, type InsertBid,
   type Transporter, type InsertTransporter,
-  type Document, type InsertDocument
+  type Document, type InsertDocument,
+  type Notification, type InsertNotification
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, and, desc, asc, or, sql, gte, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -72,6 +73,20 @@ export interface IStorage {
   getAllDocuments(): Promise<Document[]>;
   createDocument(document: InsertDocument): Promise<Document>;
   updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected"): Promise<void>;
+  
+  // Notifications
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  getUserNotifications(userId: string): Promise<Notification[]>;
+  getTransporterNotifications(transporterId: string): Promise<Notification[]>;
+  getUnreadNotifications(userId: string): Promise<Notification[]>;
+  markNotificationRead(id: string): Promise<void>;
+  markAllNotificationsRead(userId: string): Promise<void>;
+  
+  // Smart Matching
+  findMatchingTransporters(ride: Ride): Promise<{transporter: Transporter; matchScore: number; matchReason: string; vehicles: Vehicle[]}[]>;
+  getActiveTransporters(): Promise<Transporter[]>;
+  getVehiclesByTypeAndCapacity(vehicleType: string | null, minCapacityKg: number | null): Promise<Vehicle[]>;
+  updateRideAcceptedBid(rideId: string, bidId: string, transporterId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -306,6 +321,149 @@ export class DatabaseStorage implements IStorage {
 
   async updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected"): Promise<void> {
     await db.update(documents).set({ status }).where(eq(documents.id, id));
+  }
+
+  // Notifications
+  async createNotification(insertNotification: InsertNotification): Promise<Notification> {
+    const [notification] = await db.insert(notifications).values(insertNotification).returning();
+    return notification;
+  }
+
+  async getUserNotifications(userId: string): Promise<Notification[]> {
+    return await db.select().from(notifications).where(eq(notifications.recipientId, userId)).orderBy(desc(notifications.createdAt));
+  }
+
+  async getTransporterNotifications(transporterId: string): Promise<Notification[]> {
+    return await db.select().from(notifications).where(eq(notifications.recipientTransporterId, transporterId)).orderBy(desc(notifications.createdAt));
+  }
+
+  async getUnreadNotifications(userId: string): Promise<Notification[]> {
+    return await db.select().from(notifications).where(
+      and(eq(notifications.recipientId, userId), eq(notifications.isRead, false))
+    ).orderBy(desc(notifications.createdAt));
+  }
+
+  async markNotificationRead(id: string): Promise<void> {
+    await db.update(notifications).set({ isRead: true }).where(eq(notifications.id, id));
+  }
+
+  async markAllNotificationsRead(userId: string): Promise<void> {
+    await db.update(notifications).set({ isRead: true }).where(eq(notifications.recipientId, userId));
+  }
+
+  // Smart Matching
+  async getActiveTransporters(): Promise<Transporter[]> {
+    return await db.select().from(transporters).where(eq(transporters.status, "active"));
+  }
+
+  async getVehiclesByTypeAndCapacity(vehicleType: string | null, minCapacityKg: number | null): Promise<Vehicle[]> {
+    let query = db.select().from(vehicles).where(eq(vehicles.status, "active"));
+    
+    if (vehicleType) {
+      query = db.select().from(vehicles).where(
+        and(eq(vehicles.status, "active"), eq(vehicles.type, vehicleType))
+      );
+    }
+    
+    const allVehicles = await query;
+    
+    if (minCapacityKg) {
+      return allVehicles.filter(v => v.capacityKg && v.capacityKg >= minCapacityKg);
+    }
+    
+    return allVehicles;
+  }
+
+  async findMatchingTransporters(ride: Ride): Promise<{transporter: Transporter; matchScore: number; matchReason: string; vehicles: Vehicle[]}[]> {
+    const activeTransporters = await this.getActiveTransporters();
+    const matches: {transporter: Transporter; matchScore: number; matchReason: string; vehicles: Vehicle[]}[] = [];
+
+    for (const transporter of activeTransporters) {
+      let score = 0;
+      const reasons: string[] = [];
+      
+      const transporterVehicles = await this.getTransporterVehicles(transporter.id);
+      const matchingVehicles: Vehicle[] = [];
+      
+      for (const vehicle of transporterVehicles) {
+        if (vehicle.status !== "active") continue;
+        
+        let vehicleMatches = false;
+        
+        if (ride.requiredVehicleType && vehicle.type === ride.requiredVehicleType) {
+          score += 30;
+          reasons.push(`Vehicle type matches (${vehicle.type})`);
+          vehicleMatches = true;
+        } else if (!ride.requiredVehicleType) {
+          score += 10;
+          vehicleMatches = true;
+        }
+        
+        if (ride.weightKg && vehicle.capacityKg && vehicle.capacityKg >= ride.weightKg) {
+          score += 25;
+          reasons.push(`Capacity sufficient (${vehicle.capacityKg}kg >= ${ride.weightKg}kg)`);
+          vehicleMatches = true;
+        } else if (!ride.weightKg) {
+          score += 5;
+          vehicleMatches = true;
+        }
+        
+        if (vehicle.currentPincode && ride.pickupPincode && vehicle.currentPincode === ride.pickupPincode) {
+          score += 20;
+          reasons.push(`Vehicle currently at pickup pincode (${ride.pickupPincode})`);
+          vehicleMatches = true;
+        }
+        
+        if (vehicleMatches) {
+          matchingVehicles.push(vehicle);
+        }
+      }
+      
+      if (transporter.servicePincodes && ride.pickupPincode) {
+        if (transporter.servicePincodes.includes(ride.pickupPincode)) {
+          score += 15;
+          reasons.push(`Services pickup pincode (${ride.pickupPincode})`);
+        }
+      }
+      
+      if (transporter.basePincode && ride.pickupPincode && transporter.basePincode === ride.pickupPincode) {
+        score += 10;
+        reasons.push(`Based at pickup pincode`);
+      }
+      
+      if (transporter.preferredRoutes && ride.pickupLocation && ride.dropLocation) {
+        const routes = transporter.preferredRoutes as string[];
+        const routeKey = `${ride.pickupLocation}-${ride.dropLocation}`.toLowerCase();
+        if (routes.some(r => routeKey.includes(r.toLowerCase()))) {
+          score += 20;
+          reasons.push(`Serves this route`);
+        }
+      }
+      
+      if (transporter.isOwnerOperator) {
+        score += 5;
+        reasons.push(`Owner-operator (single fleet)`);
+      }
+      
+      if (score > 0 && matchingVehicles.length > 0) {
+        matches.push({
+          transporter,
+          matchScore: Math.min(score, 100),
+          matchReason: reasons.join("; "),
+          vehicles: matchingVehicles
+        });
+      }
+    }
+    
+    return matches.sort((a, b) => b.matchScore - a.matchScore);
+  }
+
+  async updateRideAcceptedBid(rideId: string, bidId: string, transporterId: string): Promise<void> {
+    await db.update(rides).set({ 
+      acceptedBidId: bidId,
+      transporterId: transporterId,
+      status: "assigned"
+    }).where(eq(rides.id, rideId));
   }
 }
 
