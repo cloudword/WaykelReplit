@@ -31,6 +31,10 @@ localPort = 39917
 externalPort = 3003
 
 [[ports]]
+localPort = 41469
+externalPort = 6000
+
+[[ports]]
 localPort = 41997
 externalPort = 5173
 
@@ -73,5 +77,5 @@ integrations = ["javascript_database:1.0.0", "github:1.0.0"]
 [userenv]
 
 [userenv.shared]
-CUSTOMER_PORTAL_URL = "https://www.waykel.com"
+CUSTOMER_PORTAL_URL = "https://ae9c1410-362d-4b0e-af75-e5fff997a3be-00-5koti0bqi7kz.spock.replit.dev,https://workspace.mayankpratapsi6.replit.app"
 PRIVATE_OBJECT_DIR = "/waykel-documents"

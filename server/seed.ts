@@ -23,7 +23,7 @@ async function seed() {
         name: "Super Admin",
         username: "waykelAdmin",
         email: "admin@waykel.com",
-        phone: "9999999999",
+        phone: "8699957305",
         password: superAdminPassword,
         role: "admin",
         isSuperAdmin: true,

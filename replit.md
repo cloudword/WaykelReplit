@@ -9,7 +9,7 @@ Waykel is a production-ready commercial vehicle logistics platform similar to ri
 The platform has a clear hierarchy of user roles:
 
 1. **Super Admin (Waykel)** - Platform owner with full control
-   - Username: waykelAdmin / Password: Waykel6@singh
+   - Phone: 8699957305 / Password: Waykel6@singh (can also login with username: waykelAdmin)
    - Manages all transporters, drivers, vehicles, bids, and rides
    - Approves/suspends transporters
    - Approves/rejects bids
@@ -78,7 +78,7 @@ The backend follows a traditional REST API architecture serving JSON responses. 
 - Password-based authentication using bcrypt for hashing
 - Session regeneration on login to prevent session fixation attacks
 - Phone number as primary identifier for regular users; username for Super Admin
-- Super Admin credentials: username "waykelAdmin" with password "Waykel6@singh"
+- Super Admin credentials: phone "8699957305" or username "waykelAdmin" with password "Waykel6@singh"
 
 **Transporter Approval Workflow**:
 - New transporters register with "pending_approval" status

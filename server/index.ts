@@ -36,8 +36,10 @@ if (!sessionSecret) {
 }
 
 // CORS middleware for customer portal
+// CUSTOMER_PORTAL_URL can be comma-separated for multiple origins
+const customerPortalUrls = (process.env.CUSTOMER_PORTAL_URL || '').split(',').map(u => u.trim()).filter(Boolean);
 const ALLOWED_ORIGINS = [
-  process.env.CUSTOMER_PORTAL_URL,
+  ...customerPortalUrls,
   'https://www.waykel.com',
   'https://waykel.com',
   'http://www.waykel.com',
