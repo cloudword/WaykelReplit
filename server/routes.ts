@@ -466,6 +466,62 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Update user details (admin only)
+  app.patch("/api/users/:id", async (req, res) => {
+    try {
+      if (!req.session.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Only Super Admin can update user details" });
+      }
+      
+      const { name, email, phone, role } = req.body;
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (email !== undefined) updates.email = email;
+      if (phone !== undefined) updates.phone = phone;
+      if (role !== undefined && ["driver", "transporter", "admin", "customer"].includes(role)) {
+        updates.role = role;
+      }
+      
+      const updatedUser = await storage.updateUser(req.params.id, updates);
+      if (!updatedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      const { password: _, ...userWithoutPassword } = updatedUser;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Failed to update user:", error);
+      res.status(400).json({ error: "Failed to update user" });
+    }
+  });
+
+  // Admin reset password for any user
+  app.post("/api/users/:id/reset-password", async (req, res) => {
+    try {
+      if (!req.session.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Only Super Admin can reset passwords" });
+      }
+      
+      const { newPassword } = req.body;
+      if (!newPassword || newPassword.length < 8) {
+        return res.status(400).json({ error: "Password must be at least 8 characters" });
+      }
+      
+      const user = await storage.getUser(req.params.id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await storage.updateUserPassword(req.params.id, hashedPassword);
+      
+      res.json({ success: true, message: "Password reset successfully" });
+    } catch (error) {
+      console.error("Failed to reset password:", error);
+      res.status(400).json({ error: "Failed to reset password" });
+    }
+  });
+
   app.patch("/api/users/:id/online-status", async (req, res) => {
     try {
       const { isOnline } = req.body;

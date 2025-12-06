@@ -24,6 +24,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUserOnlineStatus(id: string, isOnline: boolean): Promise<void>;
   updateUserPassword(id: string, hashedPassword: string): Promise<void>;
+  updateUser(id: string, updates: { name?: string; email?: string; phone?: string; role?: string }): Promise<User | undefined>;
   
   // Transporters
   getTransporter(id: string): Promise<Transporter | undefined>;
@@ -106,6 +107,17 @@ export class DatabaseStorage implements IStorage {
 
   async updateUserPassword(id: string, hashedPassword: string): Promise<void> {
     await db.update(users).set({ password: hashedPassword }).where(eq(users.id, id));
+  }
+
+  async updateUser(id: string, updates: { name?: string; email?: string; phone?: string; role?: string }): Promise<User | undefined> {
+    const updateData: any = {};
+    if (updates.name !== undefined) updateData.name = updates.name;
+    if (updates.email !== undefined) updateData.email = updates.email;
+    if (updates.phone !== undefined) updateData.phone = updates.phone;
+    if (updates.role !== undefined) updateData.role = updates.role;
+    
+    const [user] = await db.update(users).set(updateData).where(eq(users.id, id)).returning();
+    return user || undefined;
   }
 
   async getAllUsers(): Promise<User[]> {

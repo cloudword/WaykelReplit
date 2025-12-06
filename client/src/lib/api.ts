@@ -155,6 +155,24 @@ export const api = {
       });
       return res.json();
     },
+    update: async (id: string, data: { name?: string; email?: string; phone?: string; role?: string }) => {
+      const res = await fetch(`${API_BASE}/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      return res.json();
+    },
+    resetPassword: async (id: string, newPassword: string) => {
+      const res = await fetch(`${API_BASE}/users/${id}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ newPassword }),
+      });
+      return res.json();
+    },
     updateOnlineStatus: async (id: string, isOnline: boolean) => {
       const res = await fetch(`${API_BASE}/users/${id}/online-status`, {
         method: "PATCH",
