@@ -1,12 +1,15 @@
 # Waykel API - cURL Commands
 
-Base URL: `http://localhost:5000` (Development) or your custom domain (Production)
+## Base URLs:
+- **Production**: `https://admin.waykel.com`
+- **Development**: `https://dev.waykel.com`
+- **Local**: `http://localhost:5000`
 
 ## Authentication
 
 ### Register User
 ```bash
-curl -X POST http://localhost:5000/api/auth/register \
+curl -X POST https://admin.waykel.com/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Test User",
@@ -19,7 +22,7 @@ curl -X POST http://localhost:5000/api/auth/register \
 
 ### Login
 ```bash
-curl -X POST http://localhost:5000/api/auth/login \
+curl -X POST https://admin.waykel.com/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "phone": "9111111111",
@@ -33,42 +36,42 @@ curl -X POST http://localhost:5000/api/auth/login \
 
 ### Get All Rides
 ```bash
-curl -X GET http://localhost:5000/api/rides
+curl -X GET https://admin.waykel.com/api/rides
 ```
 
 ### Get Pending Rides (Awaiting Bids)
 ```bash
-curl -X GET "http://localhost:5000/api/rides?status=pending"
+curl -X GET "https://admin.waykel.com/api/rides?status=pending"
 ```
 
 ### Get Active Rides (In Transit)
 ```bash
-curl -X GET "http://localhost:5000/api/rides?status=active"
+curl -X GET "https://admin.waykel.com/api/rides?status=active"
 ```
 
 ### Get Scheduled Rides
 ```bash
-curl -X GET "http://localhost:5000/api/rides?status=scheduled"
+curl -X GET "https://admin.waykel.com/api/rides?status=scheduled"
 ```
 
 ### Get Completed Rides
 ```bash
-curl -X GET "http://localhost:5000/api/rides?status=completed"
+curl -X GET "https://admin.waykel.com/api/rides?status=completed"
 ```
 
 ### Get Driver's Rides
 ```bash
-curl -X GET "http://localhost:5000/api/rides?driverId=DRIVER_UUID"
+curl -X GET "https://admin.waykel.com/api/rides?driverId=DRIVER_UUID"
 ```
 
 ### Get Ride by ID
 ```bash
-curl -X GET http://localhost:5000/api/rides/RIDE_UUID
+curl -X GET https://admin.waykel.com/api/rides/RIDE_UUID
 ```
 
 ### Create Ride (Customer Booking)
 ```bash
-curl -X POST http://localhost:5000/api/rides \
+curl -X POST https://admin.waykel.com/api/rides \
   -H "Content-Type: application/json" \
   -d '{
     "pickupLocation": "Mumbai, Maharashtra",
@@ -89,7 +92,7 @@ curl -X POST http://localhost:5000/api/rides \
 
 ### Update Ride Status
 ```bash
-curl -X PATCH http://localhost:5000/api/rides/RIDE_UUID/status \
+curl -X PATCH https://admin.waykel.com/api/rides/RIDE_UUID/status \
   -H "Content-Type: application/json" \
   -d '{
     "status": "active"
@@ -98,7 +101,7 @@ curl -X PATCH http://localhost:5000/api/rides/RIDE_UUID/status \
 
 ### Assign Driver to Ride (Admin)
 ```bash
-curl -X PATCH http://localhost:5000/api/rides/RIDE_UUID/assign \
+curl -X PATCH https://admin.waykel.com/api/rides/RIDE_UUID/assign \
   -H "Content-Type: application/json" \
   -d '{
     "driverId": "DRIVER_UUID",
@@ -112,22 +115,22 @@ curl -X PATCH http://localhost:5000/api/rides/RIDE_UUID/assign \
 
 ### Get All Bids (Admin)
 ```bash
-curl -X GET http://localhost:5000/api/bids
+curl -X GET https://admin.waykel.com/api/bids
 ```
 
 ### Get Bids for a Ride
 ```bash
-curl -X GET "http://localhost:5000/api/bids?rideId=RIDE_UUID"
+curl -X GET "https://admin.waykel.com/api/bids?rideId=RIDE_UUID"
 ```
 
 ### Get User's Bids
 ```bash
-curl -X GET "http://localhost:5000/api/bids?userId=USER_UUID"
+curl -X GET "https://admin.waykel.com/api/bids?userId=USER_UUID"
 ```
 
 ### Place a Bid (Driver/Transporter)
 ```bash
-curl -X POST http://localhost:5000/api/bids \
+curl -X POST https://admin.waykel.com/api/bids \
   -H "Content-Type: application/json" \
   -d '{
     "rideId": "RIDE_UUID",
@@ -141,14 +144,14 @@ curl -X POST http://localhost:5000/api/bids \
 ### Approve/Reject Bid (Admin)
 ```bash
 # Approve
-curl -X PATCH http://localhost:5000/api/bids/BID_UUID/status \
+curl -X PATCH https://admin.waykel.com/api/bids/BID_UUID/status \
   -H "Content-Type: application/json" \
   -d '{
     "status": "accepted"
   }'
 
 # Reject
-curl -X PATCH http://localhost:5000/api/bids/BID_UUID/status \
+curl -X PATCH https://admin.waykel.com/api/bids/BID_UUID/status \
   -H "Content-Type: application/json" \
   -d '{
     "status": "rejected"
@@ -161,17 +164,17 @@ curl -X PATCH http://localhost:5000/api/bids/BID_UUID/status \
 
 ### Get User's Vehicles
 ```bash
-curl -X GET "http://localhost:5000/api/vehicles?userId=USER_UUID"
+curl -X GET "https://admin.waykel.com/api/vehicles?userId=USER_UUID"
 ```
 
 ### Get Transporter's Fleet
 ```bash
-curl -X GET "http://localhost:5000/api/vehicles?transporterId=TRANSPORTER_UUID"
+curl -X GET "https://admin.waykel.com/api/vehicles?transporterId=TRANSPORTER_UUID"
 ```
 
 ### Register Vehicle
 ```bash
-curl -X POST http://localhost:5000/api/vehicles \
+curl -X POST https://admin.waykel.com/api/vehicles \
   -H "Content-Type: application/json" \
   -d '{
     "userId": "USER_UUID",
@@ -190,17 +193,17 @@ curl -X POST http://localhost:5000/api/vehicles \
 
 ### Get All Transporters
 ```bash
-curl -X GET http://localhost:5000/api/transporters
+curl -X GET https://admin.waykel.com/api/transporters
 ```
 
 ### Get Pending Transporters
 ```bash
-curl -X GET "http://localhost:5000/api/transporters?status=pending_approval"
+curl -X GET "https://admin.waykel.com/api/transporters?status=pending_approval"
 ```
 
 ### Register Transporter Company
 ```bash
-curl -X POST http://localhost:5000/api/transporters \
+curl -X POST https://admin.waykel.com/api/transporters \
   -H "Content-Type: application/json" \
   -d '{
     "companyName": "Quick Logistics",
@@ -218,14 +221,14 @@ curl -X POST http://localhost:5000/api/transporters \
 ### Approve/Suspend Transporter (Admin)
 ```bash
 # Approve
-curl -X PATCH http://localhost:5000/api/transporters/TRANSPORTER_UUID/status \
+curl -X PATCH https://admin.waykel.com/api/transporters/TRANSPORTER_UUID/status \
   -H "Content-Type: application/json" \
   -d '{
     "status": "active"
   }'
 
 # Suspend
-curl -X PATCH http://localhost:5000/api/transporters/TRANSPORTER_UUID/status \
+curl -X PATCH https://admin.waykel.com/api/transporters/TRANSPORTER_UUID/status \
   -H "Content-Type: application/json" \
   -d '{
     "status": "suspended"
@@ -238,7 +241,7 @@ curl -X PATCH http://localhost:5000/api/transporters/TRANSPORTER_UUID/status \
 
 ### Toggle Driver Online Status
 ```bash
-curl -X PATCH http://localhost:5000/api/users/USER_UUID/online-status \
+curl -X PATCH https://admin.waykel.com/api/users/USER_UUID/online-status \
   -H "Content-Type: application/json" \
   -d '{
     "isOnline": true

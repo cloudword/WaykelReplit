@@ -7,12 +7,17 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:5000",
+      "value": "https://admin.waykel.com",
       "type": "string"
     },
     {
-      "key": "prodUrl",
-      "value": "https://your-domain.com",
+      "key": "devUrl",
+      "value": "https://dev.waykel.com",
+      "type": "string"
+    },
+    {
+      "key": "localUrl",
+      "value": "http://localhost:5000",
       "type": "string"
     }
   ],
