@@ -8,7 +8,7 @@ import {
   type Document, type InsertDocument
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, asc } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -17,11 +17,14 @@ export interface IStorage {
   getUserByPhone(phone: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
+  getCustomers(): Promise<User[]>;
+  getDrivers(): Promise<User[]>;
   getUsersByTransporter(transporterId: string): Promise<User[]>;
   getUsersByTransporterAndRole(transporterId: string, role: string): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   updateUserOnlineStatus(id: string, isOnline: boolean): Promise<void>;
   updateUserPassword(id: string, hashedPassword: string): Promise<void>;
+  updateUser(id: string, updates: { name?: string; email?: string; phone?: string; role?: string }): Promise<User | undefined>;
   
   // Transporters
   getTransporter(id: string): Promise<Transporter | undefined>;
@@ -55,6 +58,7 @@ export interface IStorage {
   // Bids
   getBid(id: string): Promise<Bid | undefined>;
   getRideBids(rideId: string): Promise<Bid[]>;
+  getCheapestRideBids(rideId: string, limit?: number): Promise<Bid[]>;
   getUserBids(userId: string): Promise<Bid[]>;
   getTransporterBids(transporterId: string): Promise<Bid[]>;
   getAllBids(): Promise<Bid[]>;
@@ -105,8 +109,27 @@ export class DatabaseStorage implements IStorage {
     await db.update(users).set({ password: hashedPassword }).where(eq(users.id, id));
   }
 
+  async updateUser(id: string, updates: { name?: string; email?: string; phone?: string; role?: string }): Promise<User | undefined> {
+    const updateData: any = {};
+    if (updates.name !== undefined) updateData.name = updates.name;
+    if (updates.email !== undefined) updateData.email = updates.email;
+    if (updates.phone !== undefined) updateData.phone = updates.phone;
+    if (updates.role !== undefined) updateData.role = updates.role;
+    
+    const [user] = await db.update(users).set(updateData).where(eq(users.id, id)).returning();
+    return user || undefined;
+  }
+
   async getAllUsers(): Promise<User[]> {
     return await db.select().from(users);
+  }
+
+  async getCustomers(): Promise<User[]> {
+    return await db.select().from(users).where(eq(users.role, "customer")).orderBy(desc(users.createdAt));
+  }
+
+  async getDrivers(): Promise<User[]> {
+    return await db.select().from(users).where(eq(users.role, "driver")).orderBy(desc(users.createdAt));
   }
 
   async getUsersByTransporter(transporterId: string): Promise<User[]> {
@@ -232,6 +255,10 @@ export class DatabaseStorage implements IStorage {
 
   async getRideBids(rideId: string): Promise<Bid[]> {
     return await db.select().from(bids).where(eq(bids.rideId, rideId)).orderBy(desc(bids.createdAt));
+  }
+
+  async getCheapestRideBids(rideId: string, limit: number = 5): Promise<Bid[]> {
+    return await db.select().from(bids).where(eq(bids.rideId, rideId)).orderBy(asc(bids.amount)).limit(limit);
   }
 
   async getUserBids(userId: string): Promise<Bid[]> {

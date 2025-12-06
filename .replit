@@ -30,6 +30,10 @@ externalPort = 3000
 localPort = 39917
 externalPort = 3003
 
+[[ports]]
+localPort = 44761
+externalPort = 4200
+
 [env]
 PORT = "5000"
 
@@ -62,3 +66,4 @@ integrations = ["javascript_database:1.0.0", "github:1.0.0"]
 
 [userenv.shared]
 CUSTOMER_PORTAL_URL = "https://www.waykel.com"
+PRIVATE_OBJECT_DIR = "/waykel-documents"

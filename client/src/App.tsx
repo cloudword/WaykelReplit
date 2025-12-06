@@ -22,6 +22,9 @@ import AdminTransporters from "@/pages/admin/transporters";
 import AdminCalendar from "@/pages/admin/calendar";
 import AdminEarnings from "@/pages/admin/earnings";
 import AdminSettings from "@/pages/admin/settings";
+import AdminCustomers from "@/pages/admin/customers";
+import AdminApiExplorer from "@/pages/admin/api-explorer";
+import AdminUsers from "@/pages/admin/users";
 
 import TransporterDashboard from "@/pages/transporter/dashboard";
 import TransporterBids from "@/pages/transporter/bids";
@@ -69,6 +72,7 @@ function Router() {
 
       {/* Super Admin Panel Routes */}
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/admin/users" component={AdminUsers} />
       <Route path="/admin/drivers" component={AdminDrivers} />
       <Route path="/admin/vehicles" component={AdminVehicles} />
       <Route path="/admin/rides" component={AdminBids} />
@@ -77,6 +81,8 @@ function Router() {
       <Route path="/admin/calendar" component={AdminCalendar} />
       <Route path="/admin/earnings" component={AdminEarnings} />
       <Route path="/admin/settings" component={AdminSettings} />
+      <Route path="/admin/customers" component={AdminCustomers} />
+      <Route path="/admin/api-explorer" component={AdminApiExplorer} />
       
       <Route component={NotFound} />
     </Switch>

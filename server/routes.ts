@@ -3,6 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertUserSchema, insertTransporterSchema, insertVehicleSchema, insertRideSchema, insertBidSchema, insertDocumentSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
+import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { ObjectPermission } from "./objectAcl";
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   // Health check endpoint for Docker and load balancers
@@ -91,6 +93,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           id: user.id,
           role: user.role,
           isSuperAdmin: user.isSuperAdmin || false,
+          transporterId: user.transporterId || undefined,
         };
 
         req.session.save((saveErr) => {
@@ -305,6 +308,52 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Get cheapest bids for a ride (for customer view)
+  app.get("/api/rides/:rideId/cheapest-bids", async (req, res) => {
+    try {
+      const { rideId } = req.params;
+      const limit = parseInt(req.query.limit as string) || 5;
+      const bids = await storage.getCheapestRideBids(rideId, Math.min(limit, 5));
+      
+      // Enrich bids with transporter info
+      const enrichedBids = await Promise.all(bids.map(async (bid) => {
+        let transporterName = "Unknown Transporter";
+        if (bid.transporterId) {
+          const transporter = await storage.getTransporter(bid.transporterId);
+          if (transporter) {
+            transporterName = transporter.companyName;
+          }
+        }
+        
+        let vehicleInfo = null;
+        if (bid.vehicleId) {
+          const vehicle = await storage.getVehicle(bid.vehicleId);
+          if (vehicle) {
+            vehicleInfo = {
+              type: vehicle.type,
+              model: vehicle.model,
+              plateNumber: vehicle.plateNumber
+            };
+          }
+        }
+        
+        return {
+          id: bid.id,
+          amount: bid.amount,
+          status: bid.status,
+          transporterName,
+          vehicle: vehicleInfo,
+          createdAt: bid.createdAt
+        };
+      }));
+      
+      res.json(enrichedBids);
+    } catch (error) {
+      console.error("Failed to fetch cheapest bids:", error);
+      res.status(500).json({ error: "Failed to fetch bids" });
+    }
+  });
+
   // Vehicle routes
   app.get("/api/vehicles", async (req, res) => {
     const { userId, transporterId } = req.query;
@@ -397,6 +446,95 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Get all customers (for admin panel) with trip counts
+  app.get("/api/customers", async (req, res) => {
+    try {
+      const customers = await storage.getCustomers();
+      const allRides = await storage.getAllRides();
+      
+      const customersWithStats = await Promise.all(
+        customers.map(async ({ password, ...customer }) => {
+          const customerRides = allRides.filter(r => r.createdById === customer.id);
+          return {
+            ...customer,
+            totalTrips: customerRides.length,
+          };
+        })
+      );
+      
+      res.json(customersWithStats);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch customers" });
+    }
+  });
+
+  // Get all drivers (for admin panel)
+  app.get("/api/drivers", async (req, res) => {
+    try {
+      const drivers = await storage.getDrivers();
+      const driversWithoutPasswords = drivers.map(({ password, ...driver }) => driver);
+      res.json(driversWithoutPasswords);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch drivers" });
+    }
+  });
+
+  // Update user details (admin only)
+  app.patch("/api/users/:id", async (req, res) => {
+    try {
+      if (!req.session.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Only Super Admin can update user details" });
+      }
+      
+      const { name, email, phone, role } = req.body;
+      const updates: any = {};
+      if (name !== undefined) updates.name = name;
+      if (email !== undefined) updates.email = email;
+      if (phone !== undefined) updates.phone = phone;
+      if (role !== undefined && ["driver", "transporter", "admin", "customer"].includes(role)) {
+        updates.role = role;
+      }
+      
+      const updatedUser = await storage.updateUser(req.params.id, updates);
+      if (!updatedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      const { password: _, ...userWithoutPassword } = updatedUser;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Failed to update user:", error);
+      res.status(400).json({ error: "Failed to update user" });
+    }
+  });
+
+  // Admin reset password for any user
+  app.post("/api/users/:id/reset-password", async (req, res) => {
+    try {
+      if (!req.session.user?.isSuperAdmin) {
+        return res.status(403).json({ error: "Only Super Admin can reset passwords" });
+      }
+      
+      const { newPassword } = req.body;
+      if (!newPassword || newPassword.length < 8) {
+        return res.status(400).json({ error: "Password must be at least 8 characters" });
+      }
+      
+      const user = await storage.getUser(req.params.id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await storage.updateUserPassword(req.params.id, hashedPassword);
+      
+      res.json({ success: true, message: "Password reset successfully" });
+    } catch (error) {
+      console.error("Failed to reset password:", error);
+      res.status(400).json({ error: "Failed to reset password" });
+    }
+  });
+
   app.patch("/api/users/:id/online-status", async (req, res) => {
     try {
       const { isOnline } = req.body;
@@ -424,13 +562,30 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       res.json(result);
     } catch (error) {
+      console.error("Error fetching documents:", error);
       res.status(500).json({ error: "Failed to fetch documents" });
     }
   });
 
   app.post("/api/documents", async (req, res) => {
+    if (!req.session?.user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
     try {
       const data = insertDocumentSchema.parse(req.body);
+      
+      // For transporters, enforce that transporterId matches session
+      if (req.session.user.transporterId) {
+        if (data.transporterId && data.transporterId !== req.session.user.transporterId) {
+          return res.status(403).json({ error: "Cannot create document for another transporter" });
+        }
+        // Auto-set transporterId from session if not provided
+        if (!data.transporterId) {
+          data.transporterId = req.session.user.transporterId;
+        }
+      }
+      
       const document = await storage.createDocument(data);
       res.status(201).json(document);
     } catch (error) {
@@ -446,6 +601,91 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ error: "Failed to update document status" });
+    }
+  });
+
+  // File upload routes for document storage (requires authentication)
+  app.post("/api/objects/upload", async (req, res) => {
+    if (!req.session?.user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const { fileName } = req.body;
+      const objectStorageService = new ObjectStorageService();
+      const { uploadURL, objectPath } = await objectStorageService.getObjectEntityUploadURL(fileName);
+      res.json({ uploadURL, objectPath });
+    } catch (error) {
+      console.error("Error getting upload URL:", error);
+      res.status(500).json({ error: "Failed to get upload URL" });
+    }
+  });
+
+  // Serve uploaded files (authenticated users with ACL access)
+  app.get("/objects/:objectPath(*)", async (req, res) => {
+    if (!req.session?.user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const objectStorageService = new ObjectStorageService();
+      const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+      
+      // Super admins can access all documents
+      if (req.session.user.isSuperAdmin || req.session.user.role === "admin") {
+        return objectStorageService.downloadObject(objectFile, res);
+      }
+      
+      // Check if user has permission to access this file
+      const userId = req.session.user.transporterId || req.session.user.id;
+      const canAccess = await objectStorageService.canAccessObjectEntity({
+        objectFile,
+        userId,
+        requestedPermission: ObjectPermission.READ,
+      });
+      
+      if (!canAccess) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      objectStorageService.downloadObject(objectFile, res);
+    } catch (error) {
+      console.error("Error fetching object:", error);
+      if (error instanceof ObjectNotFoundError) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Confirm file upload and set ACL (requires authentication)
+  app.post("/api/objects/confirm", async (req, res) => {
+    if (!req.session?.user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const { objectPath } = req.body;
+      if (!objectPath) {
+        return res.status(400).json({ error: "objectPath is required" });
+      }
+      
+      // Use session user's transporterId if available, otherwise their userId
+      const ownerId = req.session.user.transporterId || req.session.user.id;
+      
+      const objectStorageService = new ObjectStorageService();
+      const normalizedPath = await objectStorageService.trySetObjectEntityAclPolicy(
+        objectPath,
+        {
+          owner: ownerId,
+          visibility: "private", // Private by default - only owner and admins can access
+        }
+      );
+      
+      res.json({ objectPath: normalizedPath });
+    } catch (error) {
+      console.error("Error confirming upload:", error);
+      res.status(500).json({ error: "Failed to confirm upload" });
     }
   });
 

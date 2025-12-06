@@ -77,6 +77,10 @@ export const api = {
       });
       return res.json();
     },
+    getCheapestBids: async (rideId: string, limit: number = 5) => {
+      const res = await fetch(`${API_BASE}/rides/${rideId}/cheapest-bids?limit=${limit}`);
+      return res.json();
+    },
   },
   bids: {
     list: async (filters?: any) => {
@@ -148,6 +152,24 @@ export const api = {
       const params = new URLSearchParams(filters || {});
       const res = await fetch(`${API_BASE}/users?${params}`, {
         credentials: "include",
+      });
+      return res.json();
+    },
+    update: async (id: string, data: { name?: string; email?: string; phone?: string; role?: string }) => {
+      const res = await fetch(`${API_BASE}/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      return res.json();
+    },
+    resetPassword: async (id: string, newPassword: string) => {
+      const res = await fetch(`${API_BASE}/users/${id}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ newPassword }),
       });
       return res.json();
     },

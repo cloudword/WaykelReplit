@@ -168,7 +168,132 @@ The platform includes CORS support for a separate customer portal application:
 - **Maps/Geolocation**: Google Maps integration for route tracking
 - **Real-time Communication**: Socket.IO for driver tracking and notifications
 
+### Document Upload System
+
+The platform supports direct file uploads for driver and vehicle documents without requiring external services like Google Drive.
+
+**Features:**
+- Direct file upload to cloud storage (Replit Object Storage)
+- Multi-file upload support
+- Progress tracking for each file
+- Automatic ACL (Access Control List) assignment
+
+**Security Model:**
+- Files are stored with "private" visibility
+- Only the owner (transporter/user) and super admins can access files
+- Authentication required for all upload and download operations
+- Owner ID derived from session, not client-supplied data
+
+**Environment Variables:**
+- `PRIVATE_OBJECT_DIR` - Base directory for uploaded documents (e.g., `/waykel-documents`)
+
+**API Endpoints:**
+- `POST /api/objects/upload` - Get signed upload URL (requires auth)
+- `POST /api/objects/confirm` - Confirm upload and set ACL (requires auth)
+- `GET /objects/:objectPath(*)` - Download file (requires auth + ACL check)
+
 ### Replit-Specific Plugins
-- `@replit/vite-plugin-runtime-error-modal` - Development error overlay
-- `@replit/vite-plugin-cartographer` - Development tooling
+- `@replit/vite-plugin-runtime-error-modal` - Development error overlay (disabled outside Replit)
+- `@replit/vite-plugin-cartographer` - Development tooling (disabled outside Replit)
 - `vite-plugin-meta-images` - Custom plugin for updating OpenGraph meta tags with Replit deployment URLs
+
+## Portability & Self-Hosting Guide
+
+This codebase is designed to run both on Replit and on self-hosted servers (GitHub + any VPS/cloud).
+
+### Environment Variables
+
+**Required for all deployments:**
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@host:5432/db` |
+| `SESSION_SECRET` | Random string for session encryption | `generate-random-64-char-string` |
+| `PORT` | Server port (default: 5000) | `5000` |
+
+**For Customer Portal (optional):**
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `CUSTOMER_PORTAL_URL` | CORS origin for customer app | `https://customer.waykel.com` |
+
+**For Object Storage (choose one):**
+
+Option A - Replit Object Storage (Replit only):
+- Set up via Replit's Object Storage tab in the Tools panel
+- `PRIVATE_OBJECT_DIR` - Base directory (e.g., `/waykel-documents`)
+
+Option B - Google Cloud Storage (self-hosted):
+| Variable | Description |
+|----------|-------------|
+| `GCS_BUCKET` | GCS bucket name |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to service account JSON file |
+
+Option C - AWS S3 (self-hosted):
+| Variable | Description |
+|----------|-------------|
+| `S3_BUCKET` | S3 bucket name |
+| `AWS_ACCESS_KEY_ID` | AWS access key |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key |
+| `AWS_REGION` | AWS region (e.g., `us-east-1`) |
+
+### Database Compatibility
+
+The codebase automatically detects database type:
+- **Neon/Serverless PostgreSQL**: Uses `@neondatabase/serverless` driver
+- **Standard PostgreSQL**: Uses `pg` driver when `DATABASE_URL` doesn't contain `neon.tech`
+
+For local development:
+```bash
+# Install PostgreSQL locally
+docker run -d --name waykel-db -e POSTGRES_PASSWORD=secret -p 5432:5432 postgres:15
+
+# Set DATABASE_URL
+export DATABASE_URL="postgresql://postgres:secret@localhost:5432/waykel"
+```
+
+### Session Store
+
+- **Development**: Uses MemoryStore (auto-detected via `NODE_ENV`)
+- **Production**: Uses PostgreSQL-backed sessions via `connect-pg-simple`
+
+### Build & Deploy (Self-Hosted)
+
+```bash
+# Install dependencies
+npm install
+
+# Push database schema
+npm run db:push
+
+# Build for production
+npm run build
+
+# Start production server
+npm start
+```
+
+### Docker Deployment
+
+Create `Dockerfile`:
+```dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+RUN npm run build
+EXPOSE 5000
+CMD ["npm", "start"]
+```
+
+### Replit-Specific Setup
+
+When running on Replit:
+1. Go to Tools → Object Storage and create a bucket
+2. Note the bucket name and set `PRIVATE_OBJECT_DIR` 
+3. The Replit sidecar (port 1106) handles signed URLs automatically
+
+### Known Portability Notes
+
+1. **Vite plugins**: `@replit/vite-plugin-*` are guarded by `REPL_ID` check and won't load outside Replit
+2. **Object Storage**: Requires manual setup of GCS/S3 for self-hosting (not Replit sidecar)
+3. **Production deployments**: Use environment-specific database credentials and session secrets

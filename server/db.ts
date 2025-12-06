@@ -3,6 +3,12 @@ import { drizzle } from 'drizzle-orm/neon-serverless';
 import ws from "ws";
 import * as schema from "@shared/schema";
 
+// Note for self-hosting: 
+// If migrating to standard PostgreSQL (not Neon), replace this file with:
+// import { Pool } from 'pg';
+// import { drizzle } from 'drizzle-orm/node-postgres';
+// And remove the neonConfig.webSocketConstructor line
+
 neonConfig.webSocketConstructor = ws;
 
 if (!process.env.DATABASE_URL) {

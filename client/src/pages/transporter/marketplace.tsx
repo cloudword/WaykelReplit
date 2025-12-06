@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { RideCard } from "@/components/ride-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Building2, RefreshCw } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Building2, RefreshCw, MapPin, Clock, Package, Truck, IndianRupee, Calendar, User, Phone } from "lucide-react";
 import { VehicleSelector } from "@/components/vehicle-selector";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -128,25 +128,94 @@ export default function TransporterMarketplace() {
         ) : rides.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {rides.map((ride) => (
-              <Card key={ride.id} className="relative" data-testid={`ride-card-${ride.id}`}>
-                <CardContent className="p-4">
-                  <div className="space-y-3">
-                    <div>
-                      <p className="font-semibold text-lg">{ride.pickup} → {ride.dropoff}</p>
-                      <p className="text-sm text-gray-500">{ride.vehicleType} • {ride.distance || "N/A"}</p>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-xs text-gray-500">Base Price</p>
-                        <p className="text-xl font-bold text-green-600">₹{parseFloat(ride.price).toLocaleString()}</p>
+              <Card key={ride.id} className="relative overflow-hidden" data-testid={`ride-card-${ride.id}`}>
+                <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 flex justify-between items-center">
+                  <Badge variant="secondary" className="bg-white/20 text-white border-0 text-xs">
+                    {ride.distance || "N/A"}
+                  </Badge>
+                  <Badge variant="secondary" className="bg-white/20 text-white border-0 text-xs">
+                    <Calendar className="h-3 w-3 mr-1" />
+                    {ride.date}
+                  </Badge>
+                </div>
+                
+                <CardContent className="p-4 space-y-4">
+                  <div className="relative">
+                    <div className="absolute left-[7px] top-[20px] bottom-[20px] w-0.5 bg-gray-200 border-l border-dashed border-gray-300" />
+                    
+                    <div className="space-y-4">
+                      <div className="flex gap-3 relative">
+                        <div className="w-4 h-4 rounded-full border-2 border-green-500 bg-white mt-0.5 z-10 shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-xs text-muted-foreground font-medium">PICKUP</p>
+                          <p className="font-semibold text-sm">{ride.pickupLocation}</p>
+                          <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
+                            <Clock className="h-3 w-3" /> {ride.pickupTime}
+                          </div>
+                        </div>
                       </div>
-                      <Button 
-                        onClick={() => handlePlaceBid(ride.id, parseFloat(ride.price))} 
-                        data-testid={`button-bid-${ride.id}`}
-                      >
-                        Place Bid
-                      </Button>
+
+                      <div className="flex gap-3 relative">
+                        <div className="w-4 h-4 rounded-full border-2 border-red-500 bg-white mt-0.5 z-10 shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-xs text-muted-foreground font-medium">DROP</p>
+                          <p className="font-semibold text-sm">{ride.dropLocation}</p>
+                          {ride.dropTime && (
+                            <div className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
+                              <Clock className="h-3 w-3" /> {ride.dropTime}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 py-2 bg-gray-50 rounded-lg px-3">
+                    <div className="flex items-center gap-2">
+                      <Package className="h-4 w-4 text-blue-600" />
+                      <div>
+                        <p className="text-[10px] text-gray-500 uppercase">Cargo</p>
+                        <p className="text-xs font-medium">{ride.cargoType}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Truck className="h-4 w-4 text-blue-600" />
+                      <div>
+                        <p className="text-[10px] text-gray-500 uppercase">Weight</p>
+                        <p className="text-xs font-medium">{ride.weight}</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {(ride.customerName || ride.customerPhone) && (
+                    <div className="flex items-center gap-3 text-sm text-gray-600 bg-blue-50 p-2 rounded-lg">
+                      <User className="h-4 w-4 text-blue-600" />
+                      <div className="flex-1">
+                        <p className="font-medium text-xs">{ride.customerName || "Customer"}</p>
+                        {ride.customerPhone && (
+                          <p className="text-xs text-gray-500 flex items-center gap-1">
+                            <Phone className="h-3 w-3" /> {ride.customerPhone}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+                    <div>
+                      <p className="text-xs text-gray-500">Base Price</p>
+                      <p className="text-xl font-bold text-green-600 flex items-center">
+                        <IndianRupee className="h-4 w-4" />
+                        {parseFloat(ride.price).toLocaleString()}
+                      </p>
+                    </div>
+                    <Button 
+                      onClick={() => handlePlaceBid(ride.id, parseFloat(ride.price))} 
+                      data-testid={`button-bid-${ride.id}`}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      Place Bid
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
