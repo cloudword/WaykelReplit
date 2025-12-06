@@ -25,6 +25,7 @@ import AdminSettings from "@/pages/admin/settings";
 import AdminCustomers from "@/pages/admin/customers";
 import AdminApiExplorer from "@/pages/admin/api-explorer";
 import AdminUsers from "@/pages/admin/users";
+import AdminTrips from "@/pages/admin/trips";
 
 import TransporterDashboard from "@/pages/transporter/dashboard";
 import TransporterBids from "@/pages/transporter/bids";
@@ -79,6 +80,7 @@ function Router() {
       <Route path="/admin/bids" component={AdminBids} />
       <Route path="/admin/transporters" component={AdminTransporters} />
       <Route path="/admin/calendar" component={AdminCalendar} />
+      <Route path="/admin/trips" component={AdminTrips} />
       <Route path="/admin/earnings" component={AdminEarnings} />
       <Route path="/admin/settings" component={AdminSettings} />
       <Route path="/admin/customers" component={AdminCustomers} />

@@ -214,6 +214,63 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+<<<<<<< HEAD
+  // Ride routes - with role-based access control
+  app.get("/api/rides", async (req, res) => {
+    const { status, driverId, transporterId, createdById } = req.query;
+    const sessionUser = req.session.user;
+    
+    try {
+      let result: any[] = [];
+      
+      // Role-based access control for rides
+      if (sessionUser) {
+        const userRole = sessionUser.role;
+        const isSuperAdmin = sessionUser.isSuperAdmin;
+        
+        // Super Admin can access all rides
+        if (isSuperAdmin) {
+          if (driverId) {
+            result = await storage.getDriverRides(driverId as string);
+          } else if (transporterId) {
+            result = await storage.getTransporterRides(transporterId as string);
+          } else if (createdById) {
+            result = await storage.getCustomerRides(createdById as string);
+          } else if (status === "pending") {
+            result = await storage.getPendingRides();
+          } else if (status === "scheduled") {
+            result = await storage.getScheduledRides();
+          } else if (status === "active") {
+            result = await storage.getActiveRides();
+          } else if (status === "completed") {
+            result = await storage.getCompletedRides();
+          } else {
+            result = await storage.getAllRides();
+          }
+        }
+        // Transporters can only see their own rides (derived from session)
+        else if (userRole === "transporter" && sessionUser.transporterId) {
+          result = await storage.getTransporterRides(sessionUser.transporterId);
+        }
+        // Drivers can only see their own assigned rides (derived from session)
+        else if (userRole === "driver") {
+          result = await storage.getDriverRides(sessionUser.id);
+        }
+        // Customers can only see their own created rides (derived from session)
+        else if (userRole === "customer") {
+          result = await storage.getCustomerRides(sessionUser.id);
+        }
+        else {
+          result = [];
+        }
+      } else {
+        // Unauthenticated - only show pending rides for marketplace (public view)
+        if (status === "pending") {
+          result = await storage.getPendingRides();
+        } else {
+          result = [];
+        }
+=======
   // Ride routes
   // GET /api/rides - Auth required. Admins see all, others see filtered by own ID
   app.get("/api/rides", requireAuth, async (req, res) => {
@@ -267,21 +324,74 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           return res.status(403).json({ error: "Admin access required to view all rides. Use filters to view your own." });
         }
         result = await storage.getAllRides();
+>>>>>>> origin/main
       }
+      
       res.json(result);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch rides" });
     }
   });
 
+<<<<<<< HEAD
+  app.get("/api/rides/:id", async (req, res) => {
+    const sessionUser = req.session.user;
+    
+=======
   // GET /api/rides/:id - Auth required, owner or admin can view
   app.get("/api/rides/:id", requireAuth, async (req, res) => {
+>>>>>>> origin/main
     try {
       const ride = await storage.getRide(req.params.id);
       if (!ride) {
         return res.status(404).json({ error: "Ride not found" });
       }
       
+<<<<<<< HEAD
+      // Role-based access control for single ride
+      if (sessionUser) {
+        const isSuperAdmin = sessionUser.isSuperAdmin;
+        const userRole = sessionUser.role;
+        
+        // Super Admin can access any ride
+        if (isSuperAdmin) {
+          return res.json(ride);
+        }
+        
+        // Transporter can only access their own rides
+        if (userRole === "transporter" && sessionUser.transporterId) {
+          if (ride.transporterId === sessionUser.transporterId) {
+            return res.json(ride);
+          }
+          return res.status(403).json({ error: "Access denied" });
+        }
+        
+        // Driver can only access assigned rides
+        if (userRole === "driver") {
+          if (ride.assignedDriverId === sessionUser.id) {
+            return res.json(ride);
+          }
+          return res.status(403).json({ error: "Access denied" });
+        }
+        
+        // Customer can only access their own created rides
+        if (userRole === "customer") {
+          if (ride.createdById === sessionUser.id) {
+            return res.json(ride);
+          }
+          return res.status(403).json({ error: "Access denied" });
+        }
+        
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      // Unauthenticated - only allow viewing pending rides (marketplace)
+      if (ride.status === "pending") {
+        return res.json(ride);
+      }
+      
+      return res.status(401).json({ error: "Authentication required" });
+=======
       const user = req.session.user!;
       const isAdmin = user.isSuperAdmin || user.role === "admin";
       const isOwner = ride.createdById === user.id || 
@@ -293,6 +403,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       res.json(ride);
+>>>>>>> origin/main
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch ride" });
     }
@@ -321,8 +432,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+<<<<<<< HEAD
+  app.patch("/api/rides/:id/status", async (req, res) => {
+    const sessionUser = req.session.user;
+    
+    // Only super admin can update ride status
+    if (!sessionUser || !sessionUser.isSuperAdmin) {
+      return res.status(403).json({ error: "Only administrators can update ride status" });
+    }
+    
+=======
   // PATCH /api/rides/:id/status - Auth required, admin or ride owner can update
   app.patch("/api/rides/:id/status", requireAuth, async (req, res) => {
+>>>>>>> origin/main
     try {
       const ride = await storage.getRide(req.params.id);
       if (!ride) {
@@ -347,8 +469,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+<<<<<<< HEAD
+  app.patch("/api/rides/:id/assign", async (req, res) => {
+    const sessionUser = req.session.user;
+    
+    // Only super admin can assign drivers
+    if (!sessionUser || !sessionUser.isSuperAdmin) {
+      return res.status(403).json({ error: "Only administrators can assign drivers" });
+    }
+    
+=======
   // PATCH /api/rides/:id/assign - Admin only
   app.patch("/api/rides/:id/assign", requireAdmin, async (req, res) => {
+>>>>>>> origin/main
     try {
       const { driverId, vehicleId } = req.body;
       await storage.assignRideToDriver(req.params.id, driverId, vehicleId);
@@ -359,13 +492,50 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Bid routes
+<<<<<<< HEAD
+  app.get("/api/bids", async (req, res) => {
+    const sessionUser = req.session.user;
+=======
   // GET /api/bids - Auth required. Admins see all, others see filtered by own data
   app.get("/api/bids", requireAuth, async (req, res) => {
+>>>>>>> origin/main
     const { rideId, userId, transporterId } = req.query;
     const user = req.session.user!;
     const isAdmin = user.isSuperAdmin || user.role === "admin";
     
     try {
+<<<<<<< HEAD
+      let result: any[] = [];
+      
+      // Role-based access control for bids
+      if (sessionUser) {
+        const isSuperAdmin = sessionUser.isSuperAdmin;
+        const userRole = sessionUser.role;
+        
+        // Super Admin can access all bids
+        if (isSuperAdmin) {
+          if (rideId) {
+            result = await storage.getRideBids(rideId as string);
+          } else if (userId) {
+            result = await storage.getUserBids(userId as string);
+          } else if (transporterId) {
+            result = await storage.getTransporterBids(transporterId as string);
+          } else {
+            result = await storage.getAllBids();
+          }
+        }
+        // Transporters can only see their own bids
+        else if (userRole === "transporter" && sessionUser.transporterId) {
+          result = await storage.getTransporterBids(sessionUser.transporterId);
+        }
+        // Customers can see bids on their rides
+        else if (userRole === "customer" && rideId) {
+          const ride = await storage.getRide(rideId as string);
+          if (ride && ride.createdById === sessionUser.id) {
+            result = await storage.getRideBids(rideId as string);
+          }
+        }
+=======
       let result: any[];
       if (rideId) {
         // Anyone can view bids for a specific ride (for transparency)
@@ -386,17 +556,36 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           return res.status(403).json({ error: "Admin access required to view all bids" });
         }
         result = await storage.getAllBids();
+>>>>>>> origin/main
       }
+      
       res.json(result);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch bids" });
     }
   });
 
+<<<<<<< HEAD
+  app.post("/api/bids", async (req, res) => {
+    const sessionUser = req.session.user;
+    
+    // Only authenticated transporters can place bids
+    if (!sessionUser || (sessionUser.role !== "transporter" && !sessionUser.isSuperAdmin)) {
+      return res.status(403).json({ error: "Only transporters can place bids" });
+    }
+    
+=======
   // POST /api/bids - Driver or transporter only
   app.post("/api/bids", requireDriverOrTransporter, async (req, res) => {
+>>>>>>> origin/main
     try {
       const data = insertBidSchema.parse(req.body);
+      
+      // Verify transporter is placing bid with their own transporterId
+      if (!sessionUser.isSuperAdmin && sessionUser.transporterId !== data.transporterId) {
+        return res.status(403).json({ error: "Cannot place bids for another transporter" });
+      }
+      
       const bid = await storage.createBid(data);
       
       // Update ride status to bid_placed
@@ -408,8 +597,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+<<<<<<< HEAD
+  app.patch("/api/bids/:id/status", async (req, res) => {
+    const sessionUser = req.session.user;
+    
+    // Only super admin can update bid status
+    if (!sessionUser || !sessionUser.isSuperAdmin) {
+      return res.status(403).json({ error: "Only administrators can update bid status" });
+    }
+    
+=======
   // PATCH /api/bids/:id/status - Admin only (to approve/reject bids)
   app.patch("/api/bids/:id/status", requireAdmin, async (req, res) => {
+>>>>>>> origin/main
     try {
       const { status } = req.body;
       await storage.updateBidStatus(req.params.id, status);
@@ -428,10 +628,50 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+<<<<<<< HEAD
+  // Get cheapest bids for a ride (for customer view)
+  app.get("/api/rides/:rideId/cheapest-bids", async (req, res) => {
+    const sessionUser = req.session.user;
+    const { rideId } = req.params;
+    
+=======
   // Get cheapest bids for a ride (for customer view) - Auth required
   app.get("/api/rides/:rideId/cheapest-bids", requireAuth, async (req, res) => {
+>>>>>>> origin/main
     try {
-      const { rideId } = req.params;
+      const ride = await storage.getRide(rideId);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      // Role-based access control
+      if (sessionUser) {
+        const isSuperAdmin = sessionUser.isSuperAdmin;
+        const userRole = sessionUser.role;
+        
+        // Super admin can see all bids
+        if (!isSuperAdmin) {
+          // Customer can only see bids on their own rides
+          if (userRole === "customer") {
+            if (ride.createdById !== sessionUser.id) {
+              return res.status(403).json({ error: "Access denied" });
+            }
+          }
+          // Transporters can ONLY see bids on pending marketplace rides
+          else if (userRole === "transporter") {
+            if (ride.status !== "pending") {
+              return res.status(403).json({ error: "Access denied - bids only visible for pending rides" });
+            }
+          }
+          else {
+            return res.status(403).json({ error: "Access denied" });
+          }
+        }
+      } else {
+        // Unauthenticated users cannot see bid details
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
       const limit = parseInt(req.query.limit as string) || 5;
       const bids = await storage.getCheapestRideBids(rideId, Math.min(limit, 5));
       
@@ -860,6 +1100,255 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (error) {
       console.error("Error confirming upload:", error);
       res.status(500).json({ error: "Failed to confirm upload" });
+    }
+  });
+
+  // ===========================================
+  // BOOKING FLOW - Matching & Notifications
+  // ===========================================
+
+  // Find matching transporters for a ride (for admin/customer to see who can fulfill)
+  app.get("/api/rides/:rideId/matches", async (req, res) => {
+    const sessionUser = req.session.user;
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const ride = await storage.getRide(req.params.rideId);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      // Only super admin or the customer who created the ride can see matches
+      if (!sessionUser.isSuperAdmin && ride.createdById !== sessionUser.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const matches = await storage.findMatchingTransporters(ride);
+      res.json(matches);
+    } catch (error) {
+      console.error("Failed to find matches:", error);
+      res.status(500).json({ error: "Failed to find matching transporters" });
+    }
+  });
+
+  // Notify matching transporters about a new ride (creates notifications for all matches)
+  app.post("/api/rides/:rideId/notify-transporters", async (req, res) => {
+    const sessionUser = req.session.user;
+    
+    // Only super admin or customer who created the ride can send notifications
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const ride = await storage.getRide(req.params.rideId);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      if (!sessionUser.isSuperAdmin && sessionUser.role !== "customer") {
+        return res.status(403).json({ error: "Only admin or customers can send booking notifications" });
+      }
+      
+      if (!sessionUser.isSuperAdmin && ride.createdById !== sessionUser.id) {
+        return res.status(403).json({ error: "You can only notify transporters for your own rides" });
+      }
+      
+      // Find matching transporters
+      const matches = await storage.findMatchingTransporters(ride);
+      
+      // Create notifications for each matching transporter
+      const notificationPromises = matches.map(async (match) => {
+        // Find the user associated with this transporter to send notification
+        const transporterUsers = await storage.getUsersByTransporter(match.transporter.id);
+        
+        // Create notification for each user under this transporter
+        for (const user of transporterUsers) {
+          await storage.createNotification({
+            recipientId: user.id,
+            recipientTransporterId: match.transporter.id,
+            type: "new_booking",
+            title: "New Booking Request",
+            message: `New trip from ${ride.pickupLocation} to ${ride.dropLocation} - ${ride.cargoType} (${ride.weight}). Budget: ₹${ride.price}`,
+            rideId: ride.id,
+            matchScore: match.matchScore,
+            matchReason: match.matchReason,
+          });
+        }
+        
+        // Also notify owner-operator if applicable
+        if (match.transporter.isOwnerOperator && match.transporter.ownerDriverUserId) {
+          await storage.createNotification({
+            recipientId: match.transporter.ownerDriverUserId,
+            recipientTransporterId: match.transporter.id,
+            type: "new_booking",
+            title: "New Booking Request",
+            message: `New trip from ${ride.pickupLocation} to ${ride.dropLocation} - ${ride.cargoType} (${ride.weight}). Budget: ₹${ride.price}`,
+            rideId: ride.id,
+            matchScore: match.matchScore,
+            matchReason: match.matchReason,
+          });
+        }
+      });
+      
+      await Promise.all(notificationPromises);
+      
+      res.json({ 
+        success: true, 
+        message: `Notified ${matches.length} transporters`,
+        matchesCount: matches.length
+      });
+    } catch (error) {
+      console.error("Failed to notify transporters:", error);
+      res.status(500).json({ error: "Failed to send notifications" });
+    }
+  });
+
+  // Notification routes
+  app.get("/api/notifications", async (req, res) => {
+    const sessionUser = req.session.user;
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const { unreadOnly } = req.query;
+      let notifications;
+      
+      if (unreadOnly === "true") {
+        notifications = await storage.getUnreadNotifications(sessionUser.id);
+      } else {
+        notifications = await storage.getUserNotifications(sessionUser.id);
+      }
+      
+      res.json(notifications);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch notifications" });
+    }
+  });
+
+  app.patch("/api/notifications/:id/read", async (req, res) => {
+    const sessionUser = req.session.user;
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      await storage.markNotificationRead(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({ error: "Failed to mark notification as read" });
+    }
+  });
+
+  app.patch("/api/notifications/mark-all-read", async (req, res) => {
+    const sessionUser = req.session.user;
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      await storage.markAllNotificationsRead(sessionUser.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({ error: "Failed to mark all notifications as read" });
+    }
+  });
+
+  // Accept bid route - now allows BOTH super admin AND customer to accept bids
+  app.post("/api/bids/:bidId/accept", async (req, res) => {
+    const sessionUser = req.session.user;
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const bid = await storage.getBid(req.params.bidId);
+      if (!bid) {
+        return res.status(404).json({ error: "Bid not found" });
+      }
+      
+      const ride = await storage.getRide(bid.rideId);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      // Check authorization - super admin can accept any, customer can only accept on their rides
+      const isSuperAdmin = sessionUser.isSuperAdmin;
+      const isRideOwner = ride.createdById === sessionUser.id;
+      
+      if (!isSuperAdmin && !isRideOwner) {
+        return res.status(403).json({ error: "Only the ride owner or admin can accept bids" });
+      }
+      
+      // Update bid status to accepted
+      await storage.updateBidStatus(bid.id, "accepted");
+      
+      // Update ride with accepted bid and transporter
+      await storage.updateRideAcceptedBid(ride.id, bid.id, bid.transporterId || "");
+      
+      // Assign driver and vehicle if available
+      if (bid.userId && bid.vehicleId) {
+        await storage.assignRideToDriver(ride.id, bid.userId, bid.vehicleId);
+      }
+      
+      // Reject other bids for this ride
+      const allBids = await storage.getRideBids(ride.id);
+      for (const otherBid of allBids) {
+        if (otherBid.id !== bid.id && otherBid.status === "pending") {
+          await storage.updateBidStatus(otherBid.id, "rejected");
+          
+          // Notify rejected bidders
+          if (otherBid.userId) {
+            await storage.createNotification({
+              recipientId: otherBid.userId,
+              recipientTransporterId: otherBid.transporterId || undefined,
+              type: "bid_rejected",
+              title: "Bid Not Selected",
+              message: `Your bid for trip ${ride.pickupLocation} to ${ride.dropLocation} was not selected.`,
+              rideId: ride.id,
+              bidId: otherBid.id,
+            });
+          }
+        }
+      }
+      
+      // Notify the winner
+      if (bid.userId) {
+        await storage.createNotification({
+          recipientId: bid.userId,
+          recipientTransporterId: bid.transporterId || undefined,
+          type: "bid_accepted",
+          title: "Bid Accepted!",
+          message: `Your bid of ₹${bid.amount} for trip ${ride.pickupLocation} to ${ride.dropLocation} has been accepted!`,
+          rideId: ride.id,
+          bidId: bid.id,
+        });
+      }
+      
+      // Notify the customer that bid was accepted (if super admin accepted it)
+      if (isSuperAdmin && ride.createdById) {
+        await storage.createNotification({
+          recipientId: ride.createdById,
+          type: "ride_assigned",
+          title: "Trip Assigned",
+          message: `Your trip from ${ride.pickupLocation} to ${ride.dropLocation} has been assigned. Bid amount: ₹${bid.amount}`,
+          rideId: ride.id,
+          bidId: bid.id,
+        });
+      }
+      
+      res.json({ success: true, message: "Bid accepted and trip assigned" });
+    } catch (error) {
+      console.error("Failed to accept bid:", error);
+      res.status(500).json({ error: "Failed to accept bid" });
     }
   });
 

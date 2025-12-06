@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { 
   Bell, Building2, Truck, Users, FileText, TrendingUp, 
-  Plus, LogOut, Settings, Calendar, IndianRupee
+  Plus, LogOut, Settings, Calendar, IndianRupee, MapPin, Package, Zap, CheckCircle, X
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -24,11 +25,54 @@ export default function TransporterDashboard() {
   const [recentBids, setRecentBids] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [user] = useState<any>(() => {
     const stored = localStorage.getItem("currentUser");
     return stored ? JSON.parse(stored) : null;
   });
+
+  const loadNotifications = async () => {
+    try {
+      const response = await fetch("/api/notifications", { credentials: "include" });
+      if (response.ok) {
+        const data = await response.json();
+        setNotifications(data);
+        setUnreadCount(data.filter((n: any) => !n.isRead).length);
+      }
+    } catch (error) {
+      console.error("Failed to load notifications:", error);
+    }
+  };
+
+  const markNotificationRead = async (id: string) => {
+    try {
+      await fetch(`/api/notifications/${id}/read`, { 
+        method: "PATCH",
+        credentials: "include" 
+      });
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error("Failed to mark notification read:", error);
+    }
+  };
+
+  const handleNotificationClick = async (notification: any) => {
+    if (!notification.isRead) {
+      await markNotificationRead(notification.id);
+    }
+    
+    if (notification.type === "new_booking" && notification.rideId) {
+      setShowNotifications(false);
+      setLocation("/transporter/marketplace");
+    } else if (notification.type === "bid_accepted" || notification.type === "bid_rejected") {
+      setShowNotifications(false);
+      setLocation("/transporter/bids");
+    }
+  };
 
   useEffect(() => {
     const loadDashboardData = async () => {
@@ -61,6 +105,9 @@ export default function TransporterDashboard() {
           pendingBids,
           totalEarnings,
         });
+        
+        // Also load notifications
+        await loadNotifications();
       } catch (error) {
         console.error("Failed to load dashboard data:", error);
       } finally {
@@ -69,6 +116,10 @@ export default function TransporterDashboard() {
     };
 
     loadDashboardData();
+    
+    // Poll for notifications every 30 seconds
+    const notificationInterval = setInterval(loadNotifications, 30000);
+    return () => clearInterval(notificationInterval);
   }, [user?.transporterId]);
 
   const handleLogout = async () => {
@@ -100,8 +151,19 @@ export default function TransporterDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" data-testid="button-notifications">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="relative"
+                onClick={() => setShowNotifications(true)}
+                data-testid="button-notifications"
+              >
                 <Bell className="h-5 w-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center font-bold">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
               </Button>
               <Button variant="ghost" size="icon" onClick={() => setLocation("/transporter/settings")} data-testid="button-settings">
                 <Settings className="h-5 w-5" />
@@ -328,6 +390,107 @@ export default function TransporterDashboard() {
           </Card>
         </div>
       </main>
+
+      <Dialog open={showNotifications} onOpenChange={setShowNotifications}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5 text-blue-600" />
+              Notifications
+              {unreadCount > 0 && (
+                <Badge variant="destructive" className="ml-2">{unreadCount} new</Badge>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              Booking requests and bid updates matching your profile
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-y-auto space-y-3 py-4" data-testid="notifications-list">
+            {notifications.length > 0 ? (
+              notifications.map((notification) => (
+                <div 
+                  key={notification.id}
+                  className={`p-4 rounded-lg border cursor-pointer transition-colors ${
+                    notification.isRead 
+                      ? "bg-gray-50 border-gray-200" 
+                      : "bg-blue-50 border-blue-200"
+                  }`}
+                  onClick={() => handleNotificationClick(notification)}
+                  data-testid={`notification-${notification.id}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      notification.type === "new_booking" 
+                        ? "bg-green-100 text-green-600"
+                        : notification.type === "bid_accepted"
+                        ? "bg-blue-100 text-blue-600"
+                        : "bg-red-100 text-red-600"
+                    }`}>
+                      {notification.type === "new_booking" ? (
+                        <Package className="h-5 w-5" />
+                      ) : notification.type === "bid_accepted" ? (
+                        <CheckCircle className="h-5 w-5" />
+                      ) : (
+                        <X className="h-5 w-5" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm">{notification.title}</p>
+                        {!notification.isRead && (
+                          <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
+                      {notification.matchScore && (
+                        <div className="flex items-center gap-1 mt-2">
+                          <Zap className="h-3 w-3 text-yellow-500" />
+                          <span className="text-xs text-yellow-600 font-medium">
+                            {notification.matchScore}% match
+                          </span>
+                          {notification.matchReason && (
+                            <span className="text-xs text-gray-400 ml-1">
+                              • {notification.matchReason.split(";")[0]}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-400 mt-2">
+                        {new Date(notification.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <Bell className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p className="font-medium">No notifications yet</p>
+                <p className="text-sm mt-1">New booking requests matching your profile will appear here</p>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter className="border-t pt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowNotifications(false)}
+              data-testid="button-close-notifications"
+            >
+              Close
+            </Button>
+            {notifications.length > 0 && (
+              <Button 
+                onClick={() => setLocation("/transporter/marketplace")}
+                data-testid="button-browse-marketplace"
+              >
+                Browse Marketplace
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

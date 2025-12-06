@@ -3,9 +3,9 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, Package, Truck, Calendar, Clock, Bell, User } from "lucide-react";
+import { MapPin, Package, Truck, Calendar, Clock, Bell, User, Hash, Scale, Zap } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -20,12 +20,17 @@ export default function CustomerDashboard() {
   const [formData, setFormData] = useState({
     pickupLocation: "",
     dropLocation: "",
+    pickupPincode: "",
+    dropPincode: "",
     cargoType: "",
     weight: "",
+    weightKg: "",
+    requiredVehicleType: "",
     date: "",
     pickupTime: "",
     customerName: user?.name || "",
     customerPhone: user?.phone || "",
+    budgetPrice: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,24 +41,39 @@ export default function CustomerDashboard() {
       const rideData = {
         pickupLocation: formData.pickupLocation,
         dropLocation: formData.dropLocation,
+        pickupPincode: formData.pickupPincode || null,
+        dropPincode: formData.dropPincode || null,
         pickupTime: formData.pickupTime,
         dropTime: null,
         date: formData.date,
         status: "pending" as const,
-        price: "0.00",
+        price: formData.budgetPrice || "0.00",
         distance: "TBD",
         cargoType: formData.cargoType,
         weight: formData.weight,
+        weightKg: formData.weightKg ? parseInt(formData.weightKg) : null,
+        requiredVehicleType: formData.requiredVehicleType || null,
         customerName: formData.customerName,
         customerPhone: formData.customerPhone,
         createdById: user?.id,
       };
 
-      await api.rides.create(rideData);
-      toast.success("Ride request submitted! Drivers will start bidding.");
+      const ride = await api.rides.create(rideData);
+      
+      // Trigger matching and notification after ride creation
+      try {
+        await fetch(`/api/rides/${ride.id}/notify-transporters`, {
+          method: "POST",
+          credentials: "include",
+        });
+      } catch (notifyError) {
+        console.log("Could not notify transporters automatically");
+      }
+      
+      toast.success("Booking submitted! Matching transporters will be notified.");
       setLocation("/customer/rides");
     } catch (error) {
-      toast.error("Failed to submit ride request");
+      toast.error("Failed to submit booking request");
     } finally {
       setIsLoading(false);
     }
@@ -93,32 +113,64 @@ export default function CustomerDashboard() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2 text-sm">
-                  <MapPin className="h-4 w-4 text-green-500" />
-                  Pickup Location
-                </Label>
-                <Input 
-                  placeholder="e.g. Fort, Mumbai"
-                  value={formData.pickupLocation}
-                  onChange={(e) => setFormData({ ...formData, pickupLocation: e.target.value })}
-                  required
-                  data-testid="input-pickup"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-sm">
+                    <MapPin className="h-4 w-4 text-green-500" />
+                    Pickup Location
+                  </Label>
+                  <Input 
+                    placeholder="e.g. Fort, Mumbai"
+                    value={formData.pickupLocation}
+                    onChange={(e) => setFormData({ ...formData, pickupLocation: e.target.value })}
+                    required
+                    data-testid="input-pickup"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-sm">
+                    <Hash className="h-4 w-4 text-green-400" />
+                    Pickup Pincode
+                  </Label>
+                  <Input 
+                    placeholder="e.g. 400001"
+                    value={formData.pickupPincode}
+                    onChange={(e) => setFormData({ ...formData, pickupPincode: e.target.value })}
+                    maxLength={6}
+                    data-testid="input-pickup-pincode"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2 text-sm">
-                  <MapPin className="h-4 w-4 text-red-500" />
-                  Drop Location
-                </Label>
-                <Input 
-                  placeholder="e.g. Pune City"
-                  value={formData.dropLocation}
-                  onChange={(e) => setFormData({ ...formData, dropLocation: e.target.value })}
-                  required
-                  data-testid="input-drop"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-sm">
+                    <MapPin className="h-4 w-4 text-red-500" />
+                    Drop Location
+                  </Label>
+                  <Input 
+                    placeholder="e.g. Pune City"
+                    value={formData.dropLocation}
+                    onChange={(e) => setFormData({ ...formData, dropLocation: e.target.value })}
+                    required
+                    data-testid="input-drop"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-sm">
+                    <Hash className="h-4 w-4 text-red-400" />
+                    Drop Pincode
+                  </Label>
+                  <Input 
+                    placeholder="e.g. 411001"
+                    value={formData.dropPincode}
+                    onChange={(e) => setFormData({ ...formData, dropPincode: e.target.value })}
+                    maxLength={6}
+                    data-testid="input-drop-pincode"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -144,7 +196,36 @@ export default function CustomerDashboard() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm">Weight</Label>
+                  <Label className="flex items-center gap-2 text-sm">
+                    <Truck className="h-4 w-4 text-indigo-500" />
+                    Vehicle Type
+                  </Label>
+                  <Select onValueChange={(v) => setFormData({ ...formData, requiredVehicleType: v === "any" ? "" : v })}>
+                    <SelectTrigger data-testid="select-vehicle-type">
+                      <SelectValue placeholder="Any Vehicle" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="any">Any Vehicle</SelectItem>
+                      <SelectItem value="Tata Ace">Tata Ace (0.5-1T)</SelectItem>
+                      <SelectItem value="Bolero">Bolero (1-2T)</SelectItem>
+                      <SelectItem value="Pickup">Pickup (1.5-2T)</SelectItem>
+                      <SelectItem value="14ft">14ft Container (3-5T)</SelectItem>
+                      <SelectItem value="17ft">17ft Container (5-7T)</SelectItem>
+                      <SelectItem value="20ft">20ft Container (7-10T)</SelectItem>
+                      <SelectItem value="22ft">22ft Container (10-15T)</SelectItem>
+                      <SelectItem value="32ft">32ft Container (15-25T)</SelectItem>
+                      <SelectItem value="Trailer">Trailer (25T+)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-sm">
+                    <Scale className="h-4 w-4 text-amber-500" />
+                    Weight Category
+                  </Label>
                   <Select onValueChange={(v) => setFormData({ ...formData, weight: v })}>
                     <SelectTrigger data-testid="select-weight">
                       <SelectValue placeholder="Select" />
@@ -157,6 +238,20 @@ export default function CustomerDashboard() {
                       <SelectItem value="16+ Ton">16+ Ton</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-sm">
+                    <Scale className="h-4 w-4 text-amber-600" />
+                    Exact Weight (Kg)
+                  </Label>
+                  <Input 
+                    type="number"
+                    placeholder="e.g. 5000"
+                    value={formData.weightKg}
+                    onChange={(e) => setFormData({ ...formData, weightKg: e.target.value })}
+                    data-testid="input-weight-kg"
+                  />
                 </div>
               </div>
 
@@ -190,24 +285,41 @@ export default function CustomerDashboard() {
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-sm">
+                  <Zap className="h-4 w-4 text-yellow-500" />
+                  Your Budget (₹) <span className="text-xs text-muted-foreground ml-1">(optional)</span>
+                </Label>
+                <Input 
+                  type="number"
+                  placeholder="e.g. 5000"
+                  value={formData.budgetPrice}
+                  onChange={(e) => setFormData({ ...formData, budgetPrice: e.target.value })}
+                  data-testid="input-budget"
+                />
+              </div>
+
               <Button 
                 type="submit" 
                 className="w-full h-12 mt-4" 
                 disabled={isLoading}
                 data-testid="button-submit"
               >
-                {isLoading ? "Submitting..." : "Get Quotes from Drivers"}
+                {isLoading ? "Finding Transporters..." : "Get Quotes from Transporters"}
               </Button>
             </form>
           </CardContent>
         </Card>
 
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <h3 className="font-semibold text-blue-800 text-sm">How it works</h3>
+          <h3 className="font-semibold text-blue-800 text-sm flex items-center gap-2">
+            <Zap className="h-4 w-4" /> Smart Matching
+          </h3>
           <ol className="text-xs text-blue-600 mt-2 space-y-1 list-decimal list-inside">
-            <li>Submit your transport request</li>
-            <li>Drivers and transporters will bid on your load</li>
-            <li>Admin reviews and approves the best bid</li>
+            <li>Submit your transport request with details</li>
+            <li>We automatically find transporters matching your needs</li>
+            <li>Matching transporters bid on your load</li>
+            <li>You or our team accepts the best bid</li>
             <li>Driver picks up and delivers your cargo</li>
           </ol>
         </div>
