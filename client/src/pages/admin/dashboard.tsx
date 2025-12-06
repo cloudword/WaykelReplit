@@ -1,101 +1,216 @@
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Truck, DollarSign, Activity } from "lucide-react";
-import chartImage from "@assets/generated_images/admin_dashboard_analytics_graph.png";
+import { Users, Truck, DollarSign, Activity, Package, Building2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Badge } from "@/components/ui/badge";
+import { formatDistanceToNow } from "date-fns";
+
+interface AdminStats {
+  totalDrivers: number;
+  totalTransporters: number;
+  totalCustomers: number;
+  totalVehicles: number;
+  activeVehicles: number;
+  totalRides: number;
+  completedRides: number;
+  activeRides: number;
+  pendingRides: number;
+  totalBids: number;
+  totalRevenue: number;
+  recentRides: {
+    id: string;
+    pickupLocation: string;
+    dropLocation: string;
+    status: string;
+    createdAt: string;
+  }[];
+}
 
 export default function AdminDashboard() {
+  const { data: stats, isLoading } = useQuery<AdminStats>({
+    queryKey: ["/api/admin/stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/stats", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch stats");
+      return res.json();
+    },
+  });
+
+  const formatRevenue = (amount: number) => {
+    if (amount >= 100000) {
+      return `₹${(amount / 100000).toFixed(1)}L`;
+    } else if (amount >= 1000) {
+      return `₹${(amount / 1000).toFixed(1)}K`;
+    }
+    return `₹${amount.toFixed(0)}`;
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "completed": return "bg-green-100 text-green-800";
+      case "active": case "in_progress": return "bg-blue-100 text-blue-800";
+      case "pending": return "bg-yellow-100 text-yellow-800";
+      case "bid_placed": return "bg-purple-100 text-purple-800";
+      default: return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-100 pl-64">
+        <AdminSidebar />
+        <main className="p-8 flex items-center justify-center">
+          <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 pl-64">
       <AdminSidebar />
       
       <main className="p-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-900" data-testid="text-dashboard-title">Dashboard</h1>
           <p className="text-gray-500">Overview of your logistics operations</p>
         </div>
 
-        {/* Stats Grid */}
         <div className="grid grid-cols-4 gap-6 mb-8">
-          <Card>
+          <Card data-testid="card-total-drivers">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
                   <Users size={24} />
                 </div>
-                <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded">+12%</span>
+                <Badge variant="secondary" className="text-xs">Live</Badge>
               </div>
               <p className="text-gray-500 text-sm">Total Drivers</p>
-              <h3 className="text-2xl font-bold">1,248</h3>
+              <h3 className="text-2xl font-bold" data-testid="stat-total-drivers">{stats?.totalDrivers || 0}</h3>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card data-testid="card-active-vehicles">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
                   <Truck size={24} />
                 </div>
-                <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded">+5%</span>
+                <Badge variant="secondary" className="text-xs">{stats?.totalVehicles || 0} Total</Badge>
               </div>
               <p className="text-gray-500 text-sm">Active Vehicles</p>
-              <h3 className="text-2xl font-bold">856</h3>
+              <h3 className="text-2xl font-bold" data-testid="stat-active-vehicles">{stats?.activeVehicles || 0}</h3>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card data-testid="card-total-revenue">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="p-2 bg-green-100 rounded-lg text-green-600">
                   <DollarSign size={24} />
                 </div>
-                <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded">+24%</span>
+                <Badge variant="secondary" className="text-xs">{stats?.completedRides || 0} trips</Badge>
               </div>
-              <p className="text-gray-500 text-sm">Total Earnings</p>
-              <h3 className="text-2xl font-bold">₹24.5L</h3>
+              <p className="text-gray-500 text-sm">Total Revenue</p>
+              <h3 className="text-2xl font-bold" data-testid="stat-total-revenue">{formatRevenue(stats?.totalRevenue || 0)}</h3>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card data-testid="card-active-rides">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="p-2 bg-orange-100 rounded-lg text-orange-600">
                   <Activity size={24} />
                 </div>
-                <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded">Live</span>
+                <Badge variant="default" className="text-xs bg-green-500">Live</Badge>
               </div>
-              <p className="text-gray-500 text-sm">Ongoing Trips</p>
-              <h3 className="text-2xl font-bold">142</h3>
+              <p className="text-gray-500 text-sm">Active Rides</p>
+              <h3 className="text-2xl font-bold" data-testid="stat-active-rides">{stats?.activeRides || 0}</h3>
             </CardContent>
           </Card>
         </div>
 
-        {/* Charts & Recent Activity */}
-        <div className="grid grid-cols-3 gap-6">
-          <Card className="col-span-2 overflow-hidden">
-            <CardHeader>
-              <CardTitle>Revenue Overview</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-               <img src={chartImage} alt="Analytics Chart" className="w-full h-64 object-cover" />
+        <div className="grid grid-cols-4 gap-6 mb-8">
+          <Card data-testid="card-transporters">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
+                  <Building2 size={24} />
+                </div>
+              </div>
+              <p className="text-gray-500 text-sm">Transporters</p>
+              <h3 className="text-2xl font-bold" data-testid="stat-transporters">{stats?.totalTransporters || 0}</h3>
             </CardContent>
           </Card>
 
+          <Card data-testid="card-customers">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-2 bg-pink-100 rounded-lg text-pink-600">
+                  <Users size={24} />
+                </div>
+              </div>
+              <p className="text-gray-500 text-sm">Customers</p>
+              <h3 className="text-2xl font-bold" data-testid="stat-customers">{stats?.totalCustomers || 0}</h3>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-pending-rides">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-2 bg-yellow-100 rounded-lg text-yellow-600">
+                  <Package size={24} />
+                </div>
+              </div>
+              <p className="text-gray-500 text-sm">Pending Rides</p>
+              <h3 className="text-2xl font-bold" data-testid="stat-pending-rides">{stats?.pendingRides || 0}</h3>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-total-bids">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-2 bg-cyan-100 rounded-lg text-cyan-600">
+                  <DollarSign size={24} />
+                </div>
+              </div>
+              <p className="text-gray-500 text-sm">Total Bids</p>
+              <h3 className="text-2xl font-bold" data-testid="stat-total-bids">{stats?.totalBids || 0}</h3>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>Live Operations</CardTitle>
+              <CardTitle>Recent Activity</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-green-500" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">Driver #{1000+i} started trip</p>
-                      <p className="text-xs text-gray-400">Mumbai to Pune • 2m ago</p>
+              {stats?.recentRides && stats.recentRides.length > 0 ? (
+                <div className="space-y-4">
+                  {stats.recentRides.map((ride) => (
+                    <div key={ride.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg" data-testid={`ride-activity-${ride.id}`}>
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">
+                          {ride.pickupLocation} → {ride.dropLocation}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {ride.createdAt ? formatDistanceToNow(new Date(ride.createdAt), { addSuffix: true }) : "Recently"}
+                        </p>
+                      </div>
+                      <Badge className={getStatusColor(ride.status)}>
+                        {ride.status}
+                      </Badge>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>No recent activity</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

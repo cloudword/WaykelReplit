@@ -867,6 +867,56 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Admin dashboard stats - Admin only
+  app.get("/api/admin/stats", requireAdmin, async (req, res) => {
+    try {
+      const [drivers, transporters, customers, vehicles, rides, bids] = await Promise.all([
+        storage.getDrivers(),
+        storage.getAllTransporters(),
+        storage.getCustomers(),
+        storage.getAllVehicles(),
+        storage.getAllRides(),
+        storage.getAllBids(),
+      ]);
+
+      const activeVehicles = vehicles.filter(v => v.status === "active");
+      const completedRides = rides.filter(r => r.status === "completed");
+      const activeRides = rides.filter(r => r.status === "active" || r.status === "assigned");
+      const pendingRides = rides.filter(r => r.status === "pending");
+
+      const totalRevenue = completedRides.reduce((sum, ride) => {
+        return sum + parseFloat(ride.price || "0");
+      }, 0);
+
+      const recentRides = rides
+        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+        .slice(0, 10);
+
+      res.json({
+        totalDrivers: drivers.length,
+        totalTransporters: transporters.length,
+        totalCustomers: customers.length,
+        totalVehicles: vehicles.length,
+        activeVehicles: activeVehicles.length,
+        totalRides: rides.length,
+        completedRides: completedRides.length,
+        activeRides: activeRides.length,
+        pendingRides: pendingRides.length,
+        totalBids: bids.length,
+        totalRevenue,
+        recentRides: recentRides.map(r => ({
+          id: r.id,
+          pickupLocation: r.pickupLocation,
+          dropLocation: r.dropLocation,
+          status: r.status,
+          createdAt: r.createdAt,
+        })),
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch admin stats" });
+    }
+  });
+
   // Update user details (admin only)
   app.patch("/api/users/:id", async (req, res) => {
     try {
