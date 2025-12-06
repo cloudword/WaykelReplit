@@ -860,5 +860,254 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // ===========================================
+  // BOOKING FLOW - Matching & Notifications
+  // ===========================================
+
+  // Find matching transporters for a ride (for admin/customer to see who can fulfill)
+  app.get("/api/rides/:rideId/matches", async (req, res) => {
+    const sessionUser = req.session.user;
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const ride = await storage.getRide(req.params.rideId);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      // Only super admin or the customer who created the ride can see matches
+      if (!sessionUser.isSuperAdmin && ride.createdById !== sessionUser.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const matches = await storage.findMatchingTransporters(ride);
+      res.json(matches);
+    } catch (error) {
+      console.error("Failed to find matches:", error);
+      res.status(500).json({ error: "Failed to find matching transporters" });
+    }
+  });
+
+  // Notify matching transporters about a new ride (creates notifications for all matches)
+  app.post("/api/rides/:rideId/notify-transporters", async (req, res) => {
+    const sessionUser = req.session.user;
+    
+    // Only super admin or customer who created the ride can send notifications
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const ride = await storage.getRide(req.params.rideId);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      if (!sessionUser.isSuperAdmin && sessionUser.role !== "customer") {
+        return res.status(403).json({ error: "Only admin or customers can send booking notifications" });
+      }
+      
+      if (!sessionUser.isSuperAdmin && ride.createdById !== sessionUser.id) {
+        return res.status(403).json({ error: "You can only notify transporters for your own rides" });
+      }
+      
+      // Find matching transporters
+      const matches = await storage.findMatchingTransporters(ride);
+      
+      // Create notifications for each matching transporter
+      const notificationPromises = matches.map(async (match) => {
+        // Find the user associated with this transporter to send notification
+        const transporterUsers = await storage.getUsersByTransporter(match.transporter.id);
+        
+        // Create notification for each user under this transporter
+        for (const user of transporterUsers) {
+          await storage.createNotification({
+            recipientId: user.id,
+            recipientTransporterId: match.transporter.id,
+            type: "new_booking",
+            title: "New Booking Request",
+            message: `New trip from ${ride.pickupLocation} to ${ride.dropLocation} - ${ride.cargoType} (${ride.weight}). Budget: ₹${ride.price}`,
+            rideId: ride.id,
+            matchScore: match.matchScore,
+            matchReason: match.matchReason,
+          });
+        }
+        
+        // Also notify owner-operator if applicable
+        if (match.transporter.isOwnerOperator && match.transporter.ownerDriverUserId) {
+          await storage.createNotification({
+            recipientId: match.transporter.ownerDriverUserId,
+            recipientTransporterId: match.transporter.id,
+            type: "new_booking",
+            title: "New Booking Request",
+            message: `New trip from ${ride.pickupLocation} to ${ride.dropLocation} - ${ride.cargoType} (${ride.weight}). Budget: ₹${ride.price}`,
+            rideId: ride.id,
+            matchScore: match.matchScore,
+            matchReason: match.matchReason,
+          });
+        }
+      });
+      
+      await Promise.all(notificationPromises);
+      
+      res.json({ 
+        success: true, 
+        message: `Notified ${matches.length} transporters`,
+        matchesCount: matches.length
+      });
+    } catch (error) {
+      console.error("Failed to notify transporters:", error);
+      res.status(500).json({ error: "Failed to send notifications" });
+    }
+  });
+
+  // Notification routes
+  app.get("/api/notifications", async (req, res) => {
+    const sessionUser = req.session.user;
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const { unreadOnly } = req.query;
+      let notifications;
+      
+      if (unreadOnly === "true") {
+        notifications = await storage.getUnreadNotifications(sessionUser.id);
+      } else {
+        notifications = await storage.getUserNotifications(sessionUser.id);
+      }
+      
+      res.json(notifications);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch notifications" });
+    }
+  });
+
+  app.patch("/api/notifications/:id/read", async (req, res) => {
+    const sessionUser = req.session.user;
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      await storage.markNotificationRead(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({ error: "Failed to mark notification as read" });
+    }
+  });
+
+  app.patch("/api/notifications/mark-all-read", async (req, res) => {
+    const sessionUser = req.session.user;
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      await storage.markAllNotificationsRead(sessionUser.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({ error: "Failed to mark all notifications as read" });
+    }
+  });
+
+  // Accept bid route - now allows BOTH super admin AND customer to accept bids
+  app.post("/api/bids/:bidId/accept", async (req, res) => {
+    const sessionUser = req.session.user;
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const bid = await storage.getBid(req.params.bidId);
+      if (!bid) {
+        return res.status(404).json({ error: "Bid not found" });
+      }
+      
+      const ride = await storage.getRide(bid.rideId);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      // Check authorization - super admin can accept any, customer can only accept on their rides
+      const isSuperAdmin = sessionUser.isSuperAdmin;
+      const isRideOwner = ride.createdById === sessionUser.id;
+      
+      if (!isSuperAdmin && !isRideOwner) {
+        return res.status(403).json({ error: "Only the ride owner or admin can accept bids" });
+      }
+      
+      // Update bid status to accepted
+      await storage.updateBidStatus(bid.id, "accepted");
+      
+      // Update ride with accepted bid and transporter
+      await storage.updateRideAcceptedBid(ride.id, bid.id, bid.transporterId || "");
+      
+      // Assign driver and vehicle if available
+      if (bid.userId && bid.vehicleId) {
+        await storage.assignRideToDriver(ride.id, bid.userId, bid.vehicleId);
+      }
+      
+      // Reject other bids for this ride
+      const allBids = await storage.getRideBids(ride.id);
+      for (const otherBid of allBids) {
+        if (otherBid.id !== bid.id && otherBid.status === "pending") {
+          await storage.updateBidStatus(otherBid.id, "rejected");
+          
+          // Notify rejected bidders
+          if (otherBid.userId) {
+            await storage.createNotification({
+              recipientId: otherBid.userId,
+              recipientTransporterId: otherBid.transporterId || undefined,
+              type: "bid_rejected",
+              title: "Bid Not Selected",
+              message: `Your bid for trip ${ride.pickupLocation} to ${ride.dropLocation} was not selected.`,
+              rideId: ride.id,
+              bidId: otherBid.id,
+            });
+          }
+        }
+      }
+      
+      // Notify the winner
+      if (bid.userId) {
+        await storage.createNotification({
+          recipientId: bid.userId,
+          recipientTransporterId: bid.transporterId || undefined,
+          type: "bid_accepted",
+          title: "Bid Accepted!",
+          message: `Your bid of ₹${bid.amount} for trip ${ride.pickupLocation} to ${ride.dropLocation} has been accepted!`,
+          rideId: ride.id,
+          bidId: bid.id,
+        });
+      }
+      
+      // Notify the customer that bid was accepted (if super admin accepted it)
+      if (isSuperAdmin && ride.createdById) {
+        await storage.createNotification({
+          recipientId: ride.createdById,
+          type: "ride_assigned",
+          title: "Trip Assigned",
+          message: `Your trip from ${ride.pickupLocation} to ${ride.dropLocation} has been assigned. Bid amount: ₹${bid.amount}`,
+          rideId: ride.id,
+          bidId: bid.id,
+        });
+      }
+      
+      res.json({ success: true, message: "Bid accepted and trip assigned" });
+    } catch (error) {
+      console.error("Failed to accept bid:", error);
+      res.status(500).json({ error: "Failed to accept bid" });
+    }
+  });
+
   return httpServer;
 }
