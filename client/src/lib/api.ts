@@ -147,6 +147,14 @@ export const api = {
       return res.json();
     },
   },
+  drivers: {
+    list: async () => {
+      const res = await fetch(`${API_BASE}/drivers`, {
+        credentials: "include",
+      });
+      return res.json();
+    },
+  },
   users: {
     list: async (filters?: any) => {
       const params = new URLSearchParams(filters || {});

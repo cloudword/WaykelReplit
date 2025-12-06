@@ -18,7 +18,7 @@ export function AdminSidebar() {
     { href: "/admin/transporters", icon: Building2, label: "Transporters" },
     { href: "/admin/customers", icon: UserCheck, label: "Customers" },
     { href: "/admin/vehicles", icon: Truck, label: "Vehicles" },
-    { href: "/admin/calendar", icon: Calendar, label: "Trip Schedule" },
+    { href: "/admin/trips", icon: Calendar, label: "Trip Scheduler" },
     { href: "/admin/earnings", icon: Wallet, label: "Revenue" },
     { href: "/admin/api-explorer", icon: Code, label: "API Explorer" },
     { href: "/admin/settings", icon: Settings, label: "Settings" },
