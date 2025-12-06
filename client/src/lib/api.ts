@@ -121,17 +121,22 @@ export const api = {
   vehicles: {
     list: async (filters?: any) => {
       if (!filters || Object.keys(filters).length === 0) {
-        const res = await fetch(`${API_BASE}/vehicles/all`);
+        const res = await fetch(`${API_BASE}/vehicles/all`, {
+          credentials: "include",
+        });
         return res.json();
       }
       const params = new URLSearchParams(filters);
-      const res = await fetch(`${API_BASE}/vehicles?${params}`);
+      const res = await fetch(`${API_BASE}/vehicles?${params}`, {
+        credentials: "include",
+      });
       return res.json();
     },
     create: async (data: any) => {
       const res = await fetch(`${API_BASE}/vehicles`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(data),
       });
       return res.json();
@@ -140,13 +145,16 @@ export const api = {
   transporters: {
     list: async (filters?: any) => {
       const params = new URLSearchParams(filters || {});
-      const res = await fetch(`${API_BASE}/transporters?${params}`);
+      const res = await fetch(`${API_BASE}/transporters?${params}`, {
+        credentials: "include",
+      });
       return res.json();
     },
     create: async (data: any) => {
       const res = await fetch(`${API_BASE}/transporters`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(data),
       });
       return res.json();
@@ -155,6 +163,7 @@ export const api = {
       const res = await fetch(`${API_BASE}/transporters/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ status }),
       });
       return res.json();
@@ -198,6 +207,7 @@ export const api = {
       const res = await fetch(`${API_BASE}/users/${id}/online-status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ isOnline }),
       });
       return res.json();
@@ -206,13 +216,16 @@ export const api = {
   documents: {
     list: async (filters?: { userId?: string; vehicleId?: string; transporterId?: string }) => {
       const params = new URLSearchParams(filters as any || {});
-      const res = await fetch(`${API_BASE}/documents?${params}`);
+      const res = await fetch(`${API_BASE}/documents?${params}`, {
+        credentials: "include",
+      });
       return res.json();
     },
     create: async (data: any) => {
       const res = await fetch(`${API_BASE}/documents`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(data),
       });
       return res.json();
@@ -221,6 +234,7 @@ export const api = {
       const res = await fetch(`${API_BASE}/documents/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ status }),
       });
       return res.json();

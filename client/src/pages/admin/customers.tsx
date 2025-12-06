@@ -37,7 +37,7 @@ export default function AdminCustomers() {
   const { data: customers = [], isLoading } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
     queryFn: async () => {
-      const res = await fetch("/api/customers");
+      const res = await fetch("/api/customers", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch customers");
       return res.json();
     },
@@ -47,7 +47,7 @@ export default function AdminCustomers() {
     queryKey: ["/api/rides", selectedCustomer?.id],
     queryFn: async () => {
       if (!selectedCustomer) return [];
-      const res = await fetch(`/api/rides?createdById=${selectedCustomer.id}`);
+      const res = await fetch(`/api/rides?createdById=${selectedCustomer.id}`, { credentials: "include" });
       return res.json();
     },
     enabled: !!selectedCustomer,
