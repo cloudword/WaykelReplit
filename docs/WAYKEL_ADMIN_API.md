@@ -21,6 +21,53 @@ The API allows cross-origin requests from:
 
 ---
 
+## Authentication & Authorization
+
+### Session-Based Authentication
+The API uses session-based authentication with cookies. Include `credentials: 'include'` in fetch requests to send cookies.
+
+### Endpoint Protection Levels
+
+| Protection Level | Access | Error Response |
+|-----------------|--------|----------------|
+| **Public** | Anyone | N/A |
+| **Authenticated** | Logged-in users | `401 {"error": "Authentication required. Please log in."}` |
+| **Admin Only** | Users with role "admin" | `403 {"error": "Admin access required."}` |
+| **Driver/Transporter** | Drivers or Transporters | `403 {"error": "Driver or transporter access required."}` |
+
+> **Note:** Currently, there is only one admin account (the Super Admin). The "Admin Only" protection checks for role="admin".
+
+### Public Endpoints (No Auth Required)
+- `GET /api/health` - Health check
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/login` - User login
+- `GET /api/auth/session` - Check session status
+- `POST /api/rides` - Create booking (for customer portal)
+
+### Authenticated Endpoints (Login Required)
+- `POST /api/auth/logout` - Logout
+- `POST /api/auth/change-password` - Change password
+- `GET /api/rides` - List rides
+- `GET /api/rides/:id` - Get ride details
+- `POST /api/bids` - Place bid
+- `GET /api/bids` - List bids
+- `GET /api/vehicles` - List vehicles
+
+### Admin-Only Endpoints
+- `GET /api/customers` - List all customers
+- `GET /api/drivers` - List all drivers
+- `PATCH /api/rides/:id/assign` - Assign driver to ride
+- `PATCH /api/bids/:id/status` - Approve/reject bids
+- `PATCH /api/transporters/:id/status` - Approve/suspend transporters
+- `DELETE` operations on most resources
+
+### Super Admin Credentials
+- **Phone:** `9999999999`
+- **Password:** `Waykel6@singh`
+- **Username:** `waykelAdmin`
+
+---
+
 ## Authentication Endpoints
 
 ### Register User
