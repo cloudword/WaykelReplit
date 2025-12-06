@@ -200,12 +200,12 @@ export default function CustomerDashboard() {
                     <Truck className="h-4 w-4 text-indigo-500" />
                     Vehicle Type
                   </Label>
-                  <Select onValueChange={(v) => setFormData({ ...formData, requiredVehicleType: v })}>
+                  <Select onValueChange={(v) => setFormData({ ...formData, requiredVehicleType: v === "any" ? "" : v })}>
                     <SelectTrigger data-testid="select-vehicle-type">
-                      <SelectValue placeholder="Any" />
+                      <SelectValue placeholder="Any Vehicle" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Any Vehicle</SelectItem>
+                      <SelectItem value="any">Any Vehicle</SelectItem>
                       <SelectItem value="Tata Ace">Tata Ace (0.5-1T)</SelectItem>
                       <SelectItem value="Bolero">Bolero (1-2T)</SelectItem>
                       <SelectItem value="Pickup">Pickup (1.5-2T)</SelectItem>
