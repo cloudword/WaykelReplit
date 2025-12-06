@@ -74,12 +74,22 @@ The backend follows a traditional REST API architecture serving JSON responses. 
 - `/api/transporters/*` - Transporter company management
 
 **Authentication Strategy**: 
-- **Session-based auth** (for browsers): express-session with PostgreSQL session store
+- **Session-based auth** (for browsers): express-session with MemoryStore (development) or PostgreSQL (production)
 - **Token-based auth** (for server-to-server): JWT Bearer tokens via `/api/auth/token`
 - Password-based authentication using bcrypt for hashing
-- Session regeneration on login to prevent session fixation attacks
+- Session regeneration on login/registration to prevent session fixation attacks
 - Phone number as primary identifier for regular users; username for Super Admin
 - Super Admin credentials: phone "8699957305" or username "waykelAdmin" with password "Waykel6@singh"
+
+**Session Cookie Configuration**:
+- Sessions are created on both login AND registration (so new users can immediately access their data)
+- Cookie settings when behind reverse proxy (Replit/production):
+  - `secure: true` - Requires HTTPS
+  - `sameSite: "none"` - Allows cross-origin requests
+  - `httpOnly: true` - Prevents XSS attacks
+  - `maxAge: 24 hours` - Session duration
+- `app.set("trust proxy", 1)` is required for secure cookies behind reverse proxies
+- Frontend must include `credentials: "include"` on all API fetch calls
 
 **Token Authentication (for external integrations)**:
 - `POST /api/auth/token` - Login and receive a JWT token

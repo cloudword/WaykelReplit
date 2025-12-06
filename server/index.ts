@@ -63,6 +63,12 @@ app.use((req, res, next) => {
   next();
 });
 
+// Trust proxy when running behind a reverse proxy (Replit, Heroku, etc.)
+// This is required for secure cookies to work correctly
+if (process.env.REPL_ID || process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
+
 // Determine if we need cross-origin cookie settings
 // Enable secure cookies for production OR when CUSTOMER_PORTAL_URL is set (cross-origin scenario)
 const needsCrossOriginCookies = process.env.NODE_ENV === "production" || !!process.env.CUSTOMER_PORTAL_URL || !!process.env.REPL_ID;

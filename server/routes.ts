@@ -140,8 +140,29 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       const user = await storage.createUser({ ...data, password: hashedPassword });
-      const { password, ...userWithoutPassword } = user;
-      res.json(userWithoutPassword);
+      
+      req.session.regenerate((err) => {
+        if (err) {
+          console.error("Session regeneration error during registration:", err);
+          return res.status(500).json({ error: "Session initialization failed" });
+        }
+
+        req.session.user = {
+          id: user.id,
+          role: user.role,
+          isSuperAdmin: user.isSuperAdmin || false,
+          transporterId: user.transporterId || undefined,
+        };
+
+        req.session.save((saveErr) => {
+          if (saveErr) {
+            console.error("Session save error during registration:", saveErr);
+            return res.status(500).json({ error: "Session save failed" });
+          }
+          const { password, ...userWithoutPassword } = user;
+          res.json(userWithoutPassword);
+        });
+      });
     } catch (error) {
       res.status(400).json({ error: "Invalid data" });
     }
@@ -478,6 +499,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/rides", async (req, res) => {
     try {
       const data = insertRideSchema.parse(req.body);
+      
+      const user = getCurrentUser(req);
+      if (user?.id && !data.createdById) {
+        data.createdById = user.id;
+      }
+      
       const ride = await storage.createRide(data);
       res.status(201).json(ride);
     } catch (error: any) {
