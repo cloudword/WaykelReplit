@@ -20,6 +20,7 @@ declare module "express-session" {
       id: string;
       role: string;
       isSuperAdmin?: boolean;
+      transporterId?: string;
     };
   }
 }

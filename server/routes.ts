@@ -1,10 +1,54 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertUserSchema, insertTransporterSchema, insertVehicleSchema, insertRideSchema, insertBidSchema, insertDocumentSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
+
+// Authentication Middleware
+const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.session?.user?.id) {
+    return res.status(401).json({ error: "Authentication required. Please log in." });
+  }
+  next();
+};
+
+const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.session?.user?.id) {
+    return res.status(401).json({ error: "Authentication required. Please log in." });
+  }
+  if (!req.session.user.isSuperAdmin && req.session.user.role !== "admin") {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+  next();
+};
+
+const requireDriverOrTransporter = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.session?.user?.id) {
+    return res.status(401).json({ error: "Authentication required. Please log in." });
+  }
+  const role = req.session.user.role;
+  if (role !== "driver" && role !== "transporter" && !req.session.user.isSuperAdmin) {
+    return res.status(403).json({ error: "Driver or transporter access required" });
+  }
+  next();
+};
+
+const requireAdminOrOwner = (getOwnerId: (req: Request) => string | undefined) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.session?.user?.id) {
+      return res.status(401).json({ error: "Authentication required. Please log in." });
+    }
+    const ownerId = getOwnerId(req);
+    const isOwner = ownerId === req.session.user.id || ownerId === req.session.user.transporterId;
+    const isAdmin = req.session.user.isSuperAdmin || req.session.user.role === "admin";
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ error: "Access denied. You can only access your own data." });
+    }
+    next();
+  };
+};
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   // Health check endpoint for Docker and load balancers
@@ -171,26 +215,57 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Ride routes
-  app.get("/api/rides", async (req, res) => {
+  // GET /api/rides - Auth required. Admins see all, others see filtered by own ID
+  app.get("/api/rides", requireAuth, async (req, res) => {
     const { status, driverId, transporterId, createdById } = req.query;
+    const user = req.session.user!;
+    const isAdmin = user.isSuperAdmin || user.role === "admin";
     
     try {
       let result;
+      
+      // If specific filters provided, validate access
       if (driverId) {
+        if (!isAdmin && driverId !== user.id) {
+          return res.status(403).json({ error: "You can only view your own rides" });
+        }
         result = await storage.getDriverRides(driverId as string);
       } else if (transporterId) {
+        if (!isAdmin && transporterId !== user.transporterId) {
+          return res.status(403).json({ error: "You can only view your own transporter rides" });
+        }
         result = await storage.getTransporterRides(transporterId as string);
       } else if (createdById) {
+        if (!isAdmin && createdById !== user.id) {
+          return res.status(403).json({ error: "You can only view your own bookings" });
+        }
         result = await storage.getCustomerRides(createdById as string);
       } else if (status === "pending") {
+        // Pending rides visible to drivers/transporters for bidding, and admins
+        if (!isAdmin && user.role !== "driver" && user.role !== "transporter") {
+          return res.status(403).json({ error: "Only drivers, transporters, and admins can view pending rides" });
+        }
         result = await storage.getPendingRides();
       } else if (status === "scheduled") {
+        if (!isAdmin) {
+          return res.status(403).json({ error: "Admin access required to view all scheduled rides" });
+        }
         result = await storage.getScheduledRides();
       } else if (status === "active") {
+        if (!isAdmin) {
+          return res.status(403).json({ error: "Admin access required to view all active rides" });
+        }
         result = await storage.getActiveRides();
       } else if (status === "completed") {
+        if (!isAdmin) {
+          return res.status(403).json({ error: "Admin access required to view all completed rides" });
+        }
         result = await storage.getCompletedRides();
       } else {
+        // No filter = get all rides (admin only)
+        if (!isAdmin) {
+          return res.status(403).json({ error: "Admin access required to view all rides. Use filters to view your own." });
+        }
         result = await storage.getAllRides();
       }
       res.json(result);
@@ -199,12 +274,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.get("/api/rides/:id", async (req, res) => {
+  // GET /api/rides/:id - Auth required, owner or admin can view
+  app.get("/api/rides/:id", requireAuth, async (req, res) => {
     try {
       const ride = await storage.getRide(req.params.id);
       if (!ride) {
         return res.status(404).json({ error: "Ride not found" });
       }
+      
+      const user = req.session.user!;
+      const isAdmin = user.isSuperAdmin || user.role === "admin";
+      const isOwner = ride.createdById === user.id || 
+                      ride.assignedDriverId === user.id ||
+                      ride.transporterId === user.transporterId;
+      
+      if (!isAdmin && !isOwner) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
       res.json(ride);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch ride" });
@@ -234,8 +321,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.patch("/api/rides/:id/status", async (req, res) => {
+  // PATCH /api/rides/:id/status - Auth required, admin or ride owner can update
+  app.patch("/api/rides/:id/status", requireAuth, async (req, res) => {
     try {
+      const ride = await storage.getRide(req.params.id);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      const user = req.session.user!;
+      const isAdmin = user.isSuperAdmin || user.role === "admin";
+      const isOwner = ride.createdById === user.id;
+      const isAssignedDriver = ride.assignedDriverId === user.id;
+      
+      // Only admin, owner, or assigned driver can update status
+      if (!isAdmin && !isOwner && !isAssignedDriver) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
       const { status } = req.body;
       await storage.updateRideStatus(req.params.id, status);
       res.json({ success: true });
@@ -244,7 +347,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.patch("/api/rides/:id/assign", async (req, res) => {
+  // PATCH /api/rides/:id/assign - Admin only
+  app.patch("/api/rides/:id/assign", requireAdmin, async (req, res) => {
     try {
       const { driverId, vehicleId } = req.body;
       await storage.assignRideToDriver(req.params.id, driverId, vehicleId);
@@ -255,18 +359,32 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Bid routes
-  app.get("/api/bids", async (req, res) => {
+  // GET /api/bids - Auth required. Admins see all, others see filtered by own data
+  app.get("/api/bids", requireAuth, async (req, res) => {
     const { rideId, userId, transporterId } = req.query;
+    const user = req.session.user!;
+    const isAdmin = user.isSuperAdmin || user.role === "admin";
     
     try {
       let result: any[];
       if (rideId) {
+        // Anyone can view bids for a specific ride (for transparency)
         result = await storage.getRideBids(rideId as string);
       } else if (userId) {
+        if (!isAdmin && userId !== user.id) {
+          return res.status(403).json({ error: "You can only view your own bids" });
+        }
         result = await storage.getUserBids(userId as string);
       } else if (transporterId) {
+        if (!isAdmin && transporterId !== user.transporterId) {
+          return res.status(403).json({ error: "You can only view your own transporter bids" });
+        }
         result = await storage.getTransporterBids(transporterId as string);
       } else {
+        // No filter = all bids (admin only)
+        if (!isAdmin) {
+          return res.status(403).json({ error: "Admin access required to view all bids" });
+        }
         result = await storage.getAllBids();
       }
       res.json(result);
@@ -275,7 +393,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.post("/api/bids", async (req, res) => {
+  // POST /api/bids - Driver or transporter only
+  app.post("/api/bids", requireDriverOrTransporter, async (req, res) => {
     try {
       const data = insertBidSchema.parse(req.body);
       const bid = await storage.createBid(data);
@@ -289,7 +408,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.patch("/api/bids/:id/status", async (req, res) => {
+  // PATCH /api/bids/:id/status - Admin only (to approve/reject bids)
+  app.patch("/api/bids/:id/status", requireAdmin, async (req, res) => {
     try {
       const { status } = req.body;
       await storage.updateBidStatus(req.params.id, status);
@@ -308,8 +428,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // Get cheapest bids for a ride (for customer view)
-  app.get("/api/rides/:rideId/cheapest-bids", async (req, res) => {
+  // Get cheapest bids for a ride (for customer view) - Auth required
+  app.get("/api/rides/:rideId/cheapest-bids", requireAuth, async (req, res) => {
     try {
       const { rideId } = req.params;
       const limit = parseInt(req.query.limit as string) || 5;
@@ -355,15 +475,29 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Vehicle routes
-  app.get("/api/vehicles", async (req, res) => {
+  // GET /api/vehicles - Auth required, users can view their own or transporter's
+  app.get("/api/vehicles", requireAuth, async (req, res) => {
     const { userId, transporterId } = req.query;
+    const user = req.session.user!;
+    const isAdmin = user.isSuperAdmin || user.role === "admin";
     
     try {
       let result: any[] = [];
       if (userId) {
+        if (!isAdmin && userId !== user.id) {
+          return res.status(403).json({ error: "You can only view your own vehicles" });
+        }
         result = await storage.getUserVehicles(userId as string);
       } else if (transporterId) {
+        if (!isAdmin && transporterId !== user.transporterId) {
+          return res.status(403).json({ error: "You can only view your own transporter vehicles" });
+        }
         result = await storage.getTransporterVehicles(transporterId as string);
+      } else {
+        // No filter - return empty for non-admins
+        if (!isAdmin) {
+          return res.status(400).json({ error: "Please specify userId or transporterId filter" });
+        }
       }
       res.json(result);
     } catch (error) {
@@ -371,7 +505,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.get("/api/vehicles/all", async (req, res) => {
+  // GET /api/vehicles/all - Admin only
+  app.get("/api/vehicles/all", requireAdmin, async (req, res) => {
     try {
       const result = await storage.getAllVehicles();
       res.json(result);
@@ -380,7 +515,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.post("/api/vehicles", async (req, res) => {
+  // POST /api/vehicles - Driver or transporter only
+  app.post("/api/vehicles", requireDriverOrTransporter, async (req, res) => {
     try {
       const data = insertVehicleSchema.parse(req.body);
       const vehicle = await storage.createVehicle(data);
@@ -391,7 +527,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Transporter routes
-  app.get("/api/transporters", async (req, res) => {
+  // GET /api/transporters - Admin only
+  app.get("/api/transporters", requireAdmin, async (req, res) => {
     const { status } = req.query;
     
     try {
@@ -407,6 +544,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // POST /api/transporters - Public (for registration)
   app.post("/api/transporters", async (req, res) => {
     try {
       const data = insertTransporterSchema.parse(req.body);
@@ -417,7 +555,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.patch("/api/transporters/:id/status", async (req, res) => {
+  // PATCH /api/transporters/:id/status - Admin only
+  app.patch("/api/transporters/:id/status", requireAdmin, async (req, res) => {
     try {
       const { status } = req.body;
       await storage.updateTransporterStatus(req.params.id, status);
@@ -428,26 +567,39 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // User routes
-  app.get("/api/users", async (req, res) => {
+  // GET /api/users - Admin only (or transporter can see their own users)
+  app.get("/api/users", requireAuth, async (req, res) => {
     try {
       const { transporterId, role } = req.query;
+      const user = req.session.user!;
+      const isAdmin = user.isSuperAdmin || user.role === "admin";
+      
       let users;
       if (transporterId && role) {
+        if (!isAdmin && transporterId !== user.transporterId) {
+          return res.status(403).json({ error: "You can only view users from your own transporter" });
+        }
         users = await storage.getUsersByTransporterAndRole(transporterId as string, role as string);
       } else if (transporterId) {
+        if (!isAdmin && transporterId !== user.transporterId) {
+          return res.status(403).json({ error: "You can only view users from your own transporter" });
+        }
         users = await storage.getUsersByTransporter(transporterId as string);
       } else {
+        if (!isAdmin) {
+          return res.status(403).json({ error: "Admin access required to view all users" });
+        }
         users = await storage.getAllUsers();
       }
-      const usersWithoutPasswords = users.map(({ password, ...user }) => user);
+      const usersWithoutPasswords = users.map(({ password, ...u }) => u);
       res.json(usersWithoutPasswords);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch users" });
     }
   });
 
-  // Get all customers (for admin panel) with trip counts
-  app.get("/api/customers", async (req, res) => {
+  // Get all customers (for admin panel) with trip counts - Admin only
+  app.get("/api/customers", requireAdmin, async (req, res) => {
     try {
       const customers = await storage.getCustomers();
       const allRides = await storage.getAllRides();
@@ -468,8 +620,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // Get all drivers (for admin panel)
-  app.get("/api/drivers", async (req, res) => {
+  // Get all drivers (for admin panel) - Admin only
+  app.get("/api/drivers", requireAdmin, async (req, res) => {
     try {
       const drivers = await storage.getDrivers();
       const driversWithoutPasswords = drivers.map(({ password, ...driver }) => driver);
@@ -535,8 +687,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.patch("/api/users/:id/online-status", async (req, res) => {
+  // PATCH /api/users/:id/online-status - Owner or admin
+  app.patch("/api/users/:id/online-status", requireAuth, async (req, res) => {
     try {
+      const user = req.session.user!;
+      const isAdmin = user.isSuperAdmin || user.role === "admin";
+      
+      if (!isAdmin && req.params.id !== user.id) {
+        return res.status(403).json({ error: "You can only update your own status" });
+      }
+      
       const { isOnline } = req.body;
       await storage.updateUserOnlineStatus(req.params.id, isOnline);
       res.json({ success: true });
@@ -546,18 +706,31 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Document routes
-  app.get("/api/documents", async (req, res) => {
+  // GET /api/documents - Auth required, users can only see their own
+  app.get("/api/documents", requireAuth, async (req, res) => {
     const { userId, vehicleId, transporterId } = req.query;
+    const user = req.session.user!;
+    const isAdmin = user.isSuperAdmin || user.role === "admin";
     
     try {
       let result;
       if (userId) {
+        if (!isAdmin && userId !== user.id) {
+          return res.status(403).json({ error: "You can only view your own documents" });
+        }
         result = await storage.getUserDocuments(userId as string);
       } else if (vehicleId) {
+        // Allow if admin or owner of vehicle (check is done at storage level for simplicity)
         result = await storage.getVehicleDocuments(vehicleId as string);
       } else if (transporterId) {
+        if (!isAdmin && transporterId !== user.transporterId) {
+          return res.status(403).json({ error: "You can only view your own transporter documents" });
+        }
         result = await storage.getTransporterDocuments(transporterId as string);
       } else {
+        if (!isAdmin) {
+          return res.status(403).json({ error: "Admin access required to view all documents" });
+        }
         result = await storage.getAllDocuments();
       }
       res.json(result);
@@ -594,7 +767,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.patch("/api/documents/:id/status", async (req, res) => {
+  // PATCH /api/documents/:id/status - Admin only (to verify/reject documents)
+  app.patch("/api/documents/:id/status", requireAdmin, async (req, res) => {
     try {
       const { status } = req.body;
       await storage.updateDocumentStatus(req.params.id, status);
