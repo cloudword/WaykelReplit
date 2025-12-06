@@ -3,33 +3,80 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertUserSchema, insertTransporterSchema, insertVehicleSchema, insertRideSchema, insertBidSchema, insertDocumentSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 
-// Authentication Middleware
+// JWT Configuration
+const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "waykel-jwt-secret-change-in-production";
+const JWT_EXPIRES_IN = "24h";
+
+// Extend Request type to include tokenUser
+declare global {
+  namespace Express {
+    interface Request {
+      tokenUser?: {
+        id: string;
+        role: string;
+        isSuperAdmin?: boolean;
+        transporterId?: string;
+      };
+    }
+  }
+}
+
+// JWT Token Verification Middleware - extracts user from Bearer token if present
+const extractTokenUser = (req: Request, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.substring(7);
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as {
+        id: string;
+        role: string;
+        isSuperAdmin?: boolean;
+        transporterId?: string;
+      };
+      req.tokenUser = decoded;
+    } catch (err) {
+      // Token invalid - continue without tokenUser (may still have session)
+    }
+  }
+  next();
+};
+
+// Helper to get current user from either session or token
+const getCurrentUser = (req: Request) => {
+  return req.session?.user || req.tokenUser;
+};
+
+// Authentication Middleware - supports both session and token auth
 const requireAuth = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.session?.user?.id) {
-    return res.status(401).json({ error: "Authentication required. Please log in." });
+  const user = getCurrentUser(req);
+  if (!user?.id) {
+    return res.status(401).json({ error: "Authentication required. Please log in or provide a valid Bearer token." });
   }
   next();
 };
 
 const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.session?.user?.id) {
-    return res.status(401).json({ error: "Authentication required. Please log in." });
+  const user = getCurrentUser(req);
+  if (!user?.id) {
+    return res.status(401).json({ error: "Authentication required. Please log in or provide a valid Bearer token." });
   }
-  if (!req.session.user.isSuperAdmin && req.session.user.role !== "admin") {
+  if (!user.isSuperAdmin && user.role !== "admin") {
     return res.status(403).json({ error: "Admin access required" });
   }
   next();
 };
 
 const requireDriverOrTransporter = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.session?.user?.id) {
-    return res.status(401).json({ error: "Authentication required. Please log in." });
+  const user = getCurrentUser(req);
+  if (!user?.id) {
+    return res.status(401).json({ error: "Authentication required. Please log in or provide a valid Bearer token." });
   }
-  const role = req.session.user.role;
-  if (role !== "driver" && role !== "transporter" && !req.session.user.isSuperAdmin) {
+  const role = user.role;
+  if (role !== "driver" && role !== "transporter" && !user.isSuperAdmin) {
     return res.status(403).json({ error: "Driver or transporter access required" });
   }
   next();
@@ -37,12 +84,13 @@ const requireDriverOrTransporter = (req: Request, res: Response, next: NextFunct
 
 const requireAdminOrOwner = (getOwnerId: (req: Request) => string | undefined) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    if (!req.session?.user?.id) {
-      return res.status(401).json({ error: "Authentication required. Please log in." });
+    const user = getCurrentUser(req);
+    if (!user?.id) {
+      return res.status(401).json({ error: "Authentication required. Please log in or provide a valid Bearer token." });
     }
     const ownerId = getOwnerId(req);
-    const isOwner = ownerId === req.session.user.id || ownerId === req.session.user.transporterId;
-    const isAdmin = req.session.user.isSuperAdmin || req.session.user.role === "admin";
+    const isOwner = ownerId === user.id || ownerId === user.transporterId;
+    const isAdmin = user.isSuperAdmin || user.role === "admin";
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ error: "Access denied. You can only access your own data." });
     }
@@ -51,6 +99,9 @@ const requireAdminOrOwner = (getOwnerId: (req: Request) => string | undefined) =
 };
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
+  // Apply JWT token extraction middleware to all routes
+  app.use(extractTokenUser);
+
   // Health check endpoint for Docker and load balancers
   app.get("/api/health", async (req, res) => {
     try {
@@ -153,6 +204,94 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Token-based authentication endpoint for server-to-server communication
+  // Returns a JWT token that can be used as Bearer token in Authorization header
+  app.post("/api/auth/token", async (req, res) => {
+    try {
+      const { phone, password, username } = req.body;
+      
+      let user;
+      if (username) {
+        user = await storage.getUserByUsername(username);
+      }
+      if (!user && phone) {
+        user = await storage.getUserByPhone(phone);
+      }
+      if (!user && username) {
+        user = await storage.getUserByPhone(username);
+      }
+      
+      if (!user || !(await bcrypt.compare(password, user.password))) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      if (user.role === "transporter" && user.transporterId) {
+        const transporter = await storage.getTransporter(user.transporterId);
+        if (transporter) {
+          if (transporter.status === "pending_approval") {
+            return res.status(403).json({ error: "Your account is pending admin approval." });
+          }
+          if (transporter.status === "suspended") {
+            return res.status(403).json({ error: "Your account has been suspended." });
+          }
+        }
+      }
+
+      // Generate JWT token
+      const tokenPayload = {
+        id: user.id,
+        role: user.role,
+        isSuperAdmin: user.isSuperAdmin || false,
+        transporterId: user.transporterId || undefined,
+      };
+
+      const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+      
+      const { password: _, ...userWithoutPassword } = user;
+      res.json({
+        token,
+        expiresIn: JWT_EXPIRES_IN,
+        tokenType: "Bearer",
+        user: userWithoutPassword
+      });
+    } catch (error) {
+      res.status(400).json({ error: "Token generation failed" });
+    }
+  });
+
+  // Refresh token endpoint - get a new token using an existing valid token
+  app.post("/api/auth/token/refresh", async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user?.id) {
+      return res.status(401).json({ error: "Valid token required for refresh" });
+    }
+
+    try {
+      // Get fresh user data
+      const freshUser = await storage.getUser(user.id);
+      if (!freshUser) {
+        return res.status(401).json({ error: "User not found" });
+      }
+
+      const tokenPayload = {
+        id: freshUser.id,
+        role: freshUser.role,
+        isSuperAdmin: freshUser.isSuperAdmin || false,
+        transporterId: freshUser.transporterId || undefined,
+      };
+
+      const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+      
+      res.json({
+        token,
+        expiresIn: JWT_EXPIRES_IN,
+        tokenType: "Bearer"
+      });
+    } catch (error) {
+      res.status(400).json({ error: "Token refresh failed" });
+    }
+  });
+
   app.post("/api/auth/logout", (req, res) => {
     req.session.destroy((err) => {
       if (err) {
@@ -164,8 +303,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.get("/api/auth/session", (req, res) => {
-    if (req.session.user) {
-      res.json({ authenticated: true, user: req.session.user });
+    const user = getCurrentUser(req);
+    if (user) {
+      res.json({ authenticated: true, user });
     } else {
       res.json({ authenticated: false });
     }
@@ -173,11 +313,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.post("/api/auth/change-password", async (req, res) => {
     try {
-      if (!req.session.user) {
+      const currentUser = getCurrentUser(req);
+      if (!currentUser) {
         return res.status(401).json({ error: "Not authenticated. Please log in again." });
       }
 
-      const sessionUserId = req.session.user.id;
+      const sessionUserId = currentUser.id;
       const { currentPassword, newPassword } = req.body;
       
       if (!currentPassword || !newPassword) {

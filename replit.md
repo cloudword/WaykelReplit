@@ -74,11 +74,23 @@ The backend follows a traditional REST API architecture serving JSON responses. 
 - `/api/transporters/*` - Transporter company management
 
 **Authentication Strategy**: 
-- Session-based authentication using express-session with PostgreSQL session store (connect-pg-simple)
+- **Session-based auth** (for browsers): express-session with PostgreSQL session store
+- **Token-based auth** (for server-to-server): JWT Bearer tokens via `/api/auth/token`
 - Password-based authentication using bcrypt for hashing
 - Session regeneration on login to prevent session fixation attacks
 - Phone number as primary identifier for regular users; username for Super Admin
 - Super Admin credentials: phone "8699957305" or username "waykelAdmin" with password "Waykel6@singh"
+
+**Token Authentication (for external integrations)**:
+- `POST /api/auth/token` - Login and receive a JWT token
+  - Request: `{ "phone": "8699957305", "password": "Waykel6@singh" }`
+  - Response: `{ "token": "eyJ...", "expiresIn": "24h", "tokenType": "Bearer", "user": {...} }`
+- `POST /api/auth/token/refresh` - Refresh an existing token
+  - Header: `Authorization: Bearer <token>`
+  - Response: `{ "token": "eyJ...", "expiresIn": "24h", "tokenType": "Bearer" }`
+- Use the token in subsequent requests: `Authorization: Bearer <token>`
+- Tokens expire after 24 hours; use refresh endpoint to get new tokens
+- Environment variable `JWT_SECRET` should be set in production (falls back to SESSION_SECRET)
 
 **Transporter Approval Workflow**:
 - New transporters register with "pending_approval" status
