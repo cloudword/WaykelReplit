@@ -591,6 +591,54 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       const ride = await storage.createRide(data);
+      
+      // Automatically find matching transporters and notify them
+      try {
+        const matches = await storage.findMatchingTransporters(ride);
+        
+        // Create notifications for each matching transporter
+        for (const match of matches) {
+          // Find the users associated with this transporter to send notification
+          const transporterUsers = await storage.getUsersByTransporter(match.transporter.id);
+          
+          // Create notification for each user under this transporter
+          for (const transporterUser of transporterUsers) {
+            await storage.createNotification({
+              recipientId: transporterUser.id,
+              recipientTransporterId: match.transporter.id,
+              type: "new_booking",
+              title: "New Trip Request Available",
+              message: `New trip from ${ride.pickupLocation} to ${ride.dropLocation} - ${ride.cargoType || 'General'} (${ride.weight || 'N/A'}). Budget: ₹${ride.price}`,
+              rideId: ride.id,
+              matchScore: match.matchScore,
+              matchReason: match.matchReason,
+            });
+          }
+          
+          // Also notify owner-operator if applicable
+          if (match.transporter.isOwnerOperator && match.transporter.ownerDriverUserId) {
+            const existingNotification = transporterUsers.find(u => u.id === match.transporter.ownerDriverUserId);
+            if (!existingNotification) {
+              await storage.createNotification({
+                recipientId: match.transporter.ownerDriverUserId,
+                recipientTransporterId: match.transporter.id,
+                type: "new_booking",
+                title: "New Trip Request Available",
+                message: `New trip from ${ride.pickupLocation} to ${ride.dropLocation} - ${ride.cargoType || 'General'} (${ride.weight || 'N/A'}). Budget: ₹${ride.price}`,
+                rideId: ride.id,
+                matchScore: match.matchScore,
+                matchReason: match.matchReason,
+              });
+            }
+          }
+        }
+        
+        console.log(`Ride ${ride.id} created - notified ${matches.length} matching transporters`);
+      } catch (matchError) {
+        // Don't fail the ride creation if matching/notification fails
+        console.error("Failed to notify matching transporters:", matchError);
+      }
+      
       res.status(201).json(ride);
     } catch (error: any) {
       console.error("Ride creation error:", error);
@@ -641,6 +689,105 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ error: "Failed to assign driver" });
+    }
+  });
+
+  // Get marketplace rides for transporter with match scores
+  app.get("/api/transporter/marketplace", async (req, res) => {
+    const sessionUser = getCurrentUser(req);
+    
+    if (!sessionUser || sessionUser.role !== "transporter") {
+      return res.status(403).json({ error: "Only transporters can access marketplace" });
+    }
+    
+    try {
+      // Get all pending rides
+      const pendingRides = await storage.getPendingRides();
+      
+      if (!sessionUser.transporterId) {
+        return res.json(pendingRides.map(ride => ({ ...ride, matchScore: 0, matchReason: "No transporter profile" })));
+      }
+      
+      // Get transporter details
+      const transporter = await storage.getTransporter(sessionUser.transporterId);
+      if (!transporter) {
+        return res.json(pendingRides.map(ride => ({ ...ride, matchScore: 0, matchReason: "Transporter not found" })));
+      }
+      
+      // Get transporter's vehicles
+      const vehicles = await storage.getTransporterVehicles(sessionUser.transporterId);
+      
+      // Calculate match scores for each ride
+      const ridesWithScores = pendingRides.map(ride => {
+        let score = 0;
+        const reasons: string[] = [];
+        
+        // Check vehicle matching
+        for (const vehicle of vehicles) {
+          if (vehicle.status !== "active") continue;
+          
+          // Vehicle type match
+          if (ride.requiredVehicleType && vehicle.type === ride.requiredVehicleType) {
+            score += 30;
+            reasons.push(`Vehicle type matches (${vehicle.type})`);
+          } else if (!ride.requiredVehicleType) {
+            score += 10;
+          }
+          
+          // Capacity match
+          if (ride.weightKg && vehicle.capacityKg && vehicle.capacityKg >= ride.weightKg) {
+            score += 25;
+            reasons.push(`Capacity sufficient (${vehicle.capacityKg}kg)`);
+          } else if (!ride.weightKg) {
+            score += 5;
+          }
+          
+          // Proximity match
+          if (vehicle.currentPincode && ride.pickupPincode && vehicle.currentPincode === ride.pickupPincode) {
+            score += 20;
+            reasons.push(`Vehicle at pickup location`);
+          }
+        }
+        
+        // Service area match
+        if (transporter.servicePincodes && ride.pickupPincode) {
+          if (transporter.servicePincodes.includes(ride.pickupPincode)) {
+            score += 15;
+            reasons.push(`In service area`);
+          }
+        }
+        
+        // Base location match
+        if (transporter.basePincode && ride.pickupPincode && transporter.basePincode === ride.pickupPincode) {
+          score += 10;
+          reasons.push(`Near base location`);
+        }
+        
+        // Route preference match
+        if (transporter.preferredRoutes && ride.pickupLocation && ride.dropLocation) {
+          const routes = transporter.preferredRoutes as string[];
+          const routeKey = `${ride.pickupLocation}-${ride.dropLocation}`.toLowerCase();
+          if (routes.some(r => routeKey.includes(r.toLowerCase()))) {
+            score += 20;
+            reasons.push(`On preferred route`);
+          }
+        }
+        
+        return {
+          ...ride,
+          matchScore: Math.min(score, 100),
+          matchReason: reasons.length > 0 ? reasons.join(", ") : "General match",
+          isMatched: score > 0
+        };
+      });
+      
+      // Sort by match score (highest first), then by date
+      ridesWithScores.sort((a, b) => b.matchScore - a.matchScore);
+      
+      res.json(ridesWithScores);
+    } catch (error) {
+      console.error("Failed to fetch marketplace rides:", error);
+      res.status(500).json({ error: "Failed to fetch marketplace rides" });
     }
   });
 

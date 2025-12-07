@@ -3,18 +3,38 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Building2, RefreshCw, MapPin, Clock, Package, Truck, IndianRupee, Calendar, User, Phone } from "lucide-react";
+import { ArrowLeft, Building2, RefreshCw, MapPin, Clock, Package, Truck, IndianRupee, Calendar, User, Phone, Star, Sparkles, Filter } from "lucide-react";
 import { VehicleSelector } from "@/components/vehicle-selector";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+interface MarketplaceRide {
+  id: string;
+  pickupLocation: string;
+  dropLocation: string;
+  pickupTime: string;
+  dropTime?: string;
+  date: string;
+  price: string;
+  distance?: string;
+  cargoType?: string;
+  weight?: string;
+  customerName?: string;
+  customerPhone?: string;
+  matchScore?: number;
+  matchReason?: string;
+  isMatched?: boolean;
+}
 
 export default function TransporterMarketplace() {
   const [_, setLocation] = useLocation();
   const [showVehicleSelector, setShowVehicleSelector] = useState(false);
   const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
   const [selectedRidePrice, setSelectedRidePrice] = useState<number>(0);
-  const [rides, setRides] = useState<any[]>([]);
+  const [rides, setRides] = useState<MarketplaceRide[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<"matched" | "all">("matched");
   const [user] = useState<any>(() => {
     const stored = localStorage.getItem("currentUser");
     return stored ? JSON.parse(stored) : null;
@@ -23,8 +43,16 @@ export default function TransporterMarketplace() {
   const loadRides = async () => {
     setLoading(true);
     try {
-      const data = await api.rides.list({ status: "pending" });
-      setRides(Array.isArray(data) ? data : []);
+      const response = await fetch("/api/transporter/marketplace", {
+        credentials: "include",
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setRides(Array.isArray(data) ? data : []);
+      } else {
+        const fallbackData = await api.rides.list({ status: "pending" });
+        setRides(Array.isArray(fallbackData) ? fallbackData : []);
+      }
     } catch (error) {
       console.error("Failed to load rides:", error);
       toast.error("Failed to load available loads");
@@ -32,6 +60,9 @@ export default function TransporterMarketplace() {
       setLoading(false);
     }
   };
+
+  const matchedRides = rides.filter(r => r.matchScore && r.matchScore > 0);
+  const allRides = rides;
 
   useEffect(() => {
     loadRides();
@@ -116,19 +147,42 @@ export default function TransporterMarketplace() {
           </CardContent>
         </Card>
 
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="font-bold text-lg">Available Loads ({rides.length})</h2>
-        </div>
+        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "matched" | "all")} className="mb-6">
+          <div className="flex justify-between items-center">
+            <TabsList>
+              <TabsTrigger value="matched" className="gap-2" data-testid="tab-matched">
+                <Sparkles className="h-4 w-4" />
+                For You ({matchedRides.length})
+              </TabsTrigger>
+              <TabsTrigger value="all" className="gap-2" data-testid="tab-all">
+                <Filter className="h-4 w-4" />
+                All Loads ({allRides.length})
+              </TabsTrigger>
+            </TabsList>
+          </div>
+        </Tabs>
 
         {loading ? (
           <div className="text-center py-12 text-gray-500">
             <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
             <p>Loading available loads...</p>
           </div>
-        ) : rides.length > 0 ? (
+        ) : (viewMode === "matched" ? matchedRides : allRides).length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {rides.map((ride) => (
-              <Card key={ride.id} className="relative overflow-hidden" data-testid={`ride-card-${ride.id}`}>
+            {(viewMode === "matched" ? matchedRides : allRides).map((ride) => (
+              <Card key={ride.id} className={`relative overflow-hidden ${ride.matchScore && ride.matchScore >= 50 ? 'ring-2 ring-yellow-400' : ''}`} data-testid={`ride-card-${ride.id}`}>
+                {ride.matchScore && ride.matchScore > 0 && (
+                  <div className="absolute top-0 right-0 z-10">
+                    <div className={`px-2 py-1 text-xs font-bold flex items-center gap-1 ${
+                      ride.matchScore >= 70 ? 'bg-green-500 text-white' :
+                      ride.matchScore >= 40 ? 'bg-yellow-500 text-black' :
+                      'bg-gray-500 text-white'
+                    }`}>
+                      <Star className="h-3 w-3" />
+                      {ride.matchScore}% Match
+                    </div>
+                  </div>
+                )}
                 <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 flex justify-between items-center">
                   <Badge variant="secondary" className="bg-white/20 text-white border-0 text-xs">
                     {ride.distance || "N/A"}
@@ -200,6 +254,13 @@ export default function TransporterMarketplace() {
                       </div>
                     </div>
                   )}
+                  
+                  {ride.matchReason && ride.matchScore && ride.matchScore > 0 && (
+                    <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 p-2 rounded-lg">
+                      <Sparkles className="h-4 w-4 text-green-600 shrink-0" />
+                      <span className="line-clamp-2">{ride.matchReason}</span>
+                    </div>
+                  )}
 
                   <div className="flex justify-between items-center pt-2 border-t border-gray-100">
                     <div>
@@ -223,8 +284,22 @@ export default function TransporterMarketplace() {
           </div>
         ) : (
           <div className="text-center py-12 text-gray-500">
-            <p className="text-lg mb-2">No loads available for bidding</p>
-            <p className="text-sm">Check back later for new opportunities</p>
+            {viewMode === "matched" ? (
+              <>
+                <Sparkles className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p className="text-lg mb-2">No matched loads found</p>
+                <p className="text-sm mb-4">Update your vehicle and service area details to get better matches</p>
+                <Button variant="outline" onClick={() => setViewMode("all")} data-testid="button-view-all">
+                  View All Available Loads
+                </Button>
+              </>
+            ) : (
+              <>
+                <Package className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p className="text-lg mb-2">No loads available for bidding</p>
+                <p className="text-sm">Check back later for new opportunities</p>
+              </>
+            )}
           </div>
         )}
       </main>
