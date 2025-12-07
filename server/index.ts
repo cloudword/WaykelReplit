@@ -42,8 +42,11 @@ const ALLOWED_ORIGINS = [
   ...customerPortalUrls,
   'https://www.waykel.com',
   'https://waykel.com',
+  'https://dev.waykel.com',
+  'https://www.dev.waykel.com',
   'http://www.waykel.com',
   'http://waykel.com',
+  'http://dev.waykel.com',
   'http://localhost:3000',
   'http://localhost:5173',
 ].filter(Boolean);
@@ -63,6 +66,16 @@ app.use((req, res, next) => {
   next();
 });
 
+// Trust proxy when running behind a reverse proxy (Replit, Heroku, etc.)
+// This is required for secure cookies to work correctly
+if (process.env.REPL_ID || process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
+
+// Determine if we need cross-origin cookie settings
+// Enable secure cookies for production OR when CUSTOMER_PORTAL_URL is set (cross-origin scenario)
+const needsCrossOriginCookies = process.env.NODE_ENV === "production" || !!process.env.CUSTOMER_PORTAL_URL || !!process.env.REPL_ID;
+
 app.use(
   session({
     secret: sessionSecret || require("crypto").randomBytes(32).toString("hex"),
@@ -72,10 +85,10 @@ app.use(
       checkPeriod: 86400000,
     }),
     cookie: {
-      secure: process.env.NODE_ENV === "production",
+      secure: needsCrossOriginCookies, // HTTPS required for cross-origin cookies
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000,
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      sameSite: needsCrossOriginCookies ? "none" : "lax", // "none" allows cross-origin cookies
     },
   })
 );

@@ -3,33 +3,80 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertUserSchema, insertTransporterSchema, insertVehicleSchema, insertRideSchema, insertBidSchema, insertDocumentSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 
-// Authentication Middleware
+// JWT Configuration
+const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "waykel-jwt-secret-change-in-production";
+const JWT_EXPIRES_IN = "24h";
+
+// Extend Request type to include tokenUser
+declare global {
+  namespace Express {
+    interface Request {
+      tokenUser?: {
+        id: string;
+        role: string;
+        isSuperAdmin?: boolean;
+        transporterId?: string;
+      };
+    }
+  }
+}
+
+// JWT Token Verification Middleware - extracts user from Bearer token if present
+const extractTokenUser = (req: Request, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.substring(7);
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as {
+        id: string;
+        role: string;
+        isSuperAdmin?: boolean;
+        transporterId?: string;
+      };
+      req.tokenUser = decoded;
+    } catch (err) {
+      // Token invalid - continue without tokenUser (may still have session)
+    }
+  }
+  next();
+};
+
+// Helper to get current user from either session or token
+const getCurrentUser = (req: Request) => {
+  return req.session?.user || req.tokenUser;
+};
+
+// Authentication Middleware - supports both session and token auth
 const requireAuth = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.session?.user?.id) {
-    return res.status(401).json({ error: "Authentication required. Please log in." });
+  const user = getCurrentUser(req);
+  if (!user?.id) {
+    return res.status(401).json({ error: "Authentication required. Please log in or provide a valid Bearer token." });
   }
   next();
 };
 
 const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.session?.user?.id) {
-    return res.status(401).json({ error: "Authentication required. Please log in." });
+  const user = getCurrentUser(req);
+  if (!user?.id) {
+    return res.status(401).json({ error: "Authentication required. Please log in or provide a valid Bearer token." });
   }
-  if (!req.session.user.isSuperAdmin && req.session.user.role !== "admin") {
+  if (!user.isSuperAdmin && user.role !== "admin") {
     return res.status(403).json({ error: "Admin access required" });
   }
   next();
 };
 
 const requireDriverOrTransporter = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.session?.user?.id) {
-    return res.status(401).json({ error: "Authentication required. Please log in." });
+  const user = getCurrentUser(req);
+  if (!user?.id) {
+    return res.status(401).json({ error: "Authentication required. Please log in or provide a valid Bearer token." });
   }
-  const role = req.session.user.role;
-  if (role !== "driver" && role !== "transporter" && !req.session.user.isSuperAdmin) {
+  const role = user.role;
+  if (role !== "driver" && role !== "transporter" && !user.isSuperAdmin) {
     return res.status(403).json({ error: "Driver or transporter access required" });
   }
   next();
@@ -37,12 +84,13 @@ const requireDriverOrTransporter = (req: Request, res: Response, next: NextFunct
 
 const requireAdminOrOwner = (getOwnerId: (req: Request) => string | undefined) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    if (!req.session?.user?.id) {
-      return res.status(401).json({ error: "Authentication required. Please log in." });
+    const user = getCurrentUser(req);
+    if (!user?.id) {
+      return res.status(401).json({ error: "Authentication required. Please log in or provide a valid Bearer token." });
     }
     const ownerId = getOwnerId(req);
-    const isOwner = ownerId === req.session.user.id || ownerId === req.session.user.transporterId;
-    const isAdmin = req.session.user.isSuperAdmin || req.session.user.role === "admin";
+    const isOwner = ownerId === user.id || ownerId === user.transporterId;
+    const isAdmin = user.isSuperAdmin || user.role === "admin";
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ error: "Access denied. You can only access your own data." });
     }
@@ -51,6 +99,9 @@ const requireAdminOrOwner = (getOwnerId: (req: Request) => string | undefined) =
 };
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
+  // Apply JWT token extraction middleware to all routes
+  app.use(extractTokenUser);
+
   // Health check endpoint for Docker and load balancers
   app.get("/api/health", async (req, res) => {
     try {
@@ -89,8 +140,38 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       const user = await storage.createUser({ ...data, password: hashedPassword });
-      const { password, ...userWithoutPassword } = user;
-      res.json(userWithoutPassword);
+      
+      // If an admin is already logged in (creating a user on behalf of someone),
+      // don't regenerate the session - just return the new user data
+      const currentUser = req.session?.user;
+      if (currentUser && currentUser.isSuperAdmin) {
+        const { password, ...userWithoutPassword } = user;
+        return res.json(userWithoutPassword);
+      }
+      
+      // For self-registration, create a session for the new user
+      req.session.regenerate((err) => {
+        if (err) {
+          console.error("Session regeneration error during registration:", err);
+          return res.status(500).json({ error: "Session initialization failed" });
+        }
+
+        req.session.user = {
+          id: user.id,
+          role: user.role,
+          isSuperAdmin: user.isSuperAdmin || false,
+          transporterId: user.transporterId || undefined,
+        };
+
+        req.session.save((saveErr) => {
+          if (saveErr) {
+            console.error("Session save error during registration:", saveErr);
+            return res.status(500).json({ error: "Session save failed" });
+          }
+          const { password, ...userWithoutPassword } = user;
+          res.json(userWithoutPassword);
+        });
+      });
     } catch (error) {
       res.status(400).json({ error: "Invalid data" });
     }
@@ -153,6 +234,94 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Token-based authentication endpoint for server-to-server communication
+  // Returns a JWT token that can be used as Bearer token in Authorization header
+  app.post("/api/auth/token", async (req, res) => {
+    try {
+      const { phone, password, username } = req.body;
+      
+      let user;
+      if (username) {
+        user = await storage.getUserByUsername(username);
+      }
+      if (!user && phone) {
+        user = await storage.getUserByPhone(phone);
+      }
+      if (!user && username) {
+        user = await storage.getUserByPhone(username);
+      }
+      
+      if (!user || !(await bcrypt.compare(password, user.password))) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      if (user.role === "transporter" && user.transporterId) {
+        const transporter = await storage.getTransporter(user.transporterId);
+        if (transporter) {
+          if (transporter.status === "pending_approval") {
+            return res.status(403).json({ error: "Your account is pending admin approval." });
+          }
+          if (transporter.status === "suspended") {
+            return res.status(403).json({ error: "Your account has been suspended." });
+          }
+        }
+      }
+
+      // Generate JWT token
+      const tokenPayload = {
+        id: user.id,
+        role: user.role,
+        isSuperAdmin: user.isSuperAdmin || false,
+        transporterId: user.transporterId || undefined,
+      };
+
+      const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+      
+      const { password: _, ...userWithoutPassword } = user;
+      res.json({
+        token,
+        expiresIn: JWT_EXPIRES_IN,
+        tokenType: "Bearer",
+        user: userWithoutPassword
+      });
+    } catch (error) {
+      res.status(400).json({ error: "Token generation failed" });
+    }
+  });
+
+  // Refresh token endpoint - get a new token using an existing valid token
+  app.post("/api/auth/token/refresh", async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user?.id) {
+      return res.status(401).json({ error: "Valid token required for refresh" });
+    }
+
+    try {
+      // Get fresh user data
+      const freshUser = await storage.getUser(user.id);
+      if (!freshUser) {
+        return res.status(401).json({ error: "User not found" });
+      }
+
+      const tokenPayload = {
+        id: freshUser.id,
+        role: freshUser.role,
+        isSuperAdmin: freshUser.isSuperAdmin || false,
+        transporterId: freshUser.transporterId || undefined,
+      };
+
+      const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+      
+      res.json({
+        token,
+        expiresIn: JWT_EXPIRES_IN,
+        tokenType: "Bearer"
+      });
+    } catch (error) {
+      res.status(400).json({ error: "Token refresh failed" });
+    }
+  });
+
   app.post("/api/auth/logout", (req, res) => {
     req.session.destroy((err) => {
       if (err) {
@@ -164,8 +333,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.get("/api/auth/session", (req, res) => {
-    if (req.session.user) {
-      res.json({ authenticated: true, user: req.session.user });
+    const user = getCurrentUser(req);
+    if (user) {
+      res.json({ authenticated: true, user });
     } else {
       res.json({ authenticated: false });
     }
@@ -173,11 +343,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.post("/api/auth/change-password", async (req, res) => {
     try {
-      if (!req.session.user) {
+      const currentUser = getCurrentUser(req);
+      if (!currentUser) {
         return res.status(401).json({ error: "Not authenticated. Please log in again." });
       }
 
-      const sessionUserId = req.session.user.id;
+      const sessionUserId = currentUser.id;
       const { currentPassword, newPassword } = req.body;
       
       if (!currentPassword || !newPassword) {
@@ -214,7 +385,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-<<<<<<< HEAD
   // Ride routes - with role-based access control
   app.get("/api/rides", async (req, res) => {
     const { status, driverId, transporterId, createdById } = req.query;
@@ -270,61 +440,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         } else {
           result = [];
         }
-=======
-  // Ride routes
-  // GET /api/rides - Auth required. Admins see all, others see filtered by own ID
-  app.get("/api/rides", requireAuth, async (req, res) => {
-    const { status, driverId, transporterId, createdById } = req.query;
-    const user = req.session.user!;
-    const isAdmin = user.isSuperAdmin || user.role === "admin";
-    
-    try {
-      let result;
-      
-      // If specific filters provided, validate access
-      if (driverId) {
-        if (!isAdmin && driverId !== user.id) {
-          return res.status(403).json({ error: "You can only view your own rides" });
-        }
-        result = await storage.getDriverRides(driverId as string);
-      } else if (transporterId) {
-        if (!isAdmin && transporterId !== user.transporterId) {
-          return res.status(403).json({ error: "You can only view your own transporter rides" });
-        }
-        result = await storage.getTransporterRides(transporterId as string);
-      } else if (createdById) {
-        if (!isAdmin && createdById !== user.id) {
-          return res.status(403).json({ error: "You can only view your own bookings" });
-        }
-        result = await storage.getCustomerRides(createdById as string);
-      } else if (status === "pending") {
-        // Pending rides visible to drivers/transporters for bidding, and admins
-        if (!isAdmin && user.role !== "driver" && user.role !== "transporter") {
-          return res.status(403).json({ error: "Only drivers, transporters, and admins can view pending rides" });
-        }
-        result = await storage.getPendingRides();
-      } else if (status === "scheduled") {
-        if (!isAdmin) {
-          return res.status(403).json({ error: "Admin access required to view all scheduled rides" });
-        }
-        result = await storage.getScheduledRides();
-      } else if (status === "active") {
-        if (!isAdmin) {
-          return res.status(403).json({ error: "Admin access required to view all active rides" });
-        }
-        result = await storage.getActiveRides();
-      } else if (status === "completed") {
-        if (!isAdmin) {
-          return res.status(403).json({ error: "Admin access required to view all completed rides" });
-        }
-        result = await storage.getCompletedRides();
-      } else {
-        // No filter = get all rides (admin only)
-        if (!isAdmin) {
-          return res.status(403).json({ error: "Admin access required to view all rides. Use filters to view your own." });
-        }
-        result = await storage.getAllRides();
->>>>>>> origin/main
       }
       
       res.json(result);
@@ -333,21 +448,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-<<<<<<< HEAD
   app.get("/api/rides/:id", async (req, res) => {
     const sessionUser = req.session.user;
     
-=======
-  // GET /api/rides/:id - Auth required, owner or admin can view
-  app.get("/api/rides/:id", requireAuth, async (req, res) => {
->>>>>>> origin/main
     try {
       const ride = await storage.getRide(req.params.id);
       if (!ride) {
         return res.status(404).json({ error: "Ride not found" });
       }
       
-<<<<<<< HEAD
       // Role-based access control for single ride
       if (sessionUser) {
         const isSuperAdmin = sessionUser.isSuperAdmin;
@@ -391,19 +500,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       return res.status(401).json({ error: "Authentication required" });
-=======
-      const user = req.session.user!;
-      const isAdmin = user.isSuperAdmin || user.role === "admin";
-      const isOwner = ride.createdById === user.id || 
-                      ride.assignedDriverId === user.id ||
-                      ride.transporterId === user.transporterId;
-      
-      if (!isAdmin && !isOwner) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-      
-      res.json(ride);
->>>>>>> origin/main
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch ride" });
     }
@@ -412,6 +508,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/rides", async (req, res) => {
     try {
       const data = insertRideSchema.parse(req.body);
+      
+      const user = getCurrentUser(req);
+      if (user?.id && !data.createdById) {
+        data.createdById = user.id;
+      }
+      
       const ride = await storage.createRide(data);
       res.status(201).json(ride);
     } catch (error: any) {
@@ -432,7 +534,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-<<<<<<< HEAD
   app.patch("/api/rides/:id/status", async (req, res) => {
     const sessionUser = req.session.user;
     
@@ -441,26 +542,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(403).json({ error: "Only administrators can update ride status" });
     }
     
-=======
-  // PATCH /api/rides/:id/status - Auth required, admin or ride owner can update
-  app.patch("/api/rides/:id/status", requireAuth, async (req, res) => {
->>>>>>> origin/main
     try {
-      const ride = await storage.getRide(req.params.id);
-      if (!ride) {
-        return res.status(404).json({ error: "Ride not found" });
-      }
-      
-      const user = req.session.user!;
-      const isAdmin = user.isSuperAdmin || user.role === "admin";
-      const isOwner = ride.createdById === user.id;
-      const isAssignedDriver = ride.assignedDriverId === user.id;
-      
-      // Only admin, owner, or assigned driver can update status
-      if (!isAdmin && !isOwner && !isAssignedDriver) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-      
       const { status } = req.body;
       await storage.updateRideStatus(req.params.id, status);
       res.json({ success: true });
@@ -469,7 +551,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-<<<<<<< HEAD
   app.patch("/api/rides/:id/assign", async (req, res) => {
     const sessionUser = req.session.user;
     
@@ -478,10 +559,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(403).json({ error: "Only administrators can assign drivers" });
     }
     
-=======
-  // PATCH /api/rides/:id/assign - Admin only
-  app.patch("/api/rides/:id/assign", requireAdmin, async (req, res) => {
->>>>>>> origin/main
     try {
       const { driverId, vehicleId } = req.body;
       await storage.assignRideToDriver(req.params.id, driverId, vehicleId);
@@ -492,19 +569,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Bid routes
-<<<<<<< HEAD
   app.get("/api/bids", async (req, res) => {
     const sessionUser = req.session.user;
-=======
-  // GET /api/bids - Auth required. Admins see all, others see filtered by own data
-  app.get("/api/bids", requireAuth, async (req, res) => {
->>>>>>> origin/main
     const { rideId, userId, transporterId } = req.query;
-    const user = req.session.user!;
-    const isAdmin = user.isSuperAdmin || user.role === "admin";
     
     try {
-<<<<<<< HEAD
       let result: any[] = [];
       
       // Role-based access control for bids
@@ -535,28 +604,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             result = await storage.getRideBids(rideId as string);
           }
         }
-=======
-      let result: any[];
-      if (rideId) {
-        // Anyone can view bids for a specific ride (for transparency)
-        result = await storage.getRideBids(rideId as string);
-      } else if (userId) {
-        if (!isAdmin && userId !== user.id) {
-          return res.status(403).json({ error: "You can only view your own bids" });
-        }
-        result = await storage.getUserBids(userId as string);
-      } else if (transporterId) {
-        if (!isAdmin && transporterId !== user.transporterId) {
-          return res.status(403).json({ error: "You can only view your own transporter bids" });
-        }
-        result = await storage.getTransporterBids(transporterId as string);
-      } else {
-        // No filter = all bids (admin only)
-        if (!isAdmin) {
-          return res.status(403).json({ error: "Admin access required to view all bids" });
-        }
-        result = await storage.getAllBids();
->>>>>>> origin/main
       }
       
       res.json(result);
@@ -565,7 +612,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-<<<<<<< HEAD
   app.post("/api/bids", async (req, res) => {
     const sessionUser = req.session.user;
     
@@ -574,10 +620,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(403).json({ error: "Only transporters can place bids" });
     }
     
-=======
-  // POST /api/bids - Driver or transporter only
-  app.post("/api/bids", requireDriverOrTransporter, async (req, res) => {
->>>>>>> origin/main
     try {
       const data = insertBidSchema.parse(req.body);
       
@@ -597,7 +639,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-<<<<<<< HEAD
   app.patch("/api/bids/:id/status", async (req, res) => {
     const sessionUser = req.session.user;
     
@@ -606,10 +647,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(403).json({ error: "Only administrators can update bid status" });
     }
     
-=======
-  // PATCH /api/bids/:id/status - Admin only (to approve/reject bids)
-  app.patch("/api/bids/:id/status", requireAdmin, async (req, res) => {
->>>>>>> origin/main
     try {
       const { status } = req.body;
       await storage.updateBidStatus(req.params.id, status);
@@ -628,16 +665,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-<<<<<<< HEAD
   // Get cheapest bids for a ride (for customer view)
   app.get("/api/rides/:rideId/cheapest-bids", async (req, res) => {
     const sessionUser = req.session.user;
     const { rideId } = req.params;
     
-=======
-  // Get cheapest bids for a ride (for customer view) - Auth required
-  app.get("/api/rides/:rideId/cheapest-bids", requireAuth, async (req, res) => {
->>>>>>> origin/main
     try {
       const ride = await storage.getRide(rideId);
       if (!ride) {
@@ -868,6 +900,56 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json(driversWithoutPasswords);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch drivers" });
+    }
+  });
+
+  // Admin dashboard stats - Admin only
+  app.get("/api/admin/stats", requireAdmin, async (req, res) => {
+    try {
+      const [drivers, transporters, customers, vehicles, rides, bids] = await Promise.all([
+        storage.getDrivers(),
+        storage.getAllTransporters(),
+        storage.getCustomers(),
+        storage.getAllVehicles(),
+        storage.getAllRides(),
+        storage.getAllBids(),
+      ]);
+
+      const activeVehicles = vehicles.filter(v => v.status === "active");
+      const completedRides = rides.filter(r => r.status === "completed");
+      const activeRides = rides.filter(r => r.status === "active" || r.status === "assigned");
+      const pendingRides = rides.filter(r => r.status === "pending");
+
+      const totalRevenue = completedRides.reduce((sum, ride) => {
+        return sum + parseFloat(ride.price || "0");
+      }, 0);
+
+      const recentRides = rides
+        .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+        .slice(0, 10);
+
+      res.json({
+        totalDrivers: drivers.length,
+        totalTransporters: transporters.length,
+        totalCustomers: customers.length,
+        totalVehicles: vehicles.length,
+        activeVehicles: activeVehicles.length,
+        totalRides: rides.length,
+        completedRides: completedRides.length,
+        activeRides: activeRides.length,
+        pendingRides: pendingRides.length,
+        totalBids: bids.length,
+        totalRevenue,
+        recentRides: recentRides.map(r => ({
+          id: r.id,
+          pickupLocation: r.pickupLocation,
+          dropLocation: r.dropLocation,
+          status: r.status,
+          createdAt: r.createdAt,
+        })),
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch admin stats" });
     }
   });
 

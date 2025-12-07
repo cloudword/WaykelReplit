@@ -1,17 +1,85 @@
 # Waykel Customer Portal - API Documentation
 
-This document contains all the API endpoints and data structures needed to build the Waykel Customer Portal.
+This document contains all the API endpoints and data structures needed for the Customer Portal (separate website) to connect to the Waykel backend.
 
-## Base URL
+## API Base URL
 
-After publishing, the main Waykel platform API will be available at:
+The Waykel backend API URL (after deployment):
 ```
 https://[YOUR-WAYKEL-APP].replit.app/api
 ```
 
-## Authentication
+---
 
-### Register a New Customer
+## Authentication Methods
+
+The API supports **two authentication methods**:
+
+### 1. JWT Token-Based (Recommended for Cross-Origin)
+Best for when the Customer Portal is a separate website/domain.
+
+### 2. Session-Based (Same-Origin)
+Best for same-domain scenarios with cookies.
+
+---
+
+## JWT Token Authentication (Recommended)
+
+### Login & Get Token
+
+**Endpoint:** `POST /api/auth/token`
+
+**Request:**
+```json
+{
+  "phone": "9876543210",
+  "password": "SecurePass123"
+}
+```
+
+**Response (Success - 200):**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expiresIn": "24h",
+  "tokenType": "Bearer",
+  "user": {
+    "id": "uuid-string",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "9876543210",
+    "role": "customer"
+  }
+}
+```
+
+**Using the Token:**
+Include in all subsequent requests:
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+### Refresh Token
+
+**Endpoint:** `POST /api/auth/token/refresh`
+
+**Headers:**
+```
+Authorization: Bearer <current-valid-token>
+```
+
+**Response:**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expiresIn": "24h",
+  "tokenType": "Bearer"
+}
+```
+
+---
+
+## Customer Registration
 
 **Endpoint:** `POST /api/auth/register`
 
@@ -37,7 +105,6 @@ https://[YOUR-WAYKEL-APP].replit.app/api
   "isOnline": false,
   "rating": "0",
   "totalTrips": 0,
-  "earningsToday": "0",
   "createdAt": "2024-01-15T10:30:00.000Z"
 }
 ```
@@ -48,6 +115,8 @@ https://[YOUR-WAYKEL-APP].replit.app/api
 - `400` - Invalid data
 
 ---
+
+## Session-Based Authentication (Alternative)
 
 ### Login
 
@@ -68,34 +137,23 @@ https://[YOUR-WAYKEL-APP].replit.app/api
   "name": "John Doe",
   "email": "john@example.com",
   "phone": "9876543210",
-  "role": "customer",
-  "isOnline": false,
-  "rating": "0",
-  "totalTrips": 0,
-  "createdAt": "2024-01-15T10:30:00.000Z"
+  "role": "customer"
 }
 ```
 
-**Error Responses:**
-- `401` - Invalid credentials
-
-**Note:** Session-based authentication is used. Store the session cookie for subsequent requests.
-
----
+**Note:** Uses session cookies. Include `credentials: 'include'` in fetch requests.
 
 ### Logout
 
 **Endpoint:** `POST /api/auth/logout`
 
-**Response (Success - 200):**
+**Response:**
 ```json
 {
   "success": true,
   "message": "Logged out successfully"
 }
 ```
-
----
 
 ### Check Session
 
@@ -113,18 +171,39 @@ https://[YOUR-WAYKEL-APP].replit.app/api
 }
 ```
 
-**Response (Not Authenticated):**
+---
+
+## Get Current User
+
+**Endpoint:** `GET /api/me`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response:**
 ```json
 {
-  "authenticated": false
+  "id": "uuid-string",
+  "name": "John Doe",
+  "email": "john@example.com",
+  "phone": "9876543210",
+  "role": "customer",
+  "createdAt": "2024-01-15T10:30:00.000Z"
 }
 ```
 
 ---
 
-### Change Password
+## Change Password
 
 **Endpoint:** `POST /api/auth/change-password`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
 
 **Request Body:**
 ```json
@@ -134,12 +213,7 @@ https://[YOUR-WAYKEL-APP].replit.app/api
 }
 ```
 
-**Password Requirements:**
-- Minimum 8 characters
-- At least one uppercase letter
-- At least one number
-
-**Response (Success - 200):**
+**Response:**
 ```json
 {
   "success": true,
@@ -151,9 +225,14 @@ https://[YOUR-WAYKEL-APP].replit.app/api
 
 ## Rides (Trip Requests)
 
-### Create a New Trip Request (Book a Ride)
+### Create a New Trip Request
 
 **Endpoint:** `POST /api/rides`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
 
 **Request Body:**
 ```json
@@ -167,25 +246,9 @@ https://[YOUR-WAYKEL-APP].replit.app/api
   "cargoType": "General Goods",
   "weight": "500 kg",
   "customerName": "John Doe",
-  "customerPhone": "9876543210",
-  "createdById": "customer-uuid"
+  "customerPhone": "9876543210"
 }
 ```
-
-**Field Descriptions:**
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| pickupLocation | string | Yes | Full address with pincode |
-| dropLocation | string | Yes | Full address with pincode |
-| pickupTime | string | Yes | Preferred pickup time |
-| date | string | Yes | Trip date (YYYY-MM-DD or readable format) |
-| price | string | Yes | Offered price in INR |
-| distance | string | Yes | Estimated distance |
-| cargoType | string | Yes | Type of cargo (General Goods, Fragile, Perishable, etc.) |
-| weight | string | Yes | Weight of cargo |
-| customerName | string | No | Customer's name |
-| customerPhone | string | No | Customer's contact number |
-| createdById | string | No | Customer's user ID |
 
 **Response (Success - 201):**
 ```json
@@ -193,17 +256,8 @@ https://[YOUR-WAYKEL-APP].replit.app/api
   "id": "ride-uuid",
   "pickupLocation": "123 Main Street, Mumbai, Maharashtra 400001",
   "dropLocation": "456 Park Avenue, Pune, Maharashtra 411001",
-  "pickupTime": "10:00 AM",
-  "dropTime": null,
-  "date": "2024-01-20",
   "status": "pending",
   "price": "5000.00",
-  "distance": "150 km",
-  "cargoType": "General Goods",
-  "weight": "500 kg",
-  "customerName": "John Doe",
-  "customerPhone": "9876543210",
-  "createdById": "customer-uuid",
   "createdAt": "2024-01-15T10:30:00.000Z"
 }
 ```
@@ -212,29 +266,105 @@ https://[YOUR-WAYKEL-APP].replit.app/api
 
 ### Get Customer's Trips
 
-To get a customer's trips, you'll need to filter by `createdById`. Since this isn't directly supported in the current API, use the general rides endpoint and filter client-side, or we can add a new endpoint.
+**Endpoint:** `GET /api/customer/rides`
 
-**Recommended Approach:** Add a query parameter for customer filtering:
+**Headers:**
+```
+Authorization: Bearer <token>
+```
 
-**Endpoint:** `GET /api/rides?createdById={customerId}`
-
-**Current Available Endpoints:**
-
-**Get All Rides:** `GET /api/rides`
-
-**Get Ride by ID:** `GET /api/rides/:id`
-
-**Filter by Status:**
-- `GET /api/rides?status=pending` - New requests awaiting bids
-- `GET /api/rides?status=scheduled` - Confirmed future trips
-- `GET /api/rides?status=active` - Currently in progress
-- `GET /api/rides?status=completed` - Finished trips
-- `GET /api/rides?status=cancelled` - Cancelled trips
-- `GET /api/rides?status=bid_placed` - Requests with bids waiting for acceptance
+**Response:**
+```json
+[
+  {
+    "id": "ride-uuid",
+    "pickupLocation": "Mumbai",
+    "dropLocation": "Pune",
+    "status": "pending",
+    "price": "5000.00",
+    "date": "2024-01-20"
+  }
+]
+```
 
 ---
 
-### Ride Status Flow
+### Get Single Ride
+
+**Endpoint:** `GET /api/rides/:id`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+---
+
+### Cancel a Ride
+
+**Endpoint:** `POST /api/rides/:id/cancel`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+---
+
+### Update Ride Status
+
+**Endpoint:** `PATCH /api/rides/:id/status`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request Body:**
+```json
+{
+  "status": "cancelled"
+}
+```
+
+---
+
+## Bids
+
+### Get Bids for a Ride
+
+**Endpoint:** `GET /api/bids?rideId={rideId}`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+[
+  {
+    "id": "bid-uuid",
+    "rideId": "ride-uuid",
+    "amount": "4500.00",
+    "status": "pending",
+    "createdAt": "2024-01-15T11:00:00.000Z"
+  }
+]
+```
+
+### Accept a Bid
+
+**Endpoint:** `POST /api/bids/:bidId/accept`
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+---
+
+## Ride Status Flow
 
 ```
 pending → bid_placed → scheduled → active → completed
@@ -244,194 +374,164 @@ pending → bid_placed → scheduled → active → completed
 
 | Status | Description |
 |--------|-------------|
-| pending | New request, waiting for transporters to bid |
+| pending | New request, waiting for bids |
 | bid_placed | At least one bid received |
 | scheduled | Bid accepted, trip confirmed |
-| active | Trip is in progress |
+| active | Trip in progress |
 | completed | Trip finished |
-| cancelled | Trip was cancelled |
+| cancelled | Trip cancelled |
 
 ---
 
-### Update Ride Status
+## JavaScript Integration Example
 
-**Endpoint:** `PATCH /api/rides/:id/status`
+```javascript
+// Customer Portal API Client
 
-**Request Body:**
-```json
-{
-  "status": "cancelled"
-}
-```
+const API_BASE = "https://your-waykel-backend.replit.app";
 
-**Note:** Customers can typically only cancel their own rides.
+// Store token
+let authToken = localStorage.getItem("waykel_token");
 
----
-
-## Bids (View Bids on Your Trips)
-
-### Get Bids for a Ride
-
-**Endpoint:** `GET /api/bids?rideId={rideId}`
-
-**Response:**
-```json
-[
-  {
-    "id": "bid-uuid",
-    "rideId": "ride-uuid",
-    "userId": "transporter-user-uuid",
-    "transporterId": "transporter-uuid",
-    "vehicleId": "vehicle-uuid",
-    "amount": "4500.00",
-    "status": "pending",
-    "createdAt": "2024-01-15T11:00:00.000Z"
+// Login and get token
+async function login(phone, password) {
+  const res = await fetch(`${API_BASE}/api/auth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone, password }),
+  });
+  
+  if (res.ok) {
+    const data = await res.json();
+    authToken = data.token;
+    localStorage.setItem("waykel_token", data.token);
+    return data.user;
   }
-]
-```
-
-**Bid Status Values:**
-- `pending` - Waiting for customer/admin decision
-- `accepted` - Bid accepted, trip will be assigned
-- `rejected` - Bid was rejected
-
----
-
-## Data Structures
-
-### User Object
-```typescript
-interface User {
-  id: string;
-  name: string;
-  username?: string;
-  email: string;
-  phone: string;
-  role: "driver" | "transporter" | "admin" | "customer";
-  isSuperAdmin?: boolean;
-  transporterId?: string;
-  isOnline?: boolean;
-  rating?: string;
-  totalTrips?: number;
-  earningsToday?: string;
-  createdAt?: string;
+  
+  const error = await res.json();
+  throw new Error(error.error || "Login failed");
 }
-```
 
-### Ride Object
-```typescript
-interface Ride {
-  id: string;
-  pickupLocation: string;
-  dropLocation: string;
-  pickupTime: string;
-  dropTime?: string;
-  date: string;
-  status: "pending" | "active" | "completed" | "cancelled" | "scheduled" | "bid_placed";
-  price: string;
-  distance: string;
-  cargoType: string;
-  weight: string;
-  customerName?: string;
-  customerPhone?: string;
-  incentive?: string;
-  transporterId?: string;
-  assignedDriverId?: string;
-  assignedVehicleId?: string;
-  createdById?: string;
-  createdAt?: string;
+// Register new customer
+async function register(name, phone, email, password) {
+  const res = await fetch(`${API_BASE}/api/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, phone, email, password, role: "customer" }),
+  });
+  
+  if (res.ok) {
+    // After registration, login to get token
+    return await login(phone, password);
+  }
+  
+  const error = await res.json();
+  throw new Error(error.error || "Registration failed");
 }
-```
 
-### Bid Object
-```typescript
-interface Bid {
-  id: string;
-  rideId: string;
-  userId: string;
-  transporterId?: string;
-  vehicleId: string;
-  amount: string;
-  status: "pending" | "accepted" | "rejected";
-  createdAt?: string;
+// Authenticated API helper
+async function api(endpoint, options = {}) {
+  const res = await fetch(`${API_BASE}${endpoint}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${authToken}`,
+      ...options.headers,
+    },
+  });
+  
+  if (res.status === 401) {
+    localStorage.removeItem("waykel_token");
+    window.location.href = "/login";
+    throw new Error("Session expired");
+  }
+  
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Request failed");
+  return data;
 }
+
+// API Methods
+const waykelAPI = {
+  // Get current user
+  getMe: () => api("/api/me"),
+  
+  // Get customer's rides
+  getMyRides: () => api("/api/customer/rides"),
+  
+  // Create new ride
+  createRide: (rideData) => api("/api/rides", {
+    method: "POST",
+    body: JSON.stringify(rideData),
+  }),
+  
+  // Get ride details
+  getRide: (id) => api(`/api/rides/${id}`),
+  
+  // Get bids for ride
+  getBids: (rideId) => api(`/api/bids?rideId=${rideId}`),
+  
+  // Accept a bid
+  acceptBid: (bidId) => api(`/api/bids/${bidId}/accept`, { method: "POST" }),
+  
+  // Cancel ride
+  cancelRide: (id) => api(`/api/rides/${id}/cancel`, { method: "POST" }),
+  
+  // Logout
+  logout: () => {
+    localStorage.removeItem("waykel_token");
+    authToken = null;
+  },
+};
+
+export { login, register, waykelAPI };
 ```
-
----
-
-## Vehicle Types
-
-When customers are booking, they should be able to select from these vehicle types:
-
-| Type | Description | Typical Capacity |
-|------|-------------|------------------|
-| Mini Truck | Small cargo vehicle | 1-2 tons |
-| Pickup | Open pickup truck | 500 kg - 1 ton |
-| Tata Ace | Popular small commercial | 750 kg |
-| Eicher | Medium truck | 5-10 tons |
-| Container | Large enclosed container | 10-20 tons |
-| Trailer | Heavy goods trailer | 20+ tons |
-| Refrigerated | Temperature controlled | Varies |
-| Tanker | Liquid transport | Varies |
-
----
-
-## Cargo Types
-
-Suggested cargo type options for the booking form:
-
-- General Goods
-- Electronics
-- Furniture
-- Construction Materials
-- Agricultural Products
-- Perishable Goods
-- Fragile Items
-- Industrial Equipment
-- Textiles
-- Chemicals (Hazardous)
-- Pharmaceuticals
 
 ---
 
 ## CORS Configuration
 
-For the customer portal to communicate with the main Waykel API, CORS needs to be configured. The main platform should allow requests from the customer portal domain.
+The Waykel backend accepts requests from:
+- Customer portal URLs (set via `CUSTOMER_PORTAL_URL` env variable)
+- waykel.com domain
+- localhost for development
 
-**Required Headers:**
-```
-Access-Control-Allow-Origin: https://[CUSTOMER-PORTAL-DOMAIN]
-Access-Control-Allow-Credentials: true
-Access-Control-Allow-Methods: GET, POST, PATCH, DELETE
-Access-Control-Allow-Headers: Content-Type
-```
+**Current Allowed Origins:**
+- https://ae9c1410-362d-4b0e-af75-e5fff997a3be-00-5koti0bqi7kz.spock.replit.dev
+- https://workspace.mayankpratapsi6.replit.app
+
+To add more origins, update the `CUSTOMER_PORTAL_URL` environment variable (comma-separated).
 
 ---
 
-## Suggested Customer Portal Endpoints to Add
+## Data Sync
 
-To fully support the customer portal, consider adding these endpoints to the main API:
+The Customer Portal and Waykel Admin share the same PostgreSQL database:
+- Customers registered on portal appear in admin panel instantly
+- Rides created by customers are visible to admin and drivers
+- Bid updates and status changes sync in real-time
+- All data is authoritative - no local storage or mock data
 
-### 1. Get Customer's Rides
-```
-GET /api/rides?createdById={customerId}
+---
+
+## Error Handling
+
+All errors return:
+```json
+{
+  "error": "Error message"
+}
 ```
 
-### 2. Get Customer Profile
-```
-GET /api/users/:id
-```
-
-### 3. Update Customer Profile
-```
-PATCH /api/users/:id
-```
-
-### 4. Accept a Bid (Customer Action)
-```
-PATCH /api/bids/:id/status
-Body: { "status": "accepted" }
-```
+| Status | Meaning |
+|--------|---------|
+| 200 | Success |
+| 201 | Created |
+| 400 | Bad request / validation error |
+| 401 | Not authenticated |
+| 403 | Forbidden |
+| 404 | Not found |
+| 500 | Server error |
 
 ---
 
@@ -444,210 +544,8 @@ Body: { "status": "accepted" }
 {
   "status": "healthy",
   "timestamp": "2024-01-15T10:30:00.000Z",
-  "uptime": 3600.5,
   "database": "connected"
 }
 ```
 
-Use this endpoint to verify the API is accessible.
-
----
-
-## Error Handling
-
-All error responses follow this format:
-```json
-{
-  "error": "Error message description"
-}
-```
-
-Common HTTP Status Codes:
-- `200` - Success
-- `201` - Created successfully
-- `400` - Bad request / Invalid data
-- `401` - Unauthorized
-- `403` - Forbidden
-- `404` - Not found
-- `500` - Server error
-
----
-
-## Example API Integration (React/Next.js)
-
-```typescript
-// api.ts - Example API client for customer portal
-
-const API_BASE = process.env.NEXT_PUBLIC_WAYKEL_API_URL;
-
-export const api = {
-  auth: {
-    register: async (data: RegisterData) => {
-      const res = await fetch(`${API_BASE}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ ...data, role: 'customer' })
-      });
-      if (!res.ok) throw new Error((await res.json()).error);
-      return res.json();
-    },
-    
-    login: async (phone: string, password: string) => {
-      const res = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ phone, password })
-      });
-      if (!res.ok) throw new Error((await res.json()).error);
-      return res.json();
-    },
-    
-    logout: async () => {
-      const res = await fetch(`${API_BASE}/auth/logout`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-      return res.json();
-    },
-    
-    getSession: async () => {
-      const res = await fetch(`${API_BASE}/auth/session`, {
-        credentials: 'include'
-      });
-      return res.json();
-    }
-  },
-  
-  rides: {
-    create: async (rideData: CreateRideData) => {
-      const res = await fetch(`${API_BASE}/rides`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(rideData)
-      });
-      if (!res.ok) throw new Error((await res.json()).error);
-      return res.json();
-    },
-    
-    getById: async (id: string) => {
-      const res = await fetch(`${API_BASE}/rides/${id}`, {
-        credentials: 'include'
-      });
-      if (!res.ok) throw new Error((await res.json()).error);
-      return res.json();
-    },
-    
-    list: async (params?: { status?: string; createdById?: string }) => {
-      const query = new URLSearchParams(params as any).toString();
-      const res = await fetch(`${API_BASE}/rides?${query}`, {
-        credentials: 'include'
-      });
-      return res.json();
-    },
-    
-    cancel: async (id: string) => {
-      const res = await fetch(`${API_BASE}/rides/${id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ status: 'cancelled' })
-      });
-      return res.json();
-    }
-  },
-  
-  bids: {
-    getForRide: async (rideId: string) => {
-      const res = await fetch(`${API_BASE}/bids?rideId=${rideId}`, {
-        credentials: 'include'
-      });
-      return res.json();
-    },
-    
-    accept: async (bidId: string) => {
-      const res = await fetch(`${API_BASE}/bids/${bidId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ status: 'accepted' })
-      });
-      return res.json();
-    }
-  }
-};
-```
-
----
-
-## Customer Portal Feature Checklist
-
-When building the customer portal, implement these features:
-
-### Landing Page
-- [ ] Hero section with CTA
-- [ ] About Waykel section
-- [ ] Why Choose Us (benefits)
-- [ ] Services overview
-- [ ] How it works (steps)
-- [ ] Testimonials
-- [ ] Footer with contact info
-
-### Authentication
-- [ ] Sign up form (name, email, phone, password)
-- [ ] Login form (phone + password)
-- [ ] Password reset flow
-- [ ] Remember me functionality
-
-### Customer Dashboard
-- [ ] Overview with active bookings
-- [ ] Quick booking button
-- [ ] Recent trips summary
-
-### My Trips Page
-- [ ] Tabs: Upcoming, Active, Completed, Cancelled
-- [ ] Trip cards with details
-- [ ] Trip status tracking
-- [ ] Cancel trip option (for pending/scheduled)
-
-### Book a Trip Page
-- [ ] Pickup location with pincode
-- [ ] Drop location with pincode
-- [ ] Date picker (book now or schedule)
-- [ ] Time picker
-- [ ] Vehicle type selector
-- [ ] Cargo type selector
-- [ ] Weight input
-- [ ] Price suggestion/input
-- [ ] Special instructions field
-- [ ] Review & confirm
-
-### Trip Details Page
-- [ ] Full trip information
-- [ ] Status timeline
-- [ ] Assigned driver/vehicle info (when assigned)
-- [ ] Bids list (when applicable)
-- [ ] Accept/reject bid buttons
-- [ ] Contact support option
-
-### Profile Page
-- [ ] View/edit personal info
-- [ ] Change password
-- [ ] Trip history
-- [ ] Logout
-
----
-
-## Notes for Development
-
-1. **Session Management:** The API uses session-based auth with cookies. Ensure `credentials: 'include'` is set in all fetch requests.
-
-2. **CORS:** You'll need to configure CORS on the main Waykel API to accept requests from the customer portal domain.
-
-3. **Real-time Updates:** Consider implementing WebSocket connection for live trip status updates.
-
-4. **Maps Integration:** Use Google Maps or Mapbox for location autocomplete and pincode validation.
-
-5. **Payment Integration:** Future enhancement - integrate Razorpay/Stripe for upfront payments.
+Use this to verify the API is accessible from your portal.
