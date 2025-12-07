@@ -141,6 +141,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       const user = await storage.createUser({ ...data, password: hashedPassword });
       
+      // If an admin is already logged in (creating a user on behalf of someone),
+      // don't regenerate the session - just return the new user data
+      const currentUser = req.session?.user;
+      if (currentUser && currentUser.isSuperAdmin) {
+        const { password, ...userWithoutPassword } = user;
+        return res.json(userWithoutPassword);
+      }
+      
+      // For self-registration, create a session for the new user
       req.session.regenerate((err) => {
         if (err) {
           console.error("Session regeneration error during registration:", err);
