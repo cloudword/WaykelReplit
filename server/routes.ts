@@ -140,16 +140,39 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       const user = await storage.createUser({ ...data, password: hashedPassword });
+      const { password, ...userWithoutPassword } = user;
       
       // If an admin is already logged in (creating a user on behalf of someone),
       // don't regenerate the session - just return the new user data
       const currentUser = req.session?.user;
       if (currentUser && currentUser.isSuperAdmin) {
-        const { password, ...userWithoutPassword } = user;
         return res.json(userWithoutPassword);
       }
       
-      // For self-registration, create a session for the new user
+      // Check if this is a cross-origin request (from customer portal)
+      // In that case, return a JWT token for immediate authentication
+      const origin = req.headers.origin;
+      const isCrossOrigin = origin && !origin.includes(req.headers.host || '');
+      
+      if (isCrossOrigin) {
+        // Generate JWT token for cross-origin registration (customer portal)
+        const tokenPayload = {
+          id: user.id,
+          role: user.role,
+          isSuperAdmin: user.isSuperAdmin || false,
+          transporterId: user.transporterId || undefined,
+        };
+        const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+        
+        return res.json({
+          ...userWithoutPassword,
+          token,
+          tokenType: "Bearer",
+          expiresIn: JWT_EXPIRES_IN
+        });
+      }
+      
+      // For same-origin self-registration, create a session for the new user
       req.session.regenerate((err) => {
         if (err) {
           console.error("Session regeneration error during registration:", err);
@@ -168,7 +191,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             console.error("Session save error during registration:", saveErr);
             return res.status(500).json({ error: "Session save failed" });
           }
-          const { password, ...userWithoutPassword } = user;
           res.json(userWithoutPassword);
         });
       });
