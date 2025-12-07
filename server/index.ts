@@ -42,8 +42,11 @@ const ALLOWED_ORIGINS = [
   ...customerPortalUrls,
   'https://www.waykel.com',
   'https://waykel.com',
+  'https://dev.waykel.com',
+  'https://www.dev.waykel.com',
   'http://www.waykel.com',
   'http://waykel.com',
+  'http://dev.waykel.com',
   'http://localhost:3000',
   'http://localhost:5173',
 ].filter(Boolean);
