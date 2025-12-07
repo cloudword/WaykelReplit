@@ -11,6 +11,17 @@ import { ObjectPermission } from "./objectAcl";
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "waykel-jwt-secret-change-in-production";
 const JWT_EXPIRES_IN = "24h";
 
+// Sanitize request body to remove sensitive data before logging
+const sanitizeRequestBody = (body: any): any => {
+  if (!body) return null;
+  const sanitized = { ...body };
+  const sensitiveFields = ['password', 'currentPassword', 'newPassword', 'token', 'secret'];
+  sensitiveFields.forEach(field => {
+    if (sanitized[field]) sanitized[field] = '[REDACTED]';
+  });
+  return sanitized;
+};
+
 // Extend Request type to include tokenUser
 declare global {
   namespace Express {
@@ -101,6 +112,49 @@ const requireAdminOrOwner = (getOwnerId: (req: Request) => string | undefined) =
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   // Apply JWT token extraction middleware to all routes
   app.use(extractTokenUser);
+
+  // API Logging Middleware - logs all API requests
+  app.use(async (req: Request, res: Response, next: NextFunction) => {
+    // Skip logging for health checks and static assets
+    if (req.path === '/api/health' || !req.path.startsWith('/api')) {
+      return next();
+    }
+
+    const startTime = Date.now();
+    const user = getCurrentUser(req);
+    const origin = req.headers.origin || '';
+    const isExternal = origin && !origin.includes(req.headers.host || '');
+    
+    // Capture original res.json to log response
+    const originalJson = res.json.bind(res);
+    let responseLogged = false;
+    
+    res.json = (body: any) => {
+      if (!responseLogged) {
+        responseLogged = true;
+        const responseTime = Date.now() - startTime;
+        
+        // Log asynchronously to not block response
+        storage.createApiLog({
+          method: req.method,
+          path: req.path,
+          statusCode: res.statusCode,
+          userId: user?.id || null,
+          userRole: user?.role || null,
+          origin: origin || null,
+          userAgent: req.headers['user-agent'] || null,
+          ipAddress: req.ip || req.socket.remoteAddress || null,
+          requestBody: req.method !== 'GET' ? sanitizeRequestBody(req.body) : null,
+          responseTime,
+          errorMessage: res.statusCode >= 400 ? (body?.error || body?.message || null) : null,
+          isExternal: !!isExternal,
+        }).catch(err => console.error('API log error:', err));
+      }
+      return originalJson(body);
+    };
+    
+    next();
+  });
 
   // Health check endpoint for Docker and load balancers
   app.get("/api/health", async (req, res) => {
@@ -922,6 +976,34 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json(driversWithoutPasswords);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch drivers" });
+    }
+  });
+
+  // API Logs - Admin only
+  app.get("/api/admin/logs", requireAdmin, async (req, res) => {
+    try {
+      const { limit = "100", offset = "0", path } = req.query;
+      
+      let logs;
+      if (path) {
+        logs = await storage.getApiLogsByPath(path as string);
+      } else {
+        logs = await storage.getApiLogs(parseInt(limit as string), parseInt(offset as string));
+      }
+      
+      res.json(logs);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch API logs" });
+    }
+  });
+
+  // API Logs Stats - Admin only
+  app.get("/api/admin/logs/stats", requireAdmin, async (req, res) => {
+    try {
+      const stats = await storage.getApiLogStats();
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch API log stats" });
     }
   });
 
