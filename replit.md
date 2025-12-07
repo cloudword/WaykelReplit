@@ -1,299 +1,78 @@
 # Waykel - Commercial Vehicle Logistics Platform
 
-## Overview
+### Overview
+Waykel is a production-ready commercial vehicle logistics platform designed to connect commercial vehicle drivers/transporters with available loads across India. Similar to ride-sharing services, it enables users to find work, bid on transportation requests, and manage their logistics operations. The platform supports a multi-role hierarchy including Super Admins, Transporters (fleet owners), Drivers, and Customers, each with tailored interfaces and functionalities.
 
-Waykel is a production-ready commercial vehicle logistics platform similar to ride-sharing services (Uber/Ola) but focused on commercial vehicle transportation. The system connects drivers/transporters with loads across India, enabling them to find work, bid on rides, and earn through the platform.
-
-## User Role Hierarchy
-
-The platform has a clear hierarchy of user roles:
-
-1. **Super Admin (Waykel)** - Platform owner with full control
-   - Phone: 8699957305 / Password: Waykel6@singh (can also login with username: waykelAdmin)
-   - Manages all transporters, drivers, vehicles, bids, and rides
-   - Approves/suspends transporters
-   - Approves/rejects bids
-   - Web-based admin panel at `/admin/*`
-
-2. **Transporters** - Fleet owners/companies (like sub-admins)
-   - Have their own admin panel at `/transporter/*`
-   - Manage their fleet of drivers and vehicles
-   - Browse marketplace and place bids on available loads
-   - Track their bids, earnings, and operations
-   - Must be approved by Super Admin before they can access the platform
-   - A transporter and driver CAN be the same user (owner-operator)
-
-3. **Drivers** - Work under transporters
-   - Mobile app only at `/driver/*` (no admin panel)
-   - Accept rides, track earnings, manage their profile
-   - Can be independent or linked to a transporter via `transporterId`
-   - Simple mobile-first interface for field operations
-
-4. **Customers** - Book transportation services
-   - Have both dashboard and mobile app at `/customer/*`
-   - Book rides, track deliveries, view history
-
-## User Preferences
-
+### User Preferences
 Preferred communication style: Simple, everyday language.
 
-## System Architecture
-
-### Frontend Architecture
-
-**Technology Stack**: React + Vite + Wouter (routing) + TailwindCSS + shadcn/ui components
-
-**Design Pattern**: Mobile-first progressive web application with role-based routing
-
-The frontend is built as a single-page application that adapts its interface based on user roles. Each role has dedicated route namespaces:
-- `/driver/*` - Driver mobile interface
-- `/transporter/*` - Transporter web dashboard  
-- `/admin/*` - Super admin control panel
-- `/customer/*` - Customer/rider interface
-
-**Key Architectural Decisions**:
-- **Wouter instead of React Router**: Chosen for its lightweight footprint (~1.2kB) and simpler API, suitable for the relatively straightforward routing needs
-- **shadcn/ui component library**: Provides accessible, customizable components that can be copied into the project rather than installed as dependencies, giving full control over styling
-- **Mobile-first responsive design**: Primary users (drivers) access the platform via mobile devices, so the UI prioritizes mobile experience with progressive enhancement for desktop
-- **Component-based architecture**: Shared components like RideCard, VehicleSelector, and CalendarView are reusable across different user roles
-
-### Backend Architecture
-
-**Technology Stack**: Node.js + Express.js + TypeScript
-
-**Design Pattern**: RESTful API with role-based access control
-
-The backend follows a traditional REST API architecture serving JSON responses. Key design choices:
-
-**Route Organization**:
-- `/api/auth/*` - Authentication endpoints (register, login)
-- `/api/rides/*` - Ride management (CRUD operations, status updates, assignments)
-- `/api/bids/*` - Bidding system endpoints
-- `/api/vehicles/*` - Vehicle management
-- `/api/users/*` - User profile and status management
-- `/api/transporters/*` - Transporter company management
-
-**Authentication Strategy**: 
-- Session-based authentication using express-session with PostgreSQL session store (connect-pg-simple)
-- Password-based authentication using bcrypt for hashing
-- Session regeneration on login to prevent session fixation attacks
-- Phone number as primary identifier for regular users; username for Super Admin
-- Super Admin credentials: phone "8699957305" or username "waykelAdmin" with password "Waykel6@singh"
-
-**Transporter Approval Workflow**:
-- New transporters register with "pending_approval" status
-- Backend enforces status check during login - pending/suspended transporters cannot authenticate
-- Admin approves transporters via the admin dashboard before they can access the platform
-- Status options: pending_approval, active, suspended
-
-**Storage Layer Abstraction**:
-The `storage.ts` module provides an interface-based abstraction over database operations, making it easy to swap ORM implementations or databases. All database interactions go through this storage interface rather than direct ORM calls in routes.
-
-**Build Process**:
-- Development: tsx for TypeScript execution with hot reload
-- Production: esbuild bundles server code with selective dependency bundling (whitelist approach) to reduce cold start times
-- Client assets built separately with Vite and served from `dist/public`
-
-### Data Architecture
-
-**ORM**: Drizzle ORM - chosen for type safety and zero-cost abstractions
-
-**Schema Design**:
-
-**Core Tables**:
-- `users` - All platform users (drivers, transporters, admins, customers) with role-based differentiation
-- `transporters` - Company/fleet owner details with approval workflow
-- `vehicles` - Vehicle registry linked to users/transporters with status tracking
-- `rides` - Load/trip requests with full lifecycle management
-- `bids` - Bidding mechanism for ride assignments
-- `documents` - User/vehicle document storage and verification
-
-**Key Design Decisions**:
-- **Single users table with role field**: Simpler than separate tables per role, leveraging TypeScript unions for type safety
-- **Approval workflow pattern**: Transporters start in "pending_approval" status, requiring admin verification before becoming active
-- **Bid-based assignment**: Rides support competitive bidding rather than automatic assignment, giving platform control over matching
-- **UUID primary keys**: Using PostgreSQL's `gen_random_uuid()` for distributed-friendly identifiers
-
-**Relationships**:
-- Users can have multiple vehicles
-- Transporters can have fleets of vehicles
-- Rides can receive multiple bids
-- Bids reference specific vehicles for the assignment
-
-### Real-time Features
-
-The architecture includes provisions for real-time features:
-- WebSocket setup in `server/index.ts` via HTTP server creation
-- Planned features: driver location tracking, live ride status updates, real-time notifications
-
-## External Dependencies
-
-### Database
-- **Neon PostgreSQL**: Serverless PostgreSQL provider accessed via `@neondatabase/serverless`
-- Connection pooling with `ws` WebSocket library for serverless compatibility
-- Drizzle ORM for type-safe database operations
-
-### UI Components
-- **Radix UI primitives**: Accessible, unstyled component primitives for dialogs, dropdowns, tabs, etc.
-- **Recharts**: Chart library for earnings visualizations and analytics dashboards
-- **Lucide React**: Icon library
-- **date-fns**: Date manipulation and formatting
-- **Framer Motion**: Animation library for splash screens and transitions
-
-### Development Tools
-- **Vite**: Frontend build tool and dev server
-- **esbuild**: Production server bundling
-- **TypeScript**: Type safety across frontend and backend
-- **TailwindCSS**: Utility-first styling framework
-
-### Customer Portal API
-
-The platform includes CORS support for a separate customer portal application:
-
-**Configuration:**
-- Set `CUSTOMER_PORTAL_URL` environment variable to allow cross-origin requests from the customer portal domain
-- CORS is pre-configured for localhost development (ports 3000 and 5173)
-
-**Customer-Specific Endpoints:**
-- `GET /api/rides?createdById={customerId}` - Fetch customer's trip history
-- `POST /api/rides` - Create new trip request (booking)
-- `GET /api/bids?rideId={rideId}` - View bids on a customer's trip
-
-**API Documentation:**
-- Full API documentation available at `docs/CUSTOMER_PORTAL_API.md`
-- Includes all endpoints, data structures, and example integration code
-
-### Planned Integrations (Referenced but not implemented)
-- **Payment Processing**: Stripe and Razorpay mentioned in documentation
-- **Maps/Geolocation**: Google Maps integration for route tracking
-- **Real-time Communication**: Socket.IO for driver tracking and notifications
-
-### Document Upload System
-
-The platform supports direct file uploads for driver and vehicle documents without requiring external services like Google Drive.
-
-**Features:**
-- Direct file upload to cloud storage (Replit Object Storage)
-- Multi-file upload support
-- Progress tracking for each file
-- Automatic ACL (Access Control List) assignment
-
-**Security Model:**
-- Files are stored with "private" visibility
-- Only the owner (transporter/user) and super admins can access files
-- Authentication required for all upload and download operations
-- Owner ID derived from session, not client-supplied data
-
-**Environment Variables:**
-- `PRIVATE_OBJECT_DIR` - Base directory for uploaded documents (e.g., `/waykel-documents`)
-
-**API Endpoints:**
-- `POST /api/objects/upload` - Get signed upload URL (requires auth)
-- `POST /api/objects/confirm` - Confirm upload and set ACL (requires auth)
-- `GET /objects/:objectPath(*)` - Download file (requires auth + ACL check)
-
-### Replit-Specific Plugins
-- `@replit/vite-plugin-runtime-error-modal` - Development error overlay (disabled outside Replit)
-- `@replit/vite-plugin-cartographer` - Development tooling (disabled outside Replit)
-- `vite-plugin-meta-images` - Custom plugin for updating OpenGraph meta tags with Replit deployment URLs
-
-## Portability & Self-Hosting Guide
-
-This codebase is designed to run both on Replit and on self-hosted servers (GitHub + any VPS/cloud).
-
-### Environment Variables
-
-**Required for all deployments:**
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@host:5432/db` |
-| `SESSION_SECRET` | Random string for session encryption | `generate-random-64-char-string` |
-| `PORT` | Server port (default: 5000) | `5000` |
-
-**For Customer Portal (optional):**
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `CUSTOMER_PORTAL_URL` | CORS origin for customer app | `https://customer.waykel.com` |
-
-**For Object Storage (choose one):**
-
-Option A - Replit Object Storage (Replit only):
-- Set up via Replit's Object Storage tab in the Tools panel
-- `PRIVATE_OBJECT_DIR` - Base directory (e.g., `/waykel-documents`)
-
-Option B - Google Cloud Storage (self-hosted):
-| Variable | Description |
-|----------|-------------|
-| `GCS_BUCKET` | GCS bucket name |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Path to service account JSON file |
-
-Option C - AWS S3 (self-hosted):
-| Variable | Description |
-|----------|-------------|
-| `S3_BUCKET` | S3 bucket name |
-| `AWS_ACCESS_KEY_ID` | AWS access key |
-| `AWS_SECRET_ACCESS_KEY` | AWS secret key |
-| `AWS_REGION` | AWS region (e.g., `us-east-1`) |
-
-### Database Compatibility
-
-The codebase automatically detects database type:
-- **Neon/Serverless PostgreSQL**: Uses `@neondatabase/serverless` driver
-- **Standard PostgreSQL**: Uses `pg` driver when `DATABASE_URL` doesn't contain `neon.tech`
-
-For local development:
-```bash
-# Install PostgreSQL locally
-docker run -d --name waykel-db -e POSTGRES_PASSWORD=secret -p 5432:5432 postgres:15
-
-# Set DATABASE_URL
-export DATABASE_URL="postgresql://postgres:secret@localhost:5432/waykel"
-```
-
-### Session Store
-
-- **Development**: Uses MemoryStore (auto-detected via `NODE_ENV`)
-- **Production**: Uses PostgreSQL-backed sessions via `connect-pg-simple`
-
-### Build & Deploy (Self-Hosted)
-
-```bash
-# Install dependencies
-npm install
-
-# Push database schema
-npm run db:push
-
-# Build for production
-npm run build
-
-# Start production server
-npm start
-```
-
-### Docker Deployment
-
-Create `Dockerfile`:
-```dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
-RUN npm run build
-EXPOSE 5000
-CMD ["npm", "start"]
-```
-
-### Replit-Specific Setup
-
-When running on Replit:
-1. Go to Tools → Object Storage and create a bucket
-2. Note the bucket name and set `PRIVATE_OBJECT_DIR` 
-3. The Replit sidecar (port 1106) handles signed URLs automatically
-
-### Known Portability Notes
-
-1. **Vite plugins**: `@replit/vite-plugin-*` are guarded by `REPL_ID` check and won't load outside Replit
-2. **Object Storage**: Requires manual setup of GCS/S3 for self-hosting (not Replit sidecar)
-3. **Production deployments**: Use environment-specific database credentials and session secrets
+### System Architecture
+The Waykel platform is built with a mobile-first, role-based approach, ensuring an optimized experience for all user types.
+
+**Frontend:**
+-   **Technology Stack**: React, Vite, Wouter (for lightweight routing), TailwindCSS, and shadcn/ui for accessible and customizable components.
+-   **Design Patterns**: Single-page application (SPA) with role-based routing (`/driver/*`, `/transporter/*`, `/admin/*`, `/customer/*`) and a strong emphasis on mobile-first responsive design.
+-   **Key Decisions**: Wouter was chosen for its minimal footprint, and shadcn/ui components are integrated directly into the codebase for full control.
+
+**Backend:**
+-   **Technology Stack**: Node.js, Express.js, and TypeScript.
+-   **Design Patterns**: RESTful API with robust role-based access control.
+-   **Authentication**: Supports both session-based authentication (for browser clients, using `express-session` with PostgreSQL for persistence) and token-based authentication (JWT Bearer tokens via `/api/auth/token` for server-to-server or external integrations). Password hashing is done with bcrypt.
+-   **Transporter Workflow**: New transporters undergo an approval process by a Super Admin, preventing access until their status is active.
+-   **Data Storage Abstraction**: A `storage.ts` module provides an interface for database operations, allowing for flexible ORM/database swapping.
+-   **Build Process**: `tsx` for development with hot reload, `esbuild` for production bundling to optimize cold start times.
+
+**Data Architecture:**
+-   **ORM**: Drizzle ORM is used for type-safe database interactions.
+-   **Schema Design**: A single `users` table differentiates roles. Other core tables include `transporters`, `vehicles`, `rides` (for load requests), `bids`, and `documents`.
+-   **Key Decisions**: UUIDs are used for primary keys, and a bid-based system manages ride assignments.
+
+**Real-time Features**:
+-   The architecture includes provisions for WebSockets to support future real-time functionalities like driver location tracking, live ride status updates, and notifications.
+
+**Mobile Applications**:
+-   Two separate native mobile apps for Customer and Driver roles are built using Capacitor, enabling access to native device features like geolocation, camera, and push notifications.
+
+### External Dependencies
+
+**Database:**
+-   **Neon PostgreSQL**: Utilized as the serverless PostgreSQL provider, accessed via `@neondatabase/serverless` and Drizzle ORM.
+
+**UI/UX Components:**
+-   **Radix UI primitives**: For accessible, unstyled UI components.
+-   **Recharts**: For data visualization and analytics.
+-   **Lucide React**: Icon library.
+-   **date-fns**: For date manipulation.
+-   **Framer Motion**: For animations and transitions.
+
+**Development Tools:**
+-   **Vite**: Frontend build tool.
+-   **esbuild**: Backend bundling.
+-   **TypeScript**: For type safety.
+-   **TailwindCSS**: For utility-first styling.
+
+**Customer Portal API:**
+-   CORS is configured to support a separate customer portal application, with specific API endpoints for customer-related actions (e.g., booking rides, viewing history).
+-   **Bidirectional Sync**: The Customer Mobile App (Capacitor) and Customer Portal connect to the same backend/database, enabling seamless sync. A customer can book on the portal and see it on the mobile app instantly.
+-   **Feature Parity**: See `docs/CUSTOMER_FEATURE_PARITY.md` for complete feature matrix.
+-   **API Documentation**: See `docs/CUSTOMER_PORTAL_API.md` for complete JWT authentication guide and endpoint documentation.
+
+**API Logging System:**
+-   All API requests are logged to the `api_logs` table for monitoring and debugging.
+-   Logs include: method, path, status code, response time, user info, origin, and sanitized request bodies (passwords/tokens removed).
+-   External requests (from customer portal) are flagged with `is_external=true` based on origin header.
+-   Admin panel includes API Logs page (`/admin/api-logs`) with filtering, search, and real-time stats.
+-   Stats endpoint provides aggregate metrics: total requests, external requests, error count, avg response time.
+
+**Mobile Apps (Capacitor):**
+-   **Customer App** (`com.waykel.customer`): Config at `capacitor.customer.config.ts`
+-   **Driver App** (`com.waykel.driver`): Config at `capacitor.driver.config.ts`
+-   **Build Guide**: See `docs/mobile/BUILD_GUIDE.md` for local build instructions
+-   **Native Features**: Geolocation, Camera, Push Notifications via `client/src/lib/native.ts`
+
+**Document Upload System:**
+-   Direct file uploads are supported for driver and vehicle documents, storing them in cloud storage (e.g., Replit Object Storage, Google Cloud Storage, AWS S3) with private visibility and role-based access control.
+
+**Replit-Specific Integrations:**
+-   Includes development plugins like `@replit/vite-plugin-runtime-error-modal` and `@replit/vite-plugin-cartographer`, which are enabled only when running on Replit.
+-   `vite-plugin-meta-images` for OpenGraph meta tag updates on Replit deployments.

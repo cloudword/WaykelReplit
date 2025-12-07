@@ -171,3 +171,25 @@ export const notifications = pgTable("notifications", {
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Notification = typeof notifications.$inferSelect;
+
+// API Logs table for tracking all API requests
+export const apiLogs = pgTable("api_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  method: text("method").notNull(),
+  path: text("path").notNull(),
+  statusCode: integer("status_code"),
+  userId: varchar("user_id"),
+  userRole: text("user_role"),
+  origin: text("origin"),
+  userAgent: text("user_agent"),
+  ipAddress: text("ip_address"),
+  requestBody: json("request_body"),
+  responseTime: integer("response_time"),
+  errorMessage: text("error_message"),
+  isExternal: boolean("is_external").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertApiLogSchema = createInsertSchema(apiLogs).omit({ id: true, createdAt: true });
+export type InsertApiLog = z.infer<typeof insertApiLogSchema>;
+export type ApiLog = typeof apiLogs.$inferSelect;

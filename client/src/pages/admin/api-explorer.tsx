@@ -27,7 +27,9 @@ interface ApiEndpoint {
 const API_CATALOG: ApiEndpoint[] = [
   // Auth
   { id: "auth-register", method: "POST", path: "/api/auth/register", description: "Register a new user", category: "Authentication", requestBody: { name: "string", email: "string", phone: "string", password: "string", role: "customer|driver|transporter" } },
-  { id: "auth-login", method: "POST", path: "/api/auth/login", description: "Login with phone and password", category: "Authentication", requestBody: { phone: "string", password: "string" } },
+  { id: "auth-login", method: "POST", path: "/api/auth/login", description: "Login with phone and password (session-based)", category: "Authentication", requestBody: { phone: "string", password: "string" } },
+  { id: "auth-token", method: "POST", path: "/api/auth/token", description: "Get JWT token for server-to-server auth", category: "Authentication", requestBody: { phone: "string", password: "string" }, responseExample: { token: "eyJ...", expiresIn: "24h", tokenType: "Bearer" } },
+  { id: "auth-token-refresh", method: "POST", path: "/api/auth/token/refresh", description: "Refresh JWT token (requires Bearer token)", category: "Authentication" },
   { id: "auth-logout", method: "POST", path: "/api/auth/logout", description: "Logout current user", category: "Authentication" },
   { id: "auth-session", method: "GET", path: "/api/auth/session", description: "Check current session status", category: "Authentication" },
   { id: "auth-change-password", method: "POST", path: "/api/auth/change-password", description: "Change user password", category: "Authentication", requestBody: { currentPassword: "string", newPassword: "string" } },
@@ -64,6 +66,9 @@ const API_CATALOG: ApiEndpoint[] = [
   { id: "docs-list", method: "GET", path: "/api/documents", description: "List documents", category: "Documents", queryParams: ["userId", "vehicleId", "transporterId"] },
   { id: "docs-create", method: "POST", path: "/api/documents", description: "Upload a document", category: "Documents", requestBody: { userId: "string?", vehicleId: "string?", transporterId: "string?", entityType: "driver|vehicle|transporter", type: "license|aadhar|pan|insurance|fitness|registration|rc|permit|pollution", documentName: "string", url: "string", expiryDate: "string?" } },
   { id: "docs-status", method: "PATCH", path: "/api/documents/:id/status", description: "Update document status", category: "Documents", requestBody: { status: "verified|pending|expired|rejected" } },
+  
+  // Admin
+  { id: "admin-stats", method: "GET", path: "/api/admin/stats", description: "Get platform statistics (admin only)", category: "Admin", responseExample: { totalDrivers: 10, totalTransporters: 5, totalCustomers: 20, totalRevenue: 50000 } },
   
   // Health
   { id: "health", method: "GET", path: "/api/health", description: "API health check", category: "System" },

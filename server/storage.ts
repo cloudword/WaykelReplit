@@ -1,15 +1,35 @@
 import { 
-  users, vehicles, rides, bids, transporters, documents, notifications,
+  users, vehicles, rides, bids, transporters, documents, notifications, apiLogs,
   type User, type InsertUser,
   type Vehicle, type InsertVehicle,
   type Ride, type InsertRide,
   type Bid, type InsertBid,
   type Transporter, type InsertTransporter,
   type Document, type InsertDocument,
-  type Notification, type InsertNotification
+  type Notification, type InsertNotification,
+  type ApiLog, type InsertApiLog
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, or, sql, gte, inArray } from "drizzle-orm";
+
+export function sanitizeRequestBody(body: any): any {
+  if (!body || typeof body !== 'object') return body;
+  
+  const sensitiveKeys = ['password', 'token', 'secret', 'authorization', 'apikey', 'api_key'];
+  const sanitized: any = Array.isArray(body) ? [] : {};
+  
+  for (const key of Object.keys(body)) {
+    if (sensitiveKeys.some(sk => key.toLowerCase().includes(sk))) {
+      sanitized[key] = '[REDACTED]';
+    } else if (typeof body[key] === 'object' && body[key] !== null) {
+      sanitized[key] = sanitizeRequestBody(body[key]);
+    } else {
+      sanitized[key] = body[key];
+    }
+  }
+  
+  return sanitized;
+}
 
 export interface IStorage {
   // Users
@@ -87,6 +107,12 @@ export interface IStorage {
   getActiveTransporters(): Promise<Transporter[]>;
   getVehiclesByTypeAndCapacity(vehicleType: string | null, minCapacityKg: number | null): Promise<Vehicle[]>;
   updateRideAcceptedBid(rideId: string, bidId: string, transporterId: string): Promise<void>;
+  
+  // API Logs
+  createApiLog(log: InsertApiLog): Promise<ApiLog>;
+  getApiLogs(limit?: number, offset?: number): Promise<ApiLog[]>;
+  getApiLogsByPath(path: string): Promise<ApiLog[]>;
+  getApiLogStats(): Promise<{ totalRequests: number; externalRequests: number; errorCount: number; avgResponseTime: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -464,6 +490,30 @@ export class DatabaseStorage implements IStorage {
       transporterId: transporterId,
       status: "assigned"
     }).where(eq(rides.id, rideId));
+  }
+
+  // API Logs
+  async createApiLog(log: InsertApiLog): Promise<ApiLog> {
+    const [apiLog] = await db.insert(apiLogs).values(log).returning();
+    return apiLog;
+  }
+
+  async getApiLogs(limit: number = 100, offset: number = 0): Promise<ApiLog[]> {
+    return db.select().from(apiLogs).orderBy(desc(apiLogs.createdAt)).limit(limit).offset(offset);
+  }
+
+  async getApiLogsByPath(path: string): Promise<ApiLog[]> {
+    return db.select().from(apiLogs).where(sql`${apiLogs.path} LIKE ${`%${path}%`}`).orderBy(desc(apiLogs.createdAt)).limit(100);
+  }
+
+  async getApiLogStats(): Promise<{ totalRequests: number; externalRequests: number; errorCount: number; avgResponseTime: number }> {
+    const [stats] = await db.select({
+      totalRequests: sql<number>`COUNT(*)::int`,
+      externalRequests: sql<number>`COUNT(*) FILTER (WHERE ${apiLogs.isExternal} = true)::int`,
+      errorCount: sql<number>`COUNT(*) FILTER (WHERE ${apiLogs.statusCode} >= 400)::int`,
+      avgResponseTime: sql<number>`COALESCE(AVG(${apiLogs.responseTime})::int, 0)`
+    }).from(apiLogs);
+    return stats || { totalRequests: 0, externalRequests: 0, errorCount: 0, avgResponseTime: 0 };
   }
 }
 
