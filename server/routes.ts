@@ -464,7 +464,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Ride routes - with role-based access control
   app.get("/api/rides", async (req, res) => {
     const { status, driverId, transporterId, createdById } = req.query;
-    const sessionUser = req.session.user;
+    const sessionUser = getCurrentUser(req);
     
     try {
       let result: any[] = [];
@@ -525,7 +525,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.get("/api/rides/:id", async (req, res) => {
-    const sessionUser = req.session.user;
+    const sessionUser = getCurrentUser(req);
     
     try {
       const ride = await storage.getRide(req.params.id);
@@ -611,7 +611,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.patch("/api/rides/:id/status", async (req, res) => {
-    const sessionUser = req.session.user;
+    const sessionUser = getCurrentUser(req);
     
     // Only super admin can update ride status
     if (!sessionUser || !sessionUser.isSuperAdmin) {
@@ -628,7 +628,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.patch("/api/rides/:id/assign", async (req, res) => {
-    const sessionUser = req.session.user;
+    const sessionUser = getCurrentUser(req);
     
     // Only super admin can assign drivers
     if (!sessionUser || !sessionUser.isSuperAdmin) {
@@ -646,7 +646,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Bid routes
   app.get("/api/bids", async (req, res) => {
-    const sessionUser = req.session.user;
+    const sessionUser = getCurrentUser(req);
     const { rideId, userId, transporterId } = req.query;
     
     try {
@@ -689,7 +689,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.post("/api/bids", async (req, res) => {
-    const sessionUser = req.session.user;
+    const sessionUser = getCurrentUser(req);
     
     // Only authenticated transporters can place bids
     if (!sessionUser || (sessionUser.role !== "transporter" && !sessionUser.isSuperAdmin)) {
@@ -716,7 +716,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.patch("/api/bids/:id/status", async (req, res) => {
-    const sessionUser = req.session.user;
+    const sessionUser = getCurrentUser(req);
     
     // Only super admin can update bid status
     if (!sessionUser || !sessionUser.isSuperAdmin) {
@@ -743,7 +743,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Get cheapest bids for a ride (for customer view)
   app.get("/api/rides/:rideId/cheapest-bids", async (req, res) => {
-    const sessionUser = req.session.user;
+    const sessionUser = getCurrentUser(req);
     const { rideId } = req.params;
     
     try {
@@ -826,7 +826,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // GET /api/vehicles - Auth required, users can view their own or transporter's
   app.get("/api/vehicles", requireAuth, async (req, res) => {
     const { userId, transporterId } = req.query;
-    const user = req.session.user!;
+    const user = getCurrentUser(req)!;
     const isAdmin = user.isSuperAdmin || user.role === "admin";
     
     try {
@@ -1295,7 +1295,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Find matching transporters for a ride (for admin/customer to see who can fulfill)
   app.get("/api/rides/:rideId/matches", async (req, res) => {
-    const sessionUser = req.session.user;
+    const sessionUser = getCurrentUser(req);
     
     if (!sessionUser) {
       return res.status(401).json({ error: "Authentication required" });
@@ -1322,7 +1322,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Notify matching transporters about a new ride (creates notifications for all matches)
   app.post("/api/rides/:rideId/notify-transporters", async (req, res) => {
-    const sessionUser = req.session.user;
+    const sessionUser = getCurrentUser(req);
     
     // Only super admin or customer who created the ride can send notifications
     if (!sessionUser) {
@@ -1395,7 +1395,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Notification routes
   app.get("/api/notifications", async (req, res) => {
-    const sessionUser = req.session.user;
+    const sessionUser = getCurrentUser(req);
     
     if (!sessionUser) {
       return res.status(401).json({ error: "Authentication required" });
@@ -1418,7 +1418,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.patch("/api/notifications/:id/read", async (req, res) => {
-    const sessionUser = req.session.user;
+    const sessionUser = getCurrentUser(req);
     
     if (!sessionUser) {
       return res.status(401).json({ error: "Authentication required" });
@@ -1433,7 +1433,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.patch("/api/notifications/mark-all-read", async (req, res) => {
-    const sessionUser = req.session.user;
+    const sessionUser = getCurrentUser(req);
     
     if (!sessionUser) {
       return res.status(401).json({ error: "Authentication required" });
@@ -1449,7 +1449,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Accept bid route - now allows BOTH super admin AND customer to accept bids
   app.post("/api/bids/:bidId/accept", async (req, res) => {
-    const sessionUser = req.session.user;
+    const sessionUser = getCurrentUser(req);
     
     if (!sessionUser) {
       return res.status(401).json({ error: "Authentication required" });
