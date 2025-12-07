@@ -112,13 +112,14 @@ export default function AdminCustomers() {
       });
 
       if (response.ok) {
-        toast.success("Customer added successfully");
+        const userData = await response.json();
+        toast.success(`Customer "${userData.name}" added successfully!`);
         setIsAddDialogOpen(false);
         setNewCustomer({ name: "", phone: "", email: "", password: "" });
         fetchData();
       } else {
-        const error = await response.json();
-        toast.error(error.message || "Failed to add customer");
+        const errorData = await response.json();
+        toast.error(errorData.error || errorData.message || "Failed to add customer");
       }
     } catch (error) {
       toast.error("Failed to add customer");
