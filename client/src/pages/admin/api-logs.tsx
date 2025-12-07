@@ -40,6 +40,15 @@ export default function AdminApiLogs() {
   const [searchPath, setSearchPath] = useState("");
   const [methodFilter, setMethodFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [endpointFilter, setEndpointFilter] = useState<string>("all");
+
+  const uniqueEndpoints = Array.from(new Set(logs.map(log => {
+    const parts = log.path.split('?')[0].split('/');
+    if (parts.length >= 3) {
+      return `/${parts[1]}/${parts[2]}`;
+    }
+    return log.path.split('?')[0];
+  }))).sort();
 
   const fetchData = async () => {
     try {
@@ -97,7 +106,8 @@ export default function AdminApiLogs() {
       (statusFilter === "success" && log.statusCode && log.statusCode < 400) ||
       (statusFilter === "error" && log.statusCode && log.statusCode >= 400) ||
       (statusFilter === "external" && log.isExternal);
-    return matchesPath && matchesMethod && matchesStatus;
+    const matchesEndpoint = endpointFilter === "all" || log.path.startsWith(endpointFilter);
+    return matchesPath && matchesMethod && matchesStatus && matchesEndpoint;
   });
 
   return (
@@ -204,7 +214,7 @@ export default function AdminApiLogs() {
                   </SelectContent>
                 </Select>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-32">
+                  <SelectTrigger className="w-32" data-testid="select-status">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -212,6 +222,18 @@ export default function AdminApiLogs() {
                     <SelectItem value="success">Success (2xx)</SelectItem>
                     <SelectItem value="error">Errors (4xx/5xx)</SelectItem>
                     <SelectItem value="external">External Only</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={endpointFilter} onValueChange={setEndpointFilter}>
+                  <SelectTrigger className="w-40" data-testid="select-endpoint">
+                    <Filter className="h-4 w-4 mr-1" />
+                    <SelectValue placeholder="Endpoint" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Endpoints</SelectItem>
+                    {uniqueEndpoints.map(endpoint => (
+                      <SelectItem key={endpoint} value={endpoint}>{endpoint}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
