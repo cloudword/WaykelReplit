@@ -24,6 +24,7 @@ import AdminEarnings from "@/pages/admin/earnings";
 import AdminSettings from "@/pages/admin/settings";
 import AdminCustomers from "@/pages/admin/customers";
 import AdminApiExplorer from "@/pages/admin/api-explorer";
+import AdminApiLogs from "@/pages/admin/api-logs";
 import AdminUsers from "@/pages/admin/users";
 import AdminTrips from "@/pages/admin/trips";
 
@@ -85,6 +86,7 @@ function Router() {
       <Route path="/admin/settings" component={AdminSettings} />
       <Route path="/admin/customers" component={AdminCustomers} />
       <Route path="/admin/api-explorer" component={AdminApiExplorer} />
+      <Route path="/admin/api-logs" component={AdminApiLogs} />
       
       <Route component={NotFound} />
     </Switch>

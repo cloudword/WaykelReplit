@@ -55,6 +55,14 @@ The Waykel platform is built with a mobile-first, role-based approach, ensuring 
 -   CORS is configured to support a separate customer portal application, with specific API endpoints for customer-related actions (e.g., booking rides, viewing history).
 -   **Bidirectional Sync**: The Customer Mobile App (Capacitor) and Customer Portal connect to the same backend/database, enabling seamless sync. A customer can book on the portal and see it on the mobile app instantly.
 -   **Feature Parity**: See `docs/CUSTOMER_FEATURE_PARITY.md` for complete feature matrix.
+-   **API Documentation**: See `docs/CUSTOMER_PORTAL_API.md` for complete JWT authentication guide and endpoint documentation.
+
+**API Logging System:**
+-   All API requests are logged to the `api_logs` table for monitoring and debugging.
+-   Logs include: method, path, status code, response time, user info, origin, and sanitized request bodies (passwords/tokens removed).
+-   External requests (from customer portal) are flagged with `is_external=true` based on origin header.
+-   Admin panel includes API Logs page (`/admin/api-logs`) with filtering, search, and real-time stats.
+-   Stats endpoint provides aggregate metrics: total requests, external requests, error count, avg response time.
 
 **Mobile Apps (Capacitor):**
 -   **Customer App** (`com.waykel.customer`): Config at `capacitor.customer.config.ts`

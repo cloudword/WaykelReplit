@@ -4,6 +4,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import MemoryStore from "memorystore";
+import { storage, sanitizeRequestBody } from "./storage";
 
 const app = express();
 const httpServer = createServer(app);
@@ -134,6 +135,31 @@ app.use((req, res, next) => {
       }
 
       log(logLine);
+      
+      const origin = req.headers.origin || '';
+      const currentHost = `${req.protocol}://${req.headers.host}`;
+      const isExternal = origin !== '' && origin !== currentHost && !origin.includes('localhost');
+      
+      const user = req.session?.user;
+      
+      storage.createApiLog({
+        method: req.method,
+        path: path,
+        statusCode: res.statusCode,
+        userId: user?.id || null,
+        userRole: user?.role || null,
+        origin: origin || null,
+        userAgent: req.headers['user-agent'] || null,
+        ipAddress: req.ip || null,
+        requestBody: req.body ? sanitizeRequestBody(req.body) : null,
+        responseTime: duration,
+        errorMessage: res.statusCode >= 400 && capturedJsonResponse?.error 
+          ? String(capturedJsonResponse.error) 
+          : null,
+        isExternal,
+      }).catch((err) => {
+        console.error('Failed to log API request:', err);
+      });
     }
   });
 

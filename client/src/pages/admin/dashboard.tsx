@@ -1,9 +1,10 @@
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Truck, DollarSign, Activity, Package, Building2 } from "lucide-react";
+import { Users, Truck, DollarSign, Activity, Package, Building2, ChevronRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
+import { Link } from "wouter";
 
 interface AdminStats {
   totalDrivers: number;
@@ -77,107 +78,127 @@ export default function AdminDashboard() {
         </div>
 
         <div className="grid grid-cols-4 gap-6 mb-8">
-          <Card data-testid="card-total-drivers">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
-                  <Users size={24} />
+          <Link href="/admin/drivers">
+            <Card data-testid="card-total-drivers" className="cursor-pointer hover:shadow-lg transition-shadow hover:border-blue-200 group">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
+                    <Users size={24} />
+                  </div>
+                  <ChevronRight size={18} className="text-gray-400 group-hover:text-blue-600 transition-colors" />
                 </div>
-                <Badge variant="secondary" className="text-xs">Live</Badge>
-              </div>
-              <p className="text-gray-500 text-sm">Total Drivers</p>
-              <h3 className="text-2xl font-bold" data-testid="stat-total-drivers">{stats?.totalDrivers || 0}</h3>
-            </CardContent>
-          </Card>
+                <p className="text-gray-500 text-sm">Total Drivers</p>
+                <h3 className="text-2xl font-bold" data-testid="stat-total-drivers">{stats?.totalDrivers || 0}</h3>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card data-testid="card-active-vehicles">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
-                  <Truck size={24} />
+          <Link href="/admin/vehicles">
+            <Card data-testid="card-active-vehicles" className="cursor-pointer hover:shadow-lg transition-shadow hover:border-purple-200 group">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
+                    <Truck size={24} />
+                  </div>
+                  <ChevronRight size={18} className="text-gray-400 group-hover:text-purple-600 transition-colors" />
                 </div>
-                <Badge variant="secondary" className="text-xs">{stats?.totalVehicles || 0} Total</Badge>
-              </div>
-              <p className="text-gray-500 text-sm">Active Vehicles</p>
-              <h3 className="text-2xl font-bold" data-testid="stat-active-vehicles">{stats?.activeVehicles || 0}</h3>
-            </CardContent>
-          </Card>
+                <p className="text-gray-500 text-sm">Active Vehicles</p>
+                <h3 className="text-2xl font-bold" data-testid="stat-active-vehicles">{stats?.activeVehicles || 0}</h3>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card data-testid="card-total-revenue">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-2 bg-green-100 rounded-lg text-green-600">
-                  <DollarSign size={24} />
+          <Link href="/admin/rides">
+            <Card data-testid="card-total-revenue" className="cursor-pointer hover:shadow-lg transition-shadow hover:border-green-200 group">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2 bg-green-100 rounded-lg text-green-600">
+                    <DollarSign size={24} />
+                  </div>
+                  <ChevronRight size={18} className="text-gray-400 group-hover:text-green-600 transition-colors" />
                 </div>
-                <Badge variant="secondary" className="text-xs">{stats?.completedRides || 0} trips</Badge>
-              </div>
-              <p className="text-gray-500 text-sm">Total Revenue</p>
-              <h3 className="text-2xl font-bold" data-testid="stat-total-revenue">{formatRevenue(stats?.totalRevenue || 0)}</h3>
-            </CardContent>
-          </Card>
+                <p className="text-gray-500 text-sm">Total Revenue</p>
+                <h3 className="text-2xl font-bold" data-testid="stat-total-revenue">{formatRevenue(stats?.totalRevenue || 0)}</h3>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card data-testid="card-active-rides">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-2 bg-orange-100 rounded-lg text-orange-600">
-                  <Activity size={24} />
+          <Link href="/admin/rides?status=active">
+            <Card data-testid="card-active-rides" className="cursor-pointer hover:shadow-lg transition-shadow hover:border-orange-200 group">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2 bg-orange-100 rounded-lg text-orange-600">
+                    <Activity size={24} />
+                  </div>
+                  <ChevronRight size={18} className="text-gray-400 group-hover:text-orange-600 transition-colors" />
                 </div>
-                <Badge variant="default" className="text-xs bg-green-500">Live</Badge>
-              </div>
-              <p className="text-gray-500 text-sm">Active Rides</p>
-              <h3 className="text-2xl font-bold" data-testid="stat-active-rides">{stats?.activeRides || 0}</h3>
-            </CardContent>
-          </Card>
+                <p className="text-gray-500 text-sm">Active Rides</p>
+                <h3 className="text-2xl font-bold" data-testid="stat-active-rides">{stats?.activeRides || 0}</h3>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
 
         <div className="grid grid-cols-4 gap-6 mb-8">
-          <Card data-testid="card-transporters">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
-                  <Building2 size={24} />
+          <Link href="/admin/transporters">
+            <Card data-testid="card-transporters" className="cursor-pointer hover:shadow-lg transition-shadow hover:border-indigo-200 group">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
+                    <Building2 size={24} />
+                  </div>
+                  <ChevronRight size={18} className="text-gray-400 group-hover:text-indigo-600 transition-colors" />
                 </div>
-              </div>
-              <p className="text-gray-500 text-sm">Transporters</p>
-              <h3 className="text-2xl font-bold" data-testid="stat-transporters">{stats?.totalTransporters || 0}</h3>
-            </CardContent>
-          </Card>
+                <p className="text-gray-500 text-sm">Transporters</p>
+                <h3 className="text-2xl font-bold" data-testid="stat-transporters">{stats?.totalTransporters || 0}</h3>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card data-testid="card-customers">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-2 bg-pink-100 rounded-lg text-pink-600">
-                  <Users size={24} />
+          <Link href="/admin/customers">
+            <Card data-testid="card-customers" className="cursor-pointer hover:shadow-lg transition-shadow hover:border-pink-200 group">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2 bg-pink-100 rounded-lg text-pink-600">
+                    <Users size={24} />
+                  </div>
+                  <ChevronRight size={18} className="text-gray-400 group-hover:text-pink-600 transition-colors" />
                 </div>
-              </div>
-              <p className="text-gray-500 text-sm">Customers</p>
-              <h3 className="text-2xl font-bold" data-testid="stat-customers">{stats?.totalCustomers || 0}</h3>
-            </CardContent>
-          </Card>
+                <p className="text-gray-500 text-sm">Customers</p>
+                <h3 className="text-2xl font-bold" data-testid="stat-customers">{stats?.totalCustomers || 0}</h3>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card data-testid="card-pending-rides">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-2 bg-yellow-100 rounded-lg text-yellow-600">
-                  <Package size={24} />
+          <Link href="/admin/rides?status=pending">
+            <Card data-testid="card-pending-rides" className="cursor-pointer hover:shadow-lg transition-shadow hover:border-yellow-200 group">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2 bg-yellow-100 rounded-lg text-yellow-600">
+                    <Package size={24} />
+                  </div>
+                  <ChevronRight size={18} className="text-gray-400 group-hover:text-yellow-600 transition-colors" />
                 </div>
-              </div>
-              <p className="text-gray-500 text-sm">Pending Rides</p>
-              <h3 className="text-2xl font-bold" data-testid="stat-pending-rides">{stats?.pendingRides || 0}</h3>
-            </CardContent>
-          </Card>
+                <p className="text-gray-500 text-sm">Pending Rides</p>
+                <h3 className="text-2xl font-bold" data-testid="stat-pending-rides">{stats?.pendingRides || 0}</h3>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card data-testid="card-total-bids">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-2 bg-cyan-100 rounded-lg text-cyan-600">
-                  <DollarSign size={24} />
+          <Link href="/admin/bids">
+            <Card data-testid="card-total-bids" className="cursor-pointer hover:shadow-lg transition-shadow hover:border-cyan-200 group">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-2 bg-cyan-100 rounded-lg text-cyan-600">
+                    <DollarSign size={24} />
+                  </div>
+                  <ChevronRight size={18} className="text-gray-400 group-hover:text-cyan-600 transition-colors" />
                 </div>
-              </div>
-              <p className="text-gray-500 text-sm">Total Bids</p>
-              <h3 className="text-2xl font-bold" data-testid="stat-total-bids">{stats?.totalBids || 0}</h3>
-            </CardContent>
-          </Card>
+                <p className="text-gray-500 text-sm">Total Bids</p>
+                <h3 className="text-2xl font-bold" data-testid="stat-total-bids">{stats?.totalBids || 0}</h3>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 gap-6">
