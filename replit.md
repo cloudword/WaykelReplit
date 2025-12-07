@@ -53,6 +53,14 @@ The Waykel platform is built with a mobile-first, role-based approach, ensuring 
 
 **Customer Portal API:**
 -   CORS is configured to support a separate customer portal application, with specific API endpoints for customer-related actions (e.g., booking rides, viewing history).
+-   **Bidirectional Sync**: The Customer Mobile App (Capacitor) and Customer Portal connect to the same backend/database, enabling seamless sync. A customer can book on the portal and see it on the mobile app instantly.
+-   **Feature Parity**: See `docs/CUSTOMER_FEATURE_PARITY.md` for complete feature matrix.
+
+**Mobile Apps (Capacitor):**
+-   **Customer App** (`com.waykel.customer`): Config at `capacitor.customer.config.ts`
+-   **Driver App** (`com.waykel.driver`): Config at `capacitor.driver.config.ts`
+-   **Build Guide**: See `docs/mobile/BUILD_GUIDE.md` for local build instructions
+-   **Native Features**: Geolocation, Camera, Push Notifications via `client/src/lib/native.ts`
 
 **Document Upload System:**
 -   Direct file uploads are supported for driver and vehicle documents, storing them in cloud storage (e.g., Replit Object Storage, Google Cloud Storage, AWS S3) with private visibility and role-based access control.
