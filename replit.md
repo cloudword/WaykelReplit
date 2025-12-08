@@ -3,6 +3,16 @@
 ### Overview
 Waykel is a production-ready commercial vehicle logistics platform designed to connect commercial vehicle drivers/transporters with available loads across India. Similar to ride-sharing services, it enables users to find work, bid on transportation requests, and manage their logistics operations. The platform supports a multi-role hierarchy including Super Admins, Transporters (fleet owners), Drivers, and Customers, each with tailored interfaces and functionalities.
 
+### Multi-Project Ecosystem
+The Waykel platform consists of three interconnected projects:
+| Project | Purpose | Environment |
+|---------|---------|-------------|
+| **waykel-dev** (this project) | Development & Testing | Development |
+| **waykeldriver** | Production Backend & Apps | Production |
+| **waykelconnect** | Customer Portal (dev.waykel.com) | Production |
+
+All three projects share the same PostgreSQL database. See `docs/ARCHITECTURE.md` for complete system diagrams, ER diagrams, and deployment workflow.
+
 ### User Preferences
 Preferred communication style: Simple, everyday language.
 
