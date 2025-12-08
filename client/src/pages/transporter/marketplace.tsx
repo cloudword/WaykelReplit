@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Building2, RefreshCw, MapPin, Clock, Package, Truck, IndianRupee, Calendar, User, Phone, Star, Sparkles, Filter } from "lucide-react";
+import { ArrowLeft, Building2, RefreshCw, MapPin, Clock, Package, Truck, IndianRupee, Calendar, User, Phone, Star, Sparkles, Filter, AlertCircle, FileText } from "lucide-react";
 import { VehicleSelector } from "@/components/vehicle-selector";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -35,6 +35,7 @@ export default function TransporterMarketplace() {
   const [rides, setRides] = useState<MarketplaceRide[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"matched" | "all">("matched");
+  const [transporter, setTransporter] = useState<any>(null);
   const [user] = useState<any>(() => {
     const stored = localStorage.getItem("currentUser");
     return stored ? JSON.parse(stored) : null;
@@ -66,7 +67,10 @@ export default function TransporterMarketplace() {
 
   useEffect(() => {
     loadRides();
-  }, []);
+    if (user?.transporterId) {
+      api.transporters.get(user.transporterId).then(setTransporter);
+    }
+  }, [user?.transporterId]);
 
   const handlePlaceBid = (rideId: string, price: number) => {
     setSelectedRideId(rideId);
@@ -121,6 +125,31 @@ export default function TransporterMarketplace() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {transporter && !transporter.isVerified && (
+          <Card className="mb-6 border-amber-200 bg-amber-50" data-testid="verification-required-banner">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-4">
+                <AlertCircle className="h-6 w-6 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-amber-800">Verification Required to Place Bids</h3>
+                  <p className="text-sm text-amber-700 mt-1">
+                    You can view available loads, but to place bids you need to complete your account verification first.
+                  </p>
+                  <Button 
+                    size="sm" 
+                    className="mt-3"
+                    onClick={() => setLocation("/transporter/documents")}
+                    data-testid="button-complete-verification"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Complete Verification
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Card className="mb-6">
           <CardHeader>
             <CardTitle className="text-lg">How Bidding Works</CardTitle>
@@ -274,8 +303,9 @@ export default function TransporterMarketplace() {
                       onClick={() => handlePlaceBid(ride.id, parseFloat(ride.price))} 
                       data-testid={`button-bid-${ride.id}`}
                       className="bg-blue-600 hover:bg-blue-700"
+                      disabled={transporter && !transporter.isVerified}
                     >
-                      Place Bid
+                      {transporter && !transporter.isVerified ? "Verify to Bid" : "Place Bid"}
                     </Button>
                   </div>
                 </CardContent>

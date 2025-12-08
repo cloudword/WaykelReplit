@@ -150,6 +150,12 @@ export const api = {
       });
       return res.json();
     },
+    get: async (id: string) => {
+      const res = await fetch(`${API_BASE}/transporters/${id}`, {
+        credentials: "include",
+      });
+      return res.json();
+    },
     create: async (data: any) => {
       const res = await fetch(`${API_BASE}/transporters`, {
         method: "POST",
