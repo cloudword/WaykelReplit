@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Truck, User, Building2 } from "lucide-react";
+import { Truck, Building2, User } from "lucide-react";
 
 export default function AuthPage() {
   const [_, setLocation] = useLocation();
@@ -19,7 +19,7 @@ export default function AuthPage() {
   const [signupPhone, setSignupPhone] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
-  const [signupRole, setSignupRole] = useState<"customer" | "driver" | "transporter">("customer");
+  const [signupRole, setSignupRole] = useState<"driver" | "transporter">("driver");
   const [companyName, setCompanyName] = useState("");
   const [fleetSize, setFleetSize] = useState("");
   const [location, setLocationInput] = useState("");
@@ -94,7 +94,7 @@ export default function AuthPage() {
             setCompanyName("");
             setFleetSize("");
             setLocationInput("");
-            setSignupRole("customer");
+            setSignupRole("driver");
           }
         }
       } else {
@@ -109,11 +109,7 @@ export default function AuthPage() {
           toast.error(user.error);
         } else {
           localStorage.setItem("currentUser", JSON.stringify(user));
-          if (signupRole === "customer") {
-            setLocation("/customer");
-          } else {
-            setLocation("/driver");
-          }
+          setLocation("/driver");
           toast.success("Registration successful!");
         }
       }
@@ -181,31 +177,24 @@ export default function AuthPage() {
             <TabsContent value="signup">
               <form onSubmit={handleSignup} className="space-y-4">
                 <div className="space-y-3">
-                  <Label className="text-sm font-medium">I want to:</Label>
+                  <Label className="text-sm font-medium">I want to register as:</Label>
                   <RadioGroup 
                     value={signupRole} 
-                    onValueChange={(v) => setSignupRole(v as "customer" | "driver" | "transporter")}
-                    className="grid grid-cols-3 gap-2"
+                    onValueChange={(v) => setSignupRole(v as "driver" | "transporter")}
+                    className="grid grid-cols-2 gap-2"
                   >
-                    <div className={`flex items-center space-x-2 border rounded-lg p-2 cursor-pointer transition-colors ${signupRole === "customer" ? "border-primary bg-primary/5" : "border-gray-200"}`}>
-                      <RadioGroupItem value="customer" id="customer" />
-                      <Label htmlFor="customer" className="flex items-center gap-1 cursor-pointer">
-                        <User className="h-4 w-4" />
-                        <span className="text-xs">Customer</span>
-                      </Label>
-                    </div>
-                    <div className={`flex items-center space-x-2 border rounded-lg p-2 cursor-pointer transition-colors ${signupRole === "driver" ? "border-primary bg-primary/5" : "border-gray-200"}`}>
+                    <div className={`flex items-center space-x-2 border rounded-lg p-3 cursor-pointer transition-colors ${signupRole === "driver" ? "border-primary bg-primary/5" : "border-gray-200"}`}>
                       <RadioGroupItem value="driver" id="driver" />
-                      <Label htmlFor="driver" className="flex items-center gap-1 cursor-pointer">
-                        <Truck className="h-4 w-4" />
-                        <span className="text-xs">Driver</span>
+                      <Label htmlFor="driver" className="flex items-center gap-2 cursor-pointer">
+                        <Truck className="h-5 w-5" />
+                        <span>Driver</span>
                       </Label>
                     </div>
-                    <div className={`flex items-center space-x-2 border rounded-lg p-2 cursor-pointer transition-colors ${signupRole === "transporter" ? "border-primary bg-primary/5" : "border-gray-200"}`}>
+                    <div className={`flex items-center space-x-2 border rounded-lg p-3 cursor-pointer transition-colors ${signupRole === "transporter" ? "border-primary bg-primary/5" : "border-gray-200"}`}>
                       <RadioGroupItem value="transporter" id="transporter" />
-                      <Label htmlFor="transporter" className="flex items-center gap-1 cursor-pointer">
-                        <Building2 className="h-4 w-4" />
-                        <span className="text-xs">Transporter</span>
+                      <Label htmlFor="transporter" className="flex items-center gap-2 cursor-pointer">
+                        <Building2 className="h-5 w-5" />
+                        <span>Transporter</span>
                       </Label>
                     </div>
                   </RadioGroup>
@@ -300,7 +289,6 @@ export default function AuthPage() {
                 </div>
                 <Button className="w-full h-12 text-base" type="submit" disabled={isLoading} data-testid="button-signup">
                   {isLoading ? "Creating Account..." : 
-                    signupRole === "customer" ? "Create Customer Account" : 
                     signupRole === "driver" ? "Register as Driver" : 
                     "Register as Transporter"}
                 </Button>
@@ -310,7 +298,17 @@ export default function AuthPage() {
         </CardContent>
       </Card>
       
-      <p className="mt-8 text-xs text-gray-400 text-center max-w-xs">
+      <Button 
+        variant="ghost" 
+        className="mt-6 text-muted-foreground"
+        onClick={() => setLocation("/customer/auth")}
+        data-testid="link-customer-auth"
+      >
+        <User className="h-4 w-4 mr-2" />
+        Looking to book transport? Customer Login
+      </Button>
+      
+      <p className="mt-4 text-xs text-gray-400 text-center max-w-xs">
         By continuing, you agree to our Terms of Service and Privacy Policy.
       </p>
     </div>

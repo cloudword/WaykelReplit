@@ -39,6 +39,7 @@ import TransporterDocuments from "@/pages/transporter/documents";
 import CustomerDashboard from "@/pages/customer/dashboard";
 import CustomerRides from "@/pages/customer/rides";
 import CustomerProfile from "@/pages/customer/profile";
+import CustomerAuthPage from "@/pages/customer/auth";
 
 function Router() {
   return (
@@ -67,6 +68,7 @@ function Router() {
       <Route path="/transporter/documents" component={TransporterDocuments} />
 
       {/* Customer/Rider App Routes */}
+      <Route path="/customer/auth" component={CustomerAuthPage} />
       <Route path="/customer" component={CustomerDashboard} />
       <Route path="/customer/rides" component={CustomerRides} />
       <Route path="/customer/profile" component={CustomerProfile} />
