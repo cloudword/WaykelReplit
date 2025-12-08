@@ -35,6 +35,8 @@ export const users = pgTable("users", {
   rating: decimal("rating", { precision: 3, scale: 2 }).default("0"),
   totalTrips: integer("total_trips").default(0),
   earningsToday: decimal("earnings_today", { precision: 10, scale: 2 }).default("0"),
+  documentsComplete: boolean("documents_complete").default(false),
+  profileComplete: boolean("profile_complete").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -49,7 +51,7 @@ export const transporters = pgTable("transporters", {
   ownerName: text("owner_name").notNull(),
   contact: text("contact").notNull(),
   email: text("email").notNull().unique(),
-  status: text("status").notNull().$type<"active" | "pending_approval" | "suspended">().default("pending_approval"),
+  status: text("status").notNull().$type<"active" | "pending_approval" | "suspended" | "pending_verification">().default("pending_verification"),
   fleetSize: integer("fleet_size").default(0),
   location: text("location").notNull(),
   basePincode: text("base_pincode"),
@@ -58,6 +60,11 @@ export const transporters = pgTable("transporters", {
   preferredRoutes: json("preferred_routes").$type<string[]>(),
   isOwnerOperator: boolean("is_owner_operator").default(false),
   ownerDriverUserId: varchar("owner_driver_user_id").references(() => users.id),
+  documentsComplete: boolean("documents_complete").default(false),
+  isVerified: boolean("is_verified").default(false),
+  verifiedAt: timestamp("verified_at"),
+  verifiedBy: varchar("verified_by").references(() => users.id),
+  ownerOperatorVehicleId: varchar("owner_operator_vehicle_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -110,6 +117,10 @@ export const rides = pgTable("rides", {
   assignedVehicleId: varchar("assigned_vehicle_id").references(() => vehicles.id),
   acceptedBidId: varchar("accepted_bid_id"),
   createdById: varchar("created_by_id").references(() => users.id),
+  biddingStatus: text("bidding_status").$type<"open" | "closed" | "self_assigned">().default("open"),
+  acceptedByUserId: varchar("accepted_by_user_id").references(() => users.id),
+  acceptedAt: timestamp("accepted_at"),
+  isSelfAssigned: boolean("is_self_assigned").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -133,6 +144,27 @@ export const insertBidSchema = createInsertSchema(bids).omit({ id: true, created
 export type InsertBid = z.infer<typeof insertBidSchema>;
 export type Bid = typeof bids.$inferSelect;
 
+// Document types enum
+export const DOCUMENT_TYPES = [
+  "license",
+  "aadhar", 
+  "pan",
+  "insurance",
+  "fitness",
+  "registration",
+  "rc",
+  "permit",
+  "pollution",
+  "gst_certificate",
+  "business_registration",
+  "trade_license",
+  "bank_details",
+  "company_pan",
+  "address_proof",
+  "photo",
+] as const;
+export type DocumentType = typeof DOCUMENT_TYPES[number];
+
 // Documents table
 export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -140,7 +172,7 @@ export const documents = pgTable("documents", {
   transporterId: varchar("transporter_id").references(() => transporters.id),
   vehicleId: varchar("vehicle_id").references(() => vehicles.id),
   entityType: text("entity_type").notNull().$type<"driver" | "vehicle" | "transporter">(),
-  type: text("type").notNull().$type<"license" | "aadhar" | "pan" | "insurance" | "fitness" | "registration" | "rc" | "permit" | "pollution">(),
+  type: text("type").notNull().$type<DocumentType>(),
   documentName: text("document_name").notNull(),
   url: text("url").notNull(),
   expiryDate: text("expiry_date"),
@@ -193,3 +225,87 @@ export const apiLogs = pgTable("api_logs", {
 export const insertApiLogSchema = createInsertSchema(apiLogs).omit({ id: true, createdAt: true });
 export type InsertApiLog = z.infer<typeof insertApiLogSchema>;
 export type ApiLog = typeof apiLogs.$inferSelect;
+
+// Roles table for RBAC
+export const roles = pgTable("roles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  permissions: json("permissions").$type<string[]>().default([]),
+  isSystem: boolean("is_system").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertRoleSchema = createInsertSchema(roles).omit({ id: true, createdAt: true });
+export type InsertRole = z.infer<typeof insertRoleSchema>;
+export type Role = typeof roles.$inferSelect;
+
+// User Roles junction table
+export const userRoles = pgTable("user_roles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  roleId: varchar("role_id").references(() => roles.id).notNull(),
+  assignedBy: varchar("assigned_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertUserRoleSchema = createInsertSchema(userRoles).omit({ id: true, createdAt: true });
+export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
+export type UserRole = typeof userRoles.$inferSelect;
+
+// Available permissions
+export const PERMISSIONS = [
+  "approve_transporters",
+  "approve_drivers", 
+  "manage_bids",
+  "accept_bids",
+  "view_reports",
+  "manage_users",
+  "manage_roles",
+  "manage_rides",
+  "view_api_logs",
+  "manage_documents",
+  "manage_vehicles",
+] as const;
+export type Permission = typeof PERMISSIONS[number];
+
+// Saved addresses for transporters
+export const savedAddresses = pgTable("saved_addresses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  transporterId: varchar("transporter_id").references(() => transporters.id).notNull(),
+  userId: varchar("user_id").references(() => users.id),
+  label: text("label").notNull(),
+  address: text("address").notNull(),
+  pincode: text("pincode"),
+  city: text("city"),
+  state: text("state"),
+  isDefault: boolean("is_default").default(false),
+  addressType: text("address_type").$type<"pickup" | "drop" | "both">().default("both"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSavedAddressSchema = createInsertSchema(savedAddresses).omit({ id: true, createdAt: true });
+export type InsertSavedAddress = z.infer<typeof insertSavedAddressSchema>;
+export type SavedAddress = typeof savedAddresses.$inferSelect;
+
+// Driver job applications (for drivers not part of any transporter)
+export const driverApplications = pgTable("driver_applications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  driverId: varchar("driver_id").references(() => users.id).notNull(),
+  profileSummary: text("profile_summary"),
+  experience: text("experience"),
+  preferredVehicleTypes: json("preferred_vehicle_types").$type<string[]>(),
+  preferredLocations: json("preferred_locations").$type<string[]>(),
+  expectedSalary: text("expected_salary"),
+  availability: text("availability").$type<"immediate" | "1_week" | "2_weeks" | "1_month">(),
+  status: text("status").$type<"active" | "hired" | "withdrawn" | "inactive">().default("active"),
+  documentsComplete: boolean("documents_complete").default(false),
+  acceptedByTransporterId: varchar("accepted_by_transporter_id").references(() => transporters.id),
+  acceptedAt: timestamp("accepted_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertDriverApplicationSchema = createInsertSchema(driverApplications).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertDriverApplication = z.infer<typeof insertDriverApplicationSchema>;
+export type DriverApplication = typeof driverApplications.$inferSelect;
