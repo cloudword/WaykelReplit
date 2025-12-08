@@ -492,6 +492,25 @@ export class DatabaseStorage implements IStorage {
     }).where(eq(rides.id, rideId));
   }
 
+  async closeBidding(rideId: string, acceptedByUserId: string): Promise<void> {
+    await db.update(rides).set({ 
+      biddingStatus: "closed",
+      acceptedByUserId: acceptedByUserId,
+      acceptedAt: new Date()
+    }).where(eq(rides.id, rideId));
+  }
+
+  async selfAssignRide(rideId: string, transporterId: string, driverId: string, vehicleId: string): Promise<void> {
+    await db.update(rides).set({
+      biddingStatus: "self_assigned",
+      isSelfAssigned: true,
+      transporterId: transporterId,
+      assignedDriverId: driverId,
+      assignedVehicleId: vehicleId,
+      status: "assigned"
+    }).where(eq(rides.id, rideId));
+  }
+
   // API Logs
   async createApiLog(log: InsertApiLog): Promise<ApiLog> {
     const [apiLog] = await db.insert(apiLogs).values(log).returning();

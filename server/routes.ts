@@ -851,6 +851,28 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(403).json({ error: "Cannot place bids for another transporter" });
       }
       
+      // Check if bidding is still open for this ride
+      const ride = await storage.getRide(data.rideId);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      if (ride.biddingStatus === "closed") {
+        return res.status(400).json({ error: "Bidding is closed for this trip. A bid has already been accepted." });
+      }
+      
+      if (ride.biddingStatus === "self_assigned") {
+        return res.status(400).json({ error: "This trip has been self-assigned and is not open for bidding." });
+      }
+      
+      // Check if transporter is verified before allowing bids
+      if (!sessionUser.isSuperAdmin && sessionUser.transporterId) {
+        const transporter = await storage.getTransporter(sessionUser.transporterId);
+        if (transporter && !transporter.isVerified) {
+          return res.status(403).json({ error: "Your account must be verified before you can place bids. Please complete document verification first." });
+        }
+      }
+      
       const bid = await storage.createBid(data);
       
       // Update ride status to bid_placed
@@ -1594,7 +1616,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // Accept bid route - now allows BOTH super admin AND customer to accept bids
+  // Accept bid route - allows BOTH super admin AND customer to accept bids
   app.post("/api/bids/:bidId/accept", async (req, res) => {
     const sessionUser = getCurrentUser(req);
     
@@ -1613,6 +1635,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(404).json({ error: "Ride not found" });
       }
       
+      // Check if bidding is already closed
+      if (ride.biddingStatus === "closed") {
+        return res.status(400).json({ error: "A bid has already been accepted for this trip" });
+      }
+      
       // Check authorization - super admin can accept any, customer can only accept on their rides
       const isSuperAdmin = sessionUser.isSuperAdmin;
       const isRideOwner = ride.createdById === sessionUser.id;
@@ -1624,28 +1651,31 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // Update bid status to accepted
       await storage.updateBidStatus(bid.id, "accepted");
       
-      // Update ride with accepted bid and transporter
+      // Update ride with accepted bid and transporter, and close bidding
       await storage.updateRideAcceptedBid(ride.id, bid.id, bid.transporterId || "");
+      
+      // Close bidding and record who accepted
+      await storage.closeBidding(ride.id, sessionUser.id);
       
       // Assign driver and vehicle if available
       if (bid.userId && bid.vehicleId) {
         await storage.assignRideToDriver(ride.id, bid.userId, bid.vehicleId);
       }
       
-      // Reject other bids for this ride
+      // Reject all other pending bids for this ride
       const allBids = await storage.getRideBids(ride.id);
       for (const otherBid of allBids) {
         if (otherBid.id !== bid.id && otherBid.status === "pending") {
           await storage.updateBidStatus(otherBid.id, "rejected");
           
-          // Notify rejected bidders
+          // Notify rejected bidders that bidding is closed
           if (otherBid.userId) {
             await storage.createNotification({
               recipientId: otherBid.userId,
               recipientTransporterId: otherBid.transporterId || undefined,
               type: "bid_rejected",
-              title: "Bid Not Selected",
-              message: `Your bid for trip ${ride.pickupLocation} to ${ride.dropLocation} was not selected.`,
+              title: "Bidding Closed",
+              message: `Bidding for trip ${ride.pickupLocation} to ${ride.dropLocation} has closed. Another bid was selected.`,
               rideId: ride.id,
               bidId: otherBid.id,
             });
@@ -1678,7 +1708,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         });
       }
       
-      res.json({ success: true, message: "Bid accepted and trip assigned" });
+      // If customer accepted the bid, notify them about the assignment
+      if (!isSuperAdmin && isRideOwner) {
+        await storage.createNotification({
+          recipientId: sessionUser.id,
+          type: "ride_assigned",
+          title: "Trip Confirmed",
+          message: `You accepted the bid of ₹${bid.amount} for your trip. A transporter has been assigned.`,
+          rideId: ride.id,
+          bidId: bid.id,
+        });
+      }
+      
+      res.json({ success: true, message: "Bid accepted and trip assigned. Bidding is now closed." });
     } catch (error) {
       console.error("Failed to accept bid:", error);
       res.status(500).json({ error: "Failed to accept bid" });
