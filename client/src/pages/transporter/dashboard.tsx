@@ -3,11 +3,11 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { 
   Bell, Building2, Truck, Users, FileText, TrendingUp, 
-  Plus, LogOut, Settings, Calendar, IndianRupee, MapPin, Package, Zap, CheckCircle, X
+  Plus, LogOut, Settings, IndianRupee, MapPin, Package, CheckCircle, X, 
+  BarChart3, Route, Clock, ArrowRight
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -21,8 +21,11 @@ export default function TransporterDashboard() {
     completedRides: 0,
     pendingBids: 0,
     totalEarnings: 0,
+    activeRides: 0,
+    pendingRides: 0,
   });
   const [recentBids, setRecentBids] = useState<any[]>([]);
+  const [recentRides, setRecentRides] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -80,18 +83,26 @@ export default function TransporterDashboard() {
       if (!user?.transporterId) return;
       
       try {
-        const [bidsData, vehiclesData, usersData, transporterData] = await Promise.all([
+        const [bidsData, vehiclesData, usersData, transporterData, ridesData] = await Promise.all([
           api.bids.list({ transporterId: user.transporterId }),
           api.vehicles.list({ transporterId: user.transporterId }),
           api.users.list({ transporterId: user.transporterId, role: "driver" }),
           api.transporters.get(user.transporterId),
+          api.rides.list({ transporterId: user.transporterId }),
         ]);
 
         const bids = Array.isArray(bidsData) ? bidsData : [];
         const vehiclesList = Array.isArray(vehiclesData) ? vehiclesData : [];
         const driversList = Array.isArray(usersData) ? usersData : [];
+        const allRides = Array.isArray(ridesData) ? ridesData : [];
+        
+        const transporterRides = allRides.filter((r: any) => 
+          r.transporterId === user.transporterId || 
+          bids.some((b: any) => b.rideId === r.id && b.status === "accepted")
+        );
 
         setRecentBids(bids.slice(0, 5));
+        setRecentRides(transporterRides.slice(0, 5));
         setVehicles(vehiclesList);
         setDrivers(driversList);
         setTransporter(transporterData);
@@ -99,14 +110,19 @@ export default function TransporterDashboard() {
         const pendingBids = bids.filter((b: any) => b.status === "pending").length;
         const acceptedBids = bids.filter((b: any) => b.status === "accepted");
         const totalEarnings = acceptedBids.reduce((sum: number, b: any) => sum + parseFloat(b.amount || 0), 0);
+        const activeRides = transporterRides.filter((r: any) => r.status === "active" || r.status === "assigned").length;
+        const pendingRides = transporterRides.filter((r: any) => r.status === "pending").length;
+        const completedRides = transporterRides.filter((r: any) => r.status === "completed").length;
 
         setStats({
           totalDrivers: driversList.length,
           totalVehicles: vehiclesList.length,
           activeBids: bids.length,
-          completedRides: acceptedBids.length,
+          completedRides,
           pendingBids,
           totalEarnings,
+          activeRides,
+          pendingRides,
         });
         
         // Also load notifications
@@ -186,20 +202,23 @@ export default function TransporterDashboard() {
             <Button variant="ghost" className="text-blue-600 border-b-2 border-blue-600 rounded-none" data-testid="nav-dashboard">
               Dashboard
             </Button>
-            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/drivers")} data-testid="nav-drivers">
-              Drivers
-            </Button>
-            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/vehicles")} data-testid="nav-vehicles">
-              Vehicles
-            </Button>
-            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/bids")} data-testid="nav-bids">
-              Bids
+            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/trips")} data-testid="nav-trips">
+              Trips
             </Button>
             <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/marketplace")} data-testid="nav-marketplace">
               Marketplace
             </Button>
-            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/trips")} data-testid="nav-trips">
-              Trips
+            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/bids")} data-testid="nav-bids">
+              Bids
+            </Button>
+            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/analytics")} data-testid="nav-analytics">
+              Analytics
+            </Button>
+            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/vehicles")} data-testid="nav-vehicles">
+              Vehicles
+            </Button>
+            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/drivers")} data-testid="nav-drivers">
+              Drivers
             </Button>
             <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/documents")} data-testid="nav-documents">
               Documents
@@ -279,86 +298,138 @@ export default function TransporterDashboard() {
           </Card>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <Card data-testid="stat-drivers">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+          <Card data-testid="stat-active-rides" className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setLocation("/transporter/trips")}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Total Drivers</CardTitle>
-              <Users className="h-4 w-4 text-blue-600" />
+              <CardTitle className="text-sm font-medium text-gray-600">Active Rides</CardTitle>
+              <Route className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalDrivers}</div>
-              <p className="text-xs text-gray-500">Active drivers in your fleet</p>
+              <div className="text-2xl font-bold text-blue-600">{stats.activeRides}</div>
+              <p className="text-xs text-gray-500">In progress</p>
             </CardContent>
           </Card>
 
-          <Card data-testid="stat-vehicles">
+          <Card data-testid="stat-completed-rides" className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setLocation("/transporter/trips")}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Total Vehicles</CardTitle>
-              <Truck className="h-4 w-4 text-green-600" />
+              <CardTitle className="text-sm font-medium text-gray-600">Completed</CardTitle>
+              <CheckCircle className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalVehicles}</div>
-              <p className="text-xs text-gray-500">Registered vehicles</p>
+              <div className="text-2xl font-bold text-green-600">{stats.completedRides}</div>
+              <p className="text-xs text-gray-500">Total trips</p>
             </CardContent>
           </Card>
 
-          <Card data-testid="stat-bids">
+          <Card data-testid="stat-bids" className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setLocation("/transporter/bids")}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-gray-600">Pending Bids</CardTitle>
-              <FileText className="h-4 w-4 text-orange-600" />
+              <Clock className="h-4 w-4 text-orange-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.pendingBids}</div>
-              <p className="text-xs text-gray-500">Awaiting approval</p>
+              <div className="text-2xl font-bold text-orange-600">{stats.pendingBids}</div>
+              <p className="text-xs text-gray-500">Awaiting response</p>
             </CardContent>
           </Card>
 
           <Card data-testid="stat-earnings">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Total Earnings</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-600">Earnings</CardTitle>
               <IndianRupee className="h-4 w-4 text-purple-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">₹{stats.totalEarnings.toLocaleString()}</div>
-              <p className="text-xs text-gray-500">From completed rides</p>
+              <div className="text-2xl font-bold text-purple-600">₹{stats.totalEarnings.toLocaleString()}</div>
+              <p className="text-xs text-gray-500">From bids</p>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="stat-vehicles" className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setLocation("/transporter/vehicles")}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Vehicles</CardTitle>
+              <Truck className="h-4 w-4 text-teal-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalVehicles}</div>
+              <p className="text-xs text-gray-500">Registered</p>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="stat-drivers" className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setLocation("/transporter/drivers")}>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Drivers</CardTitle>
+              <Users className="h-4 w-4 text-indigo-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalDrivers}</div>
+              <p className="text-xs text-gray-500">In fleet</p>
             </CardContent>
           </Card>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Card className="lg:col-span-2" data-testid="recent-bids-card">
+          <Card className="lg:col-span-2" data-testid="recent-rides-card">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle>Recent Bids</CardTitle>
-                <CardDescription>Your latest bid submissions</CardDescription>
+                <CardTitle>Recent Trips</CardTitle>
+                <CardDescription>Your latest ride activity</CardDescription>
               </div>
-              <Button size="sm" onClick={() => setLocation("/transporter/marketplace")} data-testid="button-new-bid">
-                <Plus className="h-4 w-4 mr-1" />
-                New Bid
-              </Button>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setLocation("/transporter/trips")} data-testid="button-view-all-trips">
+                  View All
+                </Button>
+                <Button 
+                  size="sm" 
+                  onClick={() => setLocation("/transporter/post-trip")} 
+                  data-testid="button-post-new-trip"
+                  disabled={transporter && !transporter.isVerified}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Post Trip
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {loading ? (
                 <p className="text-gray-500 text-center py-8">Loading...</p>
-              ) : recentBids.length > 0 ? (
-                <div className="space-y-4">
-                  {recentBids.map((bid) => (
-                    <div key={bid.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg" data-testid={`bid-row-${bid.id}`}>
-                      <div>
-                        <p className="font-medium text-sm">Bid #{bid.id.slice(0, 8)}</p>
-                        <p className="text-xs text-gray-500">₹{parseFloat(bid.amount).toLocaleString()}</p>
+              ) : recentRides.length > 0 ? (
+                <div className="space-y-3">
+                  {recentRides.map((ride) => (
+                    <div key={ride.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors" data-testid={`ride-row-${ride.id}`}>
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                          <MapPin className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">
+                            {ride.pickupLocation} <ArrowRight className="inline h-3 w-3 mx-1" /> {ride.dropLocation}
+                          </p>
+                          <p className="text-xs text-gray-500">{ride.date} • ₹{parseFloat(ride.price || 0).toLocaleString()}</p>
+                        </div>
                       </div>
                       <Badge variant={
-                        bid.status === "accepted" ? "default" :
-                        bid.status === "pending" ? "secondary" : "destructive"
+                        ride.status === "completed" ? "default" :
+                        ride.status === "active" || ride.status === "assigned" ? "secondary" :
+                        ride.status === "pending" ? "outline" : "destructive"
                       }>
-                        {bid.status}
+                        {ride.status}
                       </Badge>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-500 text-center py-8">No bids yet. Browse the marketplace to place bids.</p>
+                <div className="text-center py-8">
+                  <Package className="h-12 w-12 mx-auto text-gray-300 mb-3" />
+                  <p className="text-gray-500">No trips yet</p>
+                  <Button 
+                    size="sm" 
+                    className="mt-3" 
+                    onClick={() => setLocation("/transporter/post-trip")}
+                    disabled={transporter && !transporter.isVerified}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Post Your First Trip
+                  </Button>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -366,24 +437,41 @@ export default function TransporterDashboard() {
           <Card data-testid="quick-actions-card">
             <CardHeader>
               <CardTitle>Quick Actions</CardTitle>
-              <CardDescription>Manage your fleet</CardDescription>
+              <CardDescription>Manage your operations</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button className="w-full justify-start" variant="outline" onClick={() => setLocation("/transporter/drivers/add")} data-testid="button-add-driver">
-                <Users className="h-4 w-4 mr-2" />
-                Add New Driver
-              </Button>
-              <Button className="w-full justify-start" variant="outline" onClick={() => setLocation("/transporter/vehicles/add")} data-testid="button-add-vehicle">
-                <Truck className="h-4 w-4 mr-2" />
-                Add New Vehicle
+              <Button 
+                className="w-full justify-start bg-blue-600 hover:bg-blue-700 text-white" 
+                onClick={() => setLocation("/transporter/post-trip")} 
+                data-testid="button-post-trip"
+                disabled={transporter && !transporter.isVerified}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Post New Trip
               </Button>
               <Button className="w-full justify-start" variant="outline" onClick={() => setLocation("/transporter/marketplace")} data-testid="button-browse-loads">
-                <FileText className="h-4 w-4 mr-2" />
+                <Package className="h-4 w-4 mr-2" />
                 Browse Available Loads
               </Button>
-              <Button className="w-full justify-start" variant="outline" onClick={() => setLocation("/transporter/earnings")} data-testid="button-view-earnings">
-                <TrendingUp className="h-4 w-4 mr-2" />
-                View Earnings Report
+              <Button className="w-full justify-start" variant="outline" onClick={() => setLocation("/transporter/trips")} data-testid="button-view-trips">
+                <Route className="h-4 w-4 mr-2" />
+                View My Trips
+              </Button>
+              <Button className="w-full justify-start" variant="outline" onClick={() => setLocation("/transporter/bids")} data-testid="button-view-bids">
+                <FileText className="h-4 w-4 mr-2" />
+                My Bids
+              </Button>
+              <Button className="w-full justify-start" variant="outline" onClick={() => setLocation("/transporter/vehicles")} data-testid="button-manage-vehicles">
+                <Truck className="h-4 w-4 mr-2" />
+                Manage Vehicles
+              </Button>
+              <Button className="w-full justify-start" variant="outline" onClick={() => setLocation("/transporter/drivers")} data-testid="button-manage-drivers">
+                <Users className="h-4 w-4 mr-2" />
+                Manage Drivers
+              </Button>
+              <Button className="w-full justify-start" variant="outline" onClick={() => setLocation("/transporter/analytics")} data-testid="button-view-analytics">
+                <BarChart3 className="h-4 w-4 mr-2" />
+                View Analytics
               </Button>
             </CardContent>
           </Card>
