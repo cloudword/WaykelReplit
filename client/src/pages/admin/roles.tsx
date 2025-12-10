@@ -64,11 +64,26 @@ export default function AdminRoles() {
         api.roles.list(),
         api.roles.getPermissions(),
       ]);
-      setRoles(Array.isArray(rolesData) ? rolesData : []);
-      setPermissions(Array.isArray(permsData) ? permsData : []);
+      
+      // Handle error responses gracefully
+      if (rolesData?.error) {
+        console.error("Roles API error:", rolesData.error);
+        setRoles([]);
+      } else {
+        setRoles(Array.isArray(rolesData) ? rolesData : []);
+      }
+      
+      if (permsData?.error) {
+        console.error("Permissions API error:", permsData.error);
+        setPermissions([]);
+      } else {
+        setPermissions(Array.isArray(permsData) ? permsData : []);
+      }
     } catch (error) {
       console.error("Failed to load data:", error);
       toast.error("Failed to load roles data");
+      setRoles([]);
+      setPermissions([]);
     } finally {
       setLoading(false);
     }
@@ -80,11 +95,12 @@ export default function AdminRoles() {
   };
 
   const openEditDialog = (role: Role) => {
+    if (!role) return;
     setSelectedRole(role);
     setFormData({
-      name: role.name,
+      name: role.name || "",
       description: role.description || "",
-      permissions: role.permissions || [],
+      permissions: Array.isArray(role.permissions) ? role.permissions : [],
     });
     setShowEditDialog(true);
   };
@@ -95,12 +111,15 @@ export default function AdminRoles() {
   };
 
   const togglePermission = (permission: string) => {
-    setFormData(prev => ({
-      ...prev,
-      permissions: prev.permissions.includes(permission)
-        ? prev.permissions.filter(p => p !== permission)
-        : [...prev.permissions, permission],
-    }));
+    setFormData(prev => {
+      const currentPerms = prev.permissions || [];
+      return {
+        ...prev,
+        permissions: currentPerms.includes(permission)
+          ? currentPerms.filter(p => p !== permission)
+          : [...currentPerms, permission],
+      };
+    });
   };
 
   const handleCreate = async () => {
@@ -198,7 +217,7 @@ export default function AdminRoles() {
                 <Shield className="h-6 w-6 text-blue-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{roles.length}</p>
+                <p className="text-2xl font-bold">{(roles || []).length}</p>
                 <p className="text-sm text-gray-600">Total Roles</p>
               </div>
             </CardContent>
@@ -209,7 +228,7 @@ export default function AdminRoles() {
                 <Lock className="h-6 w-6 text-green-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{permissions.length}</p>
+                <p className="text-2xl font-bold">{(permissions || []).length}</p>
                 <p className="text-sm text-gray-600">Available Permissions</p>
               </div>
             </CardContent>
@@ -220,7 +239,7 @@ export default function AdminRoles() {
                 <Users className="h-6 w-6 text-purple-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{roles.filter(r => r.isSystem).length}</p>
+                <p className="text-2xl font-bold">{(roles || []).filter(r => r?.isSystem).length}</p>
                 <p className="text-sm text-gray-600">System Roles</p>
               </div>
             </CardContent>
@@ -235,7 +254,7 @@ export default function AdminRoles() {
           <CardContent>
             {loading ? (
               <div className="text-center py-8 text-gray-500">Loading roles...</div>
-            ) : roles.length === 0 ? (
+            ) : (roles || []).length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <Shield className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                 <p>No roles found. Create your first role.</p>
@@ -252,7 +271,7 @@ export default function AdminRoles() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {roles.map((role) => (
+                  {(roles || []).map((role) => (
                     <TableRow key={role.id} data-testid={`role-row-${role.id}`}>
                       <TableCell className="font-medium">{role.name}</TableCell>
                       <TableCell className="text-gray-600 max-w-xs truncate">
@@ -260,14 +279,14 @@ export default function AdminRoles() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {role.permissions?.slice(0, 3).map((perm) => (
+                          {(role.permissions || []).slice(0, 3).map((perm) => (
                             <Badge key={perm} variant="secondary" className="text-xs">
                               {PERMISSION_LABELS[perm] || perm}
                             </Badge>
                           ))}
-                          {role.permissions?.length > 3 && (
+                          {(role.permissions || []).length > 3 && (
                             <Badge variant="outline" className="text-xs">
-                              +{role.permissions.length - 3} more
+                              +{(role.permissions || []).length - 3} more
                             </Badge>
                           )}
                         </div>
@@ -341,11 +360,13 @@ export default function AdminRoles() {
             <div>
               <Label>Permissions</Label>
               <div className="grid grid-cols-2 gap-2 mt-2 p-4 border rounded-lg bg-gray-50">
-                {permissions.map((permission) => (
+                {(permissions || []).length === 0 ? (
+                  <p className="text-sm text-gray-500 col-span-2">No permissions available</p>
+                ) : (permissions || []).map((permission) => (
                   <div key={permission} className="flex items-center gap-2">
                     <Checkbox
                       id={`perm-${permission}`}
-                      checked={formData.permissions.includes(permission)}
+                      checked={(formData.permissions || []).includes(permission)}
                       onCheckedChange={() => togglePermission(permission)}
                       data-testid={`checkbox-permission-${permission}`}
                     />
@@ -396,11 +417,13 @@ export default function AdminRoles() {
             <div>
               <Label>Permissions</Label>
               <div className="grid grid-cols-2 gap-2 mt-2 p-4 border rounded-lg bg-gray-50">
-                {permissions.map((permission) => (
+                {(permissions || []).length === 0 ? (
+                  <p className="text-sm text-gray-500 col-span-2">No permissions available</p>
+                ) : (permissions || []).map((permission) => (
                   <div key={permission} className="flex items-center gap-2">
                     <Checkbox
                       id={`edit-perm-${permission}`}
-                      checked={formData.permissions.includes(permission)}
+                      checked={(formData.permissions || []).includes(permission)}
                       onCheckedChange={() => togglePermission(permission)}
                     />
                     <Label htmlFor={`edit-perm-${permission}`} className="text-sm font-normal cursor-pointer">
