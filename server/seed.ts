@@ -4,9 +4,22 @@ import bcrypt from "bcrypt";
 
 const HASH_PASSWORD = async (password: string) => bcrypt.hash(password, 10);
 
+// Super Admin credentials from environment variables (with fallbacks for development only)
+const SUPER_ADMIN_USERNAME = process.env.SUPER_ADMIN_USERNAME || "waykelAdmin";
+const SUPER_ADMIN_PASSWORD = process.env.SUPER_ADMIN_PASSWORD;
+const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || "admin@waykel.com";
+const SUPER_ADMIN_PHONE = process.env.SUPER_ADMIN_PHONE || "8699957305";
+
 async function seed() {
   try {
     console.log("🌱 Starting database seed...");
+
+    // Validate that password is set via environment variable
+    if (!SUPER_ADMIN_PASSWORD) {
+      console.error("❌ SUPER_ADMIN_PASSWORD environment variable is required for seeding");
+      console.log("Please set SUPER_ADMIN_PASSWORD in your environment secrets");
+      process.exit(1);
+    }
 
     // Clear existing data
     await db.delete(bids);
@@ -15,15 +28,15 @@ async function seed() {
     await db.delete(transporters);
     await db.delete(users);
 
-    // Create Super Admin user with specified credentials
-    const superAdminPassword = await HASH_PASSWORD("Waykel6@singh");
+    // Create Super Admin user with credentials from environment variables
+    const superAdminPassword = await HASH_PASSWORD(SUPER_ADMIN_PASSWORD);
     const admin = await db
       .insert(users)
       .values({
         name: "Super Admin",
-        username: "waykelAdmin",
-        email: "admin@waykel.com",
-        phone: "8699957305",
+        username: SUPER_ADMIN_USERNAME,
+        email: SUPER_ADMIN_EMAIL,
+        phone: SUPER_ADMIN_PHONE,
         password: superAdminPassword,
         role: "admin",
         isSuperAdmin: true,
