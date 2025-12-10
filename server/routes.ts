@@ -205,7 +205,31 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ error: "Phone number already registered" });
       }
 
-      const user = await storage.createUser({ ...data, password: hashedPassword });
+      let transporterId: string | undefined;
+      
+      // If registering as transporter, create a transporter record first
+      if (data.role === "transporter") {
+        const transporterData = {
+          companyName: req.body.companyName || `${data.name}'s Transport`,
+          ownerName: data.name,
+          contact: data.phone,
+          email: data.email,
+          location: req.body.location || req.body.city || "India",
+          baseCity: req.body.city || req.body.location || "India",
+          fleetSize: req.body.fleetSize || 1,
+          status: "pending_approval" as const,
+          isVerified: false,
+        };
+        
+        const transporter = await storage.createTransporter(transporterData);
+        transporterId = transporter.id;
+      }
+
+      const user = await storage.createUser({ 
+        ...data, 
+        password: hashedPassword,
+        transporterId 
+      });
       const { password, ...userWithoutPassword } = user;
       
       // If an admin is already logged in (creating a user on behalf of someone),
@@ -249,7 +273,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           id: user.id,
           role: user.role,
           isSuperAdmin: user.isSuperAdmin || false,
-          transporterId: user.transporterId || undefined,
+          transporterId: transporterId || user.transporterId || undefined,
         };
 
         req.session.save((saveErr) => {
@@ -257,10 +281,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             console.error("Session save error during registration:", saveErr);
             return res.status(500).json({ error: "Session save failed" });
           }
-          res.json(userWithoutPassword);
+          res.json({ ...userWithoutPassword, transporterId });
         });
       });
     } catch (error) {
+      console.error("Registration error:", error);
       res.status(400).json({ error: "Invalid data" });
     }
   });
@@ -288,9 +313,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (user.role === "transporter" && user.transporterId) {
         const transporter = await storage.getTransporter(user.transporterId);
         if (transporter) {
-          if (transporter.status === "pending_approval") {
-            return res.status(403).json({ error: "Your account is pending admin approval. Please wait for approval before logging in." });
-          }
+          // Only block suspended transporters - pending ones can login but with limited functionality
           if (transporter.status === "suspended") {
             return res.status(403).json({ error: "Your account has been suspended. Please contact support." });
           }
@@ -346,9 +369,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (user.role === "transporter" && user.transporterId) {
         const transporter = await storage.getTransporter(user.transporterId);
         if (transporter) {
-          if (transporter.status === "pending_approval") {
-            return res.status(403).json({ error: "Your account is pending admin approval." });
-          }
+          // Only block suspended transporters for token auth too
           if (transporter.status === "suspended") {
             return res.status(403).json({ error: "Your account has been suspended." });
           }
