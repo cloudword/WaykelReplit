@@ -824,6 +824,216 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Transporter analytics endpoint
+  app.get("/api/transporter/analytics", protectedLimiter, async (req, res) => {
+    const sessionUser = getCurrentUser(req);
+    
+    if (!sessionUser || (sessionUser.role !== "transporter" && !sessionUser.isSuperAdmin)) {
+      return res.status(403).json({ error: "Only transporters can access analytics" });
+    }
+    
+    const transporterId = sessionUser.transporterId;
+    if (!transporterId) {
+      return res.status(400).json({ error: "No transporter profile found" });
+    }
+    
+    try {
+      const [transporterRides, transporterBids, transporterVehicles, transporterDrivers] = await Promise.all([
+        storage.getTransporterRides(transporterId),
+        storage.getTransporterBids(transporterId),
+        storage.getTransporterVehicles(transporterId),
+        storage.getUsersByTransporterAndRole(transporterId, "driver"),
+      ]);
+      
+      // Calculate ride statistics
+      const completedRides = transporterRides.filter(r => r.status === "completed");
+      const activeRides = transporterRides.filter(r => r.status === "active" || r.status === "assigned");
+      const pendingRides = transporterRides.filter(r => r.status === "pending");
+      const cancelledRides = transporterRides.filter(r => r.status === "cancelled");
+      
+      // Calculate earnings
+      const totalEarnings = completedRides.reduce((sum, r) => sum + parseFloat(r.price || "0"), 0);
+      const totalIncentives = completedRides.reduce((sum, r) => sum + parseFloat(r.incentive || "0"), 0);
+      
+      // Get current date info for time-based analytics
+      const now = new Date();
+      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+      const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      
+      // Earnings this month
+      const thisMonthRides = completedRides.filter(r => {
+        const rideDate = r.createdAt ? new Date(r.createdAt) : null;
+        return rideDate && rideDate >= thisMonthStart;
+      });
+      const thisMonthEarnings = thisMonthRides.reduce((sum, r) => sum + parseFloat(r.price || "0"), 0);
+      
+      // Earnings last month
+      const lastMonthRides = completedRides.filter(r => {
+        const rideDate = r.createdAt ? new Date(r.createdAt) : null;
+        return rideDate && rideDate >= lastMonthStart && rideDate <= lastMonthEnd;
+      });
+      const lastMonthEarnings = lastMonthRides.reduce((sum, r) => sum + parseFloat(r.price || "0"), 0);
+      
+      // Earnings growth percentage
+      const earningsGrowth = lastMonthEarnings > 0 
+        ? ((thisMonthEarnings - lastMonthEarnings) / lastMonthEarnings * 100).toFixed(1)
+        : thisMonthEarnings > 0 ? "100" : "0";
+      
+      // Last 7 days earnings (for chart)
+      const last7DaysData: { date: string; earnings: number; rides: number }[] = [];
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+        const dateStr = date.toISOString().split('T')[0];
+        const dayRides = completedRides.filter(r => {
+          const rideDate = r.createdAt ? new Date(r.createdAt).toISOString().split('T')[0] : null;
+          return rideDate === dateStr;
+        });
+        last7DaysData.push({
+          date: date.toLocaleDateString('en-IN', { weekday: 'short' }),
+          earnings: dayRides.reduce((sum, r) => sum + parseFloat(r.price || "0"), 0),
+          rides: dayRides.length
+        });
+      }
+      
+      // Monthly earnings (last 6 months for chart)
+      const monthlyData: { month: string; earnings: number; rides: number }[] = [];
+      for (let i = 5; i >= 0; i--) {
+        const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+        const monthRides = completedRides.filter(r => {
+          const rideDate = r.createdAt ? new Date(r.createdAt) : null;
+          return rideDate && rideDate >= monthStart && rideDate <= monthEnd;
+        });
+        monthlyData.push({
+          month: monthStart.toLocaleDateString('en-IN', { month: 'short' }),
+          earnings: monthRides.reduce((sum, r) => sum + parseFloat(r.price || "0"), 0),
+          rides: monthRides.length
+        });
+      }
+      
+      // Bid statistics
+      const acceptedBids = transporterBids.filter(b => b.status === "accepted");
+      const pendingBids = transporterBids.filter(b => b.status === "pending");
+      const rejectedBids = transporterBids.filter(b => b.status === "rejected");
+      const bidSuccessRate = transporterBids.length > 0 
+        ? ((acceptedBids.length / transporterBids.length) * 100).toFixed(1) 
+        : "0";
+      
+      // Average bid amount
+      const avgBidAmount = transporterBids.length > 0
+        ? transporterBids.reduce((sum, b) => sum + parseFloat(b.amount || "0"), 0) / transporterBids.length
+        : 0;
+      
+      // Cargo type breakdown
+      const cargoTypeBreakdown: Record<string, { count: number; earnings: number }> = {};
+      completedRides.forEach(r => {
+        const type = r.cargoType || "Other";
+        if (!cargoTypeBreakdown[type]) {
+          cargoTypeBreakdown[type] = { count: 0, earnings: 0 };
+        }
+        cargoTypeBreakdown[type].count++;
+        cargoTypeBreakdown[type].earnings += parseFloat(r.price || "0");
+      });
+      
+      // Route analytics (top routes)
+      const routeBreakdown: Record<string, { count: number; earnings: number }> = {};
+      completedRides.forEach(r => {
+        const route = `${r.pickupLocation} → ${r.dropLocation}`;
+        if (!routeBreakdown[route]) {
+          routeBreakdown[route] = { count: 0, earnings: 0 };
+        }
+        routeBreakdown[route].count++;
+        routeBreakdown[route].earnings += parseFloat(r.price || "0");
+      });
+      const topRoutes = Object.entries(routeBreakdown)
+        .map(([route, data]) => ({ route, ...data }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+      
+      // Vehicle utilization
+      const vehicleStats = transporterVehicles.map(v => {
+        const vehicleRides = completedRides.filter(r => r.assignedVehicleId === v.id);
+        return {
+          id: v.id,
+          plateNumber: v.plateNumber,
+          type: v.type,
+          status: v.status,
+          totalRides: vehicleRides.length,
+          earnings: vehicleRides.reduce((sum, r) => sum + parseFloat(r.price || "0"), 0)
+        };
+      });
+      
+      // Driver performance
+      const driverStats = transporterDrivers.map(d => {
+        const driverRides = completedRides.filter(r => r.assignedDriverId === d.id);
+        return {
+          id: d.id,
+          name: d.name,
+          phone: d.phone,
+          isOnline: d.isOnline,
+          totalRides: driverRides.length,
+          earnings: driverRides.reduce((sum, r) => sum + parseFloat(r.price || "0"), 0),
+          rating: d.rating
+        };
+      });
+      
+      // Average trip value
+      const avgTripValue = completedRides.length > 0 
+        ? totalEarnings / completedRides.length 
+        : 0;
+      
+      // Average distance (extract numeric value from distance string)
+      const avgDistance = completedRides.length > 0
+        ? completedRides.reduce((sum, r) => {
+            const distNum = parseFloat(r.distance?.replace(/[^0-9.]/g, '') || "0");
+            return sum + distNum;
+          }, 0) / completedRides.length
+        : 0;
+      
+      res.json({
+        summary: {
+          totalRides: transporterRides.length,
+          completedRides: completedRides.length,
+          activeRides: activeRides.length,
+          pendingRides: pendingRides.length,
+          cancelledRides: cancelledRides.length,
+          totalEarnings,
+          totalIncentives,
+          thisMonthEarnings,
+          lastMonthEarnings,
+          earningsGrowth: parseFloat(earningsGrowth as string),
+          avgTripValue,
+          avgDistance,
+          totalDrivers: transporterDrivers.length,
+          totalVehicles: transporterVehicles.length,
+          activeVehicles: transporterVehicles.filter(v => v.status === "active").length
+        },
+        bidStats: {
+          totalBids: transporterBids.length,
+          acceptedBids: acceptedBids.length,
+          pendingBids: pendingBids.length,
+          rejectedBids: rejectedBids.length,
+          successRate: parseFloat(bidSuccessRate),
+          avgBidAmount
+        },
+        charts: {
+          last7Days: last7DaysData,
+          monthly: monthlyData,
+          cargoTypes: Object.entries(cargoTypeBreakdown).map(([type, data]) => ({ type, ...data })),
+          topRoutes
+        },
+        vehicleStats,
+        driverStats
+      });
+    } catch (error) {
+      console.error("Failed to fetch transporter analytics:", error);
+      res.status(500).json({ error: "Failed to fetch analytics" });
+    }
+  });
+
   // Bid routes
   app.get("/api/bids", async (req, res) => {
     const sessionUser = getCurrentUser(req);
