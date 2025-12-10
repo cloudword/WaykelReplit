@@ -9,6 +9,15 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
+import { 
+  authLimiter, 
+  sensitiveAuthLimiter, 
+  protectedLimiter, 
+  bidLimiter, 
+  marketplaceLimiter, 
+  uploadLimiter,
+  heavyOperationLimiter
+} from "./rate-limiter";
 
 // JWT Configuration
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "waykel-jwt-secret-change-in-production";
@@ -180,8 +189,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // Auth routes
-  app.post("/api/auth/register", async (req, res) => {
+  // Auth routes - with rate limiting
+  app.post("/api/auth/register", authLimiter, async (req, res) => {
     try {
       const data = insertUserSchema.parse(req.body);
       const hashedPassword = await bcrypt.hash(data.password, 10);
@@ -256,7 +265,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", authLimiter, async (req, res) => {
     try {
       const { phone, password, username } = req.body;
       
@@ -315,7 +324,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Token-based authentication endpoint for server-to-server communication
   // Returns a JWT token that can be used as Bearer token in Authorization header
-  app.post("/api/auth/token", async (req, res) => {
+  app.post("/api/auth/token", authLimiter, async (req, res) => {
     try {
       const { phone, password, username } = req.body;
       
@@ -420,7 +429,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.post("/api/auth/change-password", async (req, res) => {
+  app.post("/api/auth/change-password", sensitiveAuthLimiter, async (req, res) => {
     try {
       const currentUser = getCurrentUser(req);
       if (!currentUser) {
@@ -696,7 +705,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Get marketplace rides for transporter with match scores
-  app.get("/api/transporter/marketplace", async (req, res) => {
+  app.get("/api/transporter/marketplace", marketplaceLimiter, async (req, res) => {
     const sessionUser = getCurrentUser(req);
     
     if (!sessionUser || sessionUser.role !== "transporter") {
@@ -838,7 +847,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.post("/api/bids", async (req, res) => {
+  app.post("/api/bids", bidLimiter, async (req, res) => {
     const sessionUser = getCurrentUser(req);
     
     // Only authenticated transporters can place bids
@@ -1338,7 +1347,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.post("/api/documents", async (req, res) => {
+  app.post("/api/documents", uploadLimiter, async (req, res) => {
     if (!req.session?.user?.id) {
       return res.status(401).json({ error: "Authentication required" });
     }
