@@ -88,16 +88,21 @@ export default function TransporterDashboard() {
           api.vehicles.list({ transporterId: user.transporterId }),
           api.users.list({ transporterId: user.transporterId, role: "driver" }),
           api.transporters.get(user.transporterId),
-          api.rides.list(),
+          api.rides.list({ transporterId: user.transporterId }),
         ]);
 
         const bids = Array.isArray(bidsData) ? bidsData : [];
         const vehiclesList = Array.isArray(vehiclesData) ? vehiclesData : [];
         const driversList = Array.isArray(usersData) ? usersData : [];
-        const ridesList = Array.isArray(ridesData) ? ridesData : [];
+        const allRides = Array.isArray(ridesData) ? ridesData : [];
+        
+        const transporterRides = allRides.filter((r: any) => 
+          r.transporterId === user.transporterId || 
+          bids.some((b: any) => b.rideId === r.id && b.status === "accepted")
+        );
 
         setRecentBids(bids.slice(0, 5));
-        setRecentRides(ridesList.slice(0, 5));
+        setRecentRides(transporterRides.slice(0, 5));
         setVehicles(vehiclesList);
         setDrivers(driversList);
         setTransporter(transporterData);
@@ -105,9 +110,9 @@ export default function TransporterDashboard() {
         const pendingBids = bids.filter((b: any) => b.status === "pending").length;
         const acceptedBids = bids.filter((b: any) => b.status === "accepted");
         const totalEarnings = acceptedBids.reduce((sum: number, b: any) => sum + parseFloat(b.amount || 0), 0);
-        const activeRides = ridesList.filter((r: any) => r.status === "active" || r.status === "assigned").length;
-        const pendingRides = ridesList.filter((r: any) => r.status === "pending").length;
-        const completedRides = ridesList.filter((r: any) => r.status === "completed").length;
+        const activeRides = transporterRides.filter((r: any) => r.status === "active" || r.status === "assigned").length;
+        const pendingRides = transporterRides.filter((r: any) => r.status === "pending").length;
+        const completedRides = transporterRides.filter((r: any) => r.status === "completed").length;
 
         setStats({
           totalDrivers: driversList.length,
