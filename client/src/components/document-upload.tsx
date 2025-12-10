@@ -23,6 +23,14 @@ const VEHICLE_DOC_TYPES = [
   { value: "permit", label: "Permit" },
 ];
 
+const TRANSPORTER_DOC_TYPES = [
+  { value: "gst_certificate", label: "GST Certificate" },
+  { value: "pan", label: "PAN Card" },
+  { value: "business_registration", label: "Business Registration" },
+  { value: "trade_license", label: "Trade License" },
+  { value: "aadhar", label: "Owner Aadhar Card" },
+];
+
 interface UploadedFile {
   file: File;
   status: "pending" | "uploading" | "success" | "error";
@@ -34,7 +42,7 @@ interface UploadedFile {
 interface DocumentUploadProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  entityType: "driver" | "vehicle";
+  entityType: "driver" | "vehicle" | "transporter";
   entityId: string;
   transporterId?: string;
   onSuccess?: () => void;
@@ -54,7 +62,11 @@ export function DocumentUpload({
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const docTypes = entityType === "driver" ? DRIVER_DOC_TYPES : VEHICLE_DOC_TYPES;
+  const docTypes = entityType === "driver" 
+    ? DRIVER_DOC_TYPES 
+    : entityType === "vehicle" 
+      ? VEHICLE_DOC_TYPES 
+      : TRANSPORTER_DOC_TYPES;
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
@@ -175,11 +187,13 @@ export function DocumentUpload({
 
         if (entityType === "driver") {
           docData.userId = entityId;
-        } else {
+        } else if (entityType === "vehicle") {
           docData.vehicleId = entityId;
         }
 
-        if (transporterId) {
+        if (entityType === "transporter") {
+          docData.transporterId = entityId;
+        } else if (transporterId) {
           docData.transporterId = transporterId;
         }
 

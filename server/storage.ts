@@ -1,5 +1,6 @@
 import { 
   users, vehicles, rides, bids, transporters, documents, notifications, apiLogs,
+  roles, userRoles, savedAddresses, driverApplications,
   type User, type InsertUser,
   type Vehicle, type InsertVehicle,
   type Ride, type InsertRide,
@@ -7,7 +8,11 @@ import {
   type Transporter, type InsertTransporter,
   type Document, type InsertDocument,
   type Notification, type InsertNotification,
-  type ApiLog, type InsertApiLog
+  type ApiLog, type InsertApiLog,
+  type Role, type InsertRole,
+  type UserRole, type InsertUserRole,
+  type SavedAddress, type InsertSavedAddress,
+  type DriverApplication, type InsertDriverApplication
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, or, sql, gte, inArray } from "drizzle-orm";
@@ -113,6 +118,34 @@ export interface IStorage {
   getApiLogs(limit?: number, offset?: number): Promise<ApiLog[]>;
   getApiLogsByPath(path: string): Promise<ApiLog[]>;
   getApiLogStats(): Promise<{ totalRequests: number; externalRequests: number; errorCount: number; avgResponseTime: number }>;
+  
+  // Roles
+  getRole(id: string): Promise<Role | undefined>;
+  getAllRoles(): Promise<Role[]>;
+  createRole(role: InsertRole): Promise<Role>;
+  updateRole(id: string, updates: Partial<InsertRole>): Promise<Role | undefined>;
+  deleteRole(id: string): Promise<void>;
+  
+  // User Roles
+  getUserRoles(userId: string): Promise<(UserRole & { role: Role })[]>;
+  assignRoleToUser(data: InsertUserRole): Promise<UserRole>;
+  removeRoleFromUser(userId: string, roleId: string): Promise<void>;
+  
+  // Saved Addresses
+  getSavedAddress(id: string): Promise<SavedAddress | undefined>;
+  getTransporterSavedAddresses(transporterId: string): Promise<SavedAddress[]>;
+  createSavedAddress(address: InsertSavedAddress): Promise<SavedAddress>;
+  updateSavedAddress(id: string, updates: Partial<InsertSavedAddress>): Promise<SavedAddress | undefined>;
+  deleteSavedAddress(id: string): Promise<void>;
+  
+  // Driver Applications
+  getDriverApplication(id: string): Promise<DriverApplication | undefined>;
+  getDriverApplicationByDriverId(driverId: string): Promise<DriverApplication | undefined>;
+  getAllDriverApplications(): Promise<DriverApplication[]>;
+  getActiveDriverApplications(): Promise<DriverApplication[]>;
+  createDriverApplication(application: InsertDriverApplication): Promise<DriverApplication>;
+  updateDriverApplication(id: string, updates: Partial<InsertDriverApplication>): Promise<DriverApplication | undefined>;
+  hireDriver(applicationId: string, transporterId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -492,6 +525,25 @@ export class DatabaseStorage implements IStorage {
     }).where(eq(rides.id, rideId));
   }
 
+  async closeBidding(rideId: string, acceptedByUserId: string): Promise<void> {
+    await db.update(rides).set({ 
+      biddingStatus: "closed",
+      acceptedByUserId: acceptedByUserId,
+      acceptedAt: new Date()
+    }).where(eq(rides.id, rideId));
+  }
+
+  async selfAssignRide(rideId: string, transporterId: string, driverId: string, vehicleId: string): Promise<void> {
+    await db.update(rides).set({
+      biddingStatus: "self_assigned",
+      isSelfAssigned: true,
+      transporterId: transporterId,
+      assignedDriverId: driverId,
+      assignedVehicleId: vehicleId,
+      status: "assigned"
+    }).where(eq(rides.id, rideId));
+  }
+
   // API Logs
   async createApiLog(log: InsertApiLog): Promise<ApiLog> {
     const [apiLog] = await db.insert(apiLogs).values(log).returning();
@@ -514,6 +566,132 @@ export class DatabaseStorage implements IStorage {
       avgResponseTime: sql<number>`COALESCE(AVG(${apiLogs.responseTime})::int, 0)`
     }).from(apiLogs);
     return stats || { totalRequests: 0, externalRequests: 0, errorCount: 0, avgResponseTime: 0 };
+  }
+
+  // Roles
+  async getRole(id: string): Promise<Role | undefined> {
+    const [role] = await db.select().from(roles).where(eq(roles.id, id));
+    return role || undefined;
+  }
+
+  async getAllRoles(): Promise<Role[]> {
+    return db.select().from(roles).orderBy(asc(roles.name));
+  }
+
+  async createRole(role: InsertRole): Promise<Role> {
+    const [newRole] = await db.insert(roles).values(role).returning();
+    return newRole;
+  }
+
+  async updateRole(id: string, updates: Partial<InsertRole>): Promise<Role | undefined> {
+    const [updated] = await db.update(roles).set(updates).where(eq(roles.id, id)).returning();
+    return updated || undefined;
+  }
+
+  async deleteRole(id: string): Promise<void> {
+    await db.delete(userRoles).where(eq(userRoles.roleId, id));
+    await db.delete(roles).where(eq(roles.id, id));
+  }
+
+  // User Roles
+  async getUserRoles(userId: string): Promise<(UserRole & { role: Role })[]> {
+    const results = await db.select({
+      id: userRoles.id,
+      userId: userRoles.userId,
+      roleId: userRoles.roleId,
+      assignedBy: userRoles.assignedBy,
+      createdAt: userRoles.createdAt,
+      role: roles
+    }).from(userRoles)
+      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+      .where(eq(userRoles.userId, userId));
+    
+    return results.map(r => ({
+      id: r.id,
+      userId: r.userId,
+      roleId: r.roleId,
+      assignedBy: r.assignedBy,
+      createdAt: r.createdAt,
+      role: r.role
+    }));
+  }
+
+  async assignRoleToUser(data: InsertUserRole): Promise<UserRole> {
+    const [userRole] = await db.insert(userRoles).values(data).returning();
+    return userRole;
+  }
+
+  async removeRoleFromUser(userId: string, roleId: string): Promise<void> {
+    await db.delete(userRoles).where(and(eq(userRoles.userId, userId), eq(userRoles.roleId, roleId)));
+  }
+
+  // Saved Addresses
+  async getSavedAddress(id: string): Promise<SavedAddress | undefined> {
+    const [address] = await db.select().from(savedAddresses).where(eq(savedAddresses.id, id));
+    return address || undefined;
+  }
+
+  async getTransporterSavedAddresses(transporterId: string): Promise<SavedAddress[]> {
+    return db.select().from(savedAddresses).where(eq(savedAddresses.transporterId, transporterId)).orderBy(desc(savedAddresses.createdAt));
+  }
+
+  async createSavedAddress(address: InsertSavedAddress): Promise<SavedAddress> {
+    const [newAddress] = await db.insert(savedAddresses).values(address).returning();
+    return newAddress;
+  }
+
+  async updateSavedAddress(id: string, updates: Partial<InsertSavedAddress>): Promise<SavedAddress | undefined> {
+    const [updated] = await db.update(savedAddresses).set(updates).where(eq(savedAddresses.id, id)).returning();
+    return updated || undefined;
+  }
+
+  async deleteSavedAddress(id: string): Promise<void> {
+    await db.delete(savedAddresses).where(eq(savedAddresses.id, id));
+  }
+
+  // Driver Applications
+  async getDriverApplication(id: string): Promise<DriverApplication | undefined> {
+    const [application] = await db.select().from(driverApplications).where(eq(driverApplications.id, id));
+    return application || undefined;
+  }
+
+  async getDriverApplicationByDriverId(driverId: string): Promise<DriverApplication | undefined> {
+    const [application] = await db.select().from(driverApplications).where(eq(driverApplications.driverId, driverId));
+    return application || undefined;
+  }
+
+  async getAllDriverApplications(): Promise<DriverApplication[]> {
+    return db.select().from(driverApplications).orderBy(desc(driverApplications.createdAt));
+  }
+
+  async getActiveDriverApplications(): Promise<DriverApplication[]> {
+    return db.select().from(driverApplications).where(eq(driverApplications.status, "active")).orderBy(desc(driverApplications.createdAt));
+  }
+
+  async createDriverApplication(application: InsertDriverApplication): Promise<DriverApplication> {
+    const [newApplication] = await db.insert(driverApplications).values(application).returning();
+    return newApplication;
+  }
+
+  async updateDriverApplication(id: string, updates: Partial<InsertDriverApplication>): Promise<DriverApplication | undefined> {
+    const [updated] = await db.update(driverApplications).set({ ...updates, updatedAt: new Date() }).where(eq(driverApplications.id, id)).returning();
+    return updated || undefined;
+  }
+
+  async hireDriver(applicationId: string, transporterId: string): Promise<void> {
+    const application = await this.getDriverApplication(applicationId);
+    if (!application) throw new Error("Application not found");
+    
+    await db.update(driverApplications).set({
+      status: "hired",
+      acceptedByTransporterId: transporterId,
+      acceptedAt: new Date(),
+      updatedAt: new Date()
+    }).where(eq(driverApplications.id, applicationId));
+    
+    await db.update(users).set({
+      transporterId: transporterId
+    }).where(eq(users.id, application.driverId));
   }
 }
 

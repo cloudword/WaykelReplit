@@ -27,6 +27,7 @@ import AdminApiExplorer from "@/pages/admin/api-explorer";
 import AdminApiLogs from "@/pages/admin/api-logs";
 import AdminUsers from "@/pages/admin/users";
 import AdminTrips from "@/pages/admin/trips";
+import AdminRoles from "@/pages/admin/roles";
 
 import TransporterDashboard from "@/pages/transporter/dashboard";
 import TransporterBids from "@/pages/transporter/bids";
@@ -35,10 +36,13 @@ import TransporterVehicles from "@/pages/transporter/vehicles";
 import TransporterMarketplace from "@/pages/transporter/marketplace";
 import TransporterTrips from "@/pages/transporter/trips";
 import TransporterDocuments from "@/pages/transporter/documents";
+import TransporterPostTrip from "@/pages/transporter/post-trip";
+import TransporterAddresses from "@/pages/transporter/addresses";
 
 import CustomerDashboard from "@/pages/customer/dashboard";
 import CustomerRides from "@/pages/customer/rides";
 import CustomerProfile from "@/pages/customer/profile";
+import CustomerAuthPage from "@/pages/customer/auth";
 
 function Router() {
   return (
@@ -65,8 +69,11 @@ function Router() {
       <Route path="/transporter/marketplace" component={TransporterMarketplace} />
       <Route path="/transporter/trips" component={TransporterTrips} />
       <Route path="/transporter/documents" component={TransporterDocuments} />
+      <Route path="/transporter/post-trip" component={TransporterPostTrip} />
+      <Route path="/transporter/addresses" component={TransporterAddresses} />
 
       {/* Customer/Rider App Routes */}
+      <Route path="/customer/auth" component={CustomerAuthPage} />
       <Route path="/customer" component={CustomerDashboard} />
       <Route path="/customer/rides" component={CustomerRides} />
       <Route path="/customer/profile" component={CustomerProfile} />
@@ -87,6 +94,7 @@ function Router() {
       <Route path="/admin/customers" component={AdminCustomers} />
       <Route path="/admin/api-explorer" component={AdminApiExplorer} />
       <Route path="/admin/api-logs" component={AdminApiLogs} />
+      <Route path="/admin/roles" component={AdminRoles} />
       
       <Route component={NotFound} />
     </Switch>

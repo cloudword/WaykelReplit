@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Building2, FileText, Upload, Users, Truck, RefreshCw, Loader2 } from "lucide-react";
+import { ArrowLeft, Building2, FileText, Upload, Users, Truck, RefreshCw, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { DocumentUpload } from "@/components/document-upload";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -15,9 +15,11 @@ export default function TransporterDocuments() {
   const [documents, setDocuments] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
+  const [transporter, setTransporter] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
-  const [uploadEntityType, setUploadEntityType] = useState<"driver" | "vehicle">("driver");
+  const [showBusinessUpload, setShowBusinessUpload] = useState(false);
+  const [uploadEntityType, setUploadEntityType] = useState<"driver" | "vehicle" | "transporter">("driver");
   const [selectedEntityId, setSelectedEntityId] = useState("");
   const [user] = useState<any>(() => {
     const stored = localStorage.getItem("currentUser");
@@ -28,14 +30,16 @@ export default function TransporterDocuments() {
     if (!user?.transporterId) return;
     setLoading(true);
     try {
-      const [docsData, usersData, vehiclesData] = await Promise.all([
+      const [docsData, usersData, vehiclesData, transporterData] = await Promise.all([
         api.documents.list({ transporterId: user.transporterId }),
         api.users.list({ transporterId: user.transporterId, role: "driver" }),
         api.vehicles.list({ transporterId: user.transporterId }),
+        api.transporters.get(user.transporterId),
       ]);
       setDocuments(Array.isArray(docsData) ? docsData : []);
       setDrivers(Array.isArray(usersData) ? usersData : []);
       setVehicles(Array.isArray(vehiclesData) ? vehiclesData : []);
+      setTransporter(transporterData);
     } catch (error) {
       console.error("Failed to load data:", error);
       toast.error("Failed to load documents");
@@ -50,6 +54,7 @@ export default function TransporterDocuments() {
 
   const driverDocs = documents.filter(d => d.entityType === "driver");
   const vehicleDocs = documents.filter(d => d.entityType === "vehicle");
+  const businessDocs = documents.filter(d => d.entityType === "transporter");
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -103,27 +108,68 @@ export default function TransporterDocuments() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <Card className="cursor-pointer hover:bg-gray-50" onClick={() => openUploadDialog("driver")}>
+        {transporter && !transporter.isVerified && (
+          <Card className="mb-6 border-amber-200 bg-amber-50" data-testid="verification-status">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-amber-600" />
+                <div>
+                  <p className="font-medium text-amber-800">Verification Pending</p>
+                  <p className="text-sm text-amber-700">Complete your document uploads to get verified and access the marketplace.</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {transporter && transporter.isVerified && (
+          <Card className="mb-6 border-green-200 bg-green-50" data-testid="verification-complete">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                <div>
+                  <p className="font-medium text-green-800">Verified</p>
+                  <p className="text-sm text-green-700">Your documents have been verified. You have full access to the marketplace.</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <Card className="cursor-pointer hover:bg-gray-50" onClick={() => setShowBusinessUpload(true)} data-testid="card-upload-business">
+            <CardContent className="p-6 flex items-center gap-4">
+              <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                <Building2 className="h-6 w-6 text-purple-600" />
+              </div>
+              <div>
+                <p className="font-medium">Business Documents</p>
+                <p className="text-sm text-gray-500">GST, PAN, Registration</p>
+              </div>
+              <Upload className="h-5 w-5 text-gray-400 ml-auto" />
+            </CardContent>
+          </Card>
+
+          <Card className="cursor-pointer hover:bg-gray-50" onClick={() => openUploadDialog("driver")} data-testid="card-upload-driver">
             <CardContent className="p-6 flex items-center gap-4">
               <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
                 <Users className="h-6 w-6 text-blue-600" />
               </div>
               <div>
-                <p className="font-medium">Upload Driver Document</p>
+                <p className="font-medium">Driver Documents</p>
                 <p className="text-sm text-gray-500">License, Aadhar, PAN</p>
               </div>
               <Upload className="h-5 w-5 text-gray-400 ml-auto" />
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:bg-gray-50" onClick={() => openUploadDialog("vehicle")}>
+          <Card className="cursor-pointer hover:bg-gray-50" onClick={() => openUploadDialog("vehicle")} data-testid="card-upload-vehicle">
             <CardContent className="p-6 flex items-center gap-4">
               <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
                 <Truck className="h-6 w-6 text-green-600" />
               </div>
               <div>
-                <p className="font-medium">Upload Vehicle Document</p>
+                <p className="font-medium">Vehicle Documents</p>
                 <p className="text-sm text-gray-500">RC, Insurance, Fitness</p>
               </div>
               <Upload className="h-5 w-5 text-gray-400 ml-auto" />
@@ -131,17 +177,59 @@ export default function TransporterDocuments() {
           </Card>
         </div>
 
-        <Tabs defaultValue="driver" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
+        <Tabs defaultValue="business" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 mb-6">
+            <TabsTrigger value="business" data-testid="tab-business-docs">
+              <Building2 className="h-4 w-4 mr-2" />
+              Business ({businessDocs.length})
+            </TabsTrigger>
             <TabsTrigger value="driver" data-testid="tab-driver-docs">
               <Users className="h-4 w-4 mr-2" />
-              Driver Documents ({driverDocs.length})
+              Drivers ({driverDocs.length})
             </TabsTrigger>
             <TabsTrigger value="vehicle" data-testid="tab-vehicle-docs">
               <Truck className="h-4 w-4 mr-2" />
-              Vehicle Documents ({vehicleDocs.length})
+              Vehicles ({vehicleDocs.length})
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="business">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+              </div>
+            ) : businessDocs.length > 0 ? (
+              <div className="space-y-3">
+                {businessDocs.map(doc => (
+                  <Card key={doc.id} data-testid={`doc-card-${doc.id}`}>
+                    <CardContent className="p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <Building2 className="h-5 w-5 text-gray-400" />
+                        <div>
+                          <p className="font-medium">{doc.documentName}</p>
+                          <p className="text-sm text-gray-500">Business Document</p>
+                          {doc.expiryDate && (
+                            <p className="text-xs text-gray-400">Expires: {doc.expiryDate}</p>
+                          )}
+                        </div>
+                      </div>
+                      <Badge className={getStatusColor(doc.status)}>{doc.status}</Badge>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-gray-500">
+                <Building2 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>No business documents uploaded yet</p>
+                <p className="text-sm mt-2">Upload GST Certificate, PAN Card, Business Registration</p>
+                <Button className="mt-4" onClick={() => setShowBusinessUpload(true)}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload Business Document
+                </Button>
+              </div>
+            )}
+          </TabsContent>
 
           <TabsContent value="driver">
             {loading ? (
@@ -230,6 +318,17 @@ export default function TransporterDocuments() {
           onSuccess={loadData}
         />
       )}
+
+      {showBusinessUpload && (
+        <DocumentUpload
+          open={showBusinessUpload}
+          onOpenChange={setShowBusinessUpload}
+          entityType="transporter"
+          entityId={user.transporterId}
+          transporterId={user.transporterId}
+          onSuccess={loadData}
+        />
+      )}
     </div>
   );
 }
@@ -245,7 +344,7 @@ function DocumentUploadWithSelection({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  entityType: "driver" | "vehicle";
+  entityType: "driver" | "vehicle" | "transporter";
   drivers: any[];
   vehicles: any[];
   transporterId: string;

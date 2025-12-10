@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Users, Truck, Wallet, Settings, LogOut, Building2, Gavel, Calendar, Shield, UserCheck, Code, ScrollText } from "lucide-react";
+import { LayoutDashboard, Users, Truck, Wallet, Settings, LogOut, Building2, Gavel, Calendar, Shield, UserCheck, Code, ScrollText, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -14,6 +14,7 @@ export function AdminSidebar() {
   const navItems = [
     { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
     { href: "/admin/users", icon: Users, label: "User Management" },
+    { href: "/admin/roles", icon: ShieldCheck, label: "Roles & Permissions" },
     { href: "/admin/rides", icon: Gavel, label: "Bid Approvals" },
     { href: "/admin/transporters", icon: Building2, label: "Transporters" },
     { href: "/admin/customers", icon: UserCheck, label: "Customers" },

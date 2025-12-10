@@ -5,9 +5,21 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import MemoryStore from "memorystore";
 import { storage, sanitizeRequestBody } from "./storage";
+import { globalLimiter } from "./rate-limiter";
 
 const app = express();
 const httpServer = createServer(app);
+
+// Process-level error handlers to prevent crashes
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  // Don't exit in production - log and continue
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit in production - log and continue
+});
 
 declare module "http" {
   interface IncomingMessage {
@@ -74,8 +86,9 @@ if (process.env.REPL_ID || process.env.NODE_ENV === "production") {
 }
 
 // Determine if we need cross-origin cookie settings
-// Enable secure cookies for production OR when CUSTOMER_PORTAL_URL is set (cross-origin scenario)
-const needsCrossOriginCookies = process.env.NODE_ENV === "production" || !!process.env.CUSTOMER_PORTAL_URL || !!process.env.REPL_ID;
+// Only enable secure cookies for production deployments, not development previews
+const isProduction = process.env.NODE_ENV === "production";
+const needsCrossOriginCookies = isProduction || !!process.env.CUSTOMER_PORTAL_URL;
 
 app.use(
   session({
@@ -86,23 +99,28 @@ app.use(
       checkPeriod: 86400000,
     }),
     cookie: {
-      secure: needsCrossOriginCookies, // HTTPS required for cross-origin cookies
+      secure: isProduction, // Only require HTTPS in production
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000,
-      sameSite: needsCrossOriginCookies ? "none" : "lax", // "none" allows cross-origin cookies
+      sameSite: needsCrossOriginCookies ? "none" : "lax",
     },
   })
 );
 
+// Global rate limiter - applies to all API routes
+app.use(globalLimiter);
+
+// Request body size limits to prevent large payload attacks
 app.use(
   express.json({
+    limit: '1mb', // Limit JSON body size
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },
   }),
 );
 
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
