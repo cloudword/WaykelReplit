@@ -263,26 +263,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       // For same-origin self-registration, create a session for the new user
-      req.session.regenerate((err) => {
-        if (err) {
-          console.error("Session regeneration error during registration:", err);
-          return res.status(500).json({ error: "Session initialization failed" });
+      req.session.user = {
+        id: user.id,
+        role: user.role,
+        isSuperAdmin: user.isSuperAdmin || false,
+        transporterId: transporterId || user.transporterId || undefined,
+      };
+
+      req.session.save((saveErr) => {
+        if (saveErr) {
+          console.error("Session save error during registration:", saveErr);
+          return res.status(500).json({ error: "Session save failed" });
         }
-
-        req.session.user = {
-          id: user.id,
-          role: user.role,
-          isSuperAdmin: user.isSuperAdmin || false,
-          transporterId: transporterId || user.transporterId || undefined,
-        };
-
-        req.session.save((saveErr) => {
-          if (saveErr) {
-            console.error("Session save error during registration:", saveErr);
-            return res.status(500).json({ error: "Session save failed" });
-          }
-          res.json({ ...userWithoutPassword, transporterId });
-        });
+        res.json({ ...userWithoutPassword, transporterId });
       });
     } catch (error) {
       console.error("Registration error:", error);
@@ -320,25 +313,21 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
 
-      req.session.regenerate((err) => {
-        if (err) {
-          return res.status(500).json({ error: "Session error" });
+      // Set session user directly without regenerate (more compatible with various session stores)
+      req.session.user = {
+        id: user.id,
+        role: user.role,
+        isSuperAdmin: user.isSuperAdmin || false,
+        transporterId: user.transporterId || undefined,
+      };
+
+      req.session.save((saveErr) => {
+        if (saveErr) {
+          console.error("Session save error during login:", saveErr);
+          return res.status(500).json({ error: "Session save error: " + (saveErr.message || "Failed to save session") });
         }
-
-        req.session.user = {
-          id: user.id,
-          role: user.role,
-          isSuperAdmin: user.isSuperAdmin || false,
-          transporterId: user.transporterId || undefined,
-        };
-
-        req.session.save((saveErr) => {
-          if (saveErr) {
-            return res.status(500).json({ error: "Session save error" });
-          }
-          const { password: _, ...userWithoutPassword } = user;
-          res.json(userWithoutPassword);
-        });
+        const { password: _, ...userWithoutPassword } = user;
+        res.json(userWithoutPassword);
       });
     } catch (error) {
       res.status(400).json({ error: "Login failed" });

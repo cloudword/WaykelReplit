@@ -90,6 +90,8 @@ if (process.env.REPL_ID || process.env.NODE_ENV === "production") {
 const isProduction = process.env.NODE_ENV === "production";
 const needsCrossOriginCookies = isProduction || !!process.env.CUSTOMER_PORTAL_URL;
 
+// Use MemoryStore for sessions (simple and reliable for development)
+// Note: Sessions will be lost on server restart - user will need to log in again
 app.use(
   session({
     secret: sessionSecret || require("crypto").randomBytes(32).toString("hex"),
