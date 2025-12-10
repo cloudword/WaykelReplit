@@ -36,10 +36,13 @@ const PERMISSION_LABELS: Record<string, string> = {
   manage_vehicles: "Manage Vehicles",
 };
 
+const ALL_PERMISSIONS = Object.keys(PERMISSION_LABELS);
+
 export default function AdminRoles() {
   const [roles, setRoles] = useState<Role[]>([]);
-  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissions, setPermissions] = useState<string[]>(ALL_PERMISSIONS);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -59,15 +62,18 @@ export default function AdminRoles() {
 
   const loadData = async () => {
     setLoading(true);
+    setAuthError(null);
     try {
       const [rolesData, permsData] = await Promise.all([
         api.roles.list(),
         api.roles.getPermissions(),
       ]);
       
-      // Handle error responses gracefully
       if (rolesData?.error) {
         console.error("Roles API error:", rolesData.error);
+        if (rolesData.error.includes("Authentication") || rolesData.error.includes("Admin access")) {
+          setAuthError(rolesData.error);
+        }
         setRoles([]);
       } else {
         setRoles(Array.isArray(rolesData) ? rolesData : []);
@@ -75,15 +81,15 @@ export default function AdminRoles() {
       
       if (permsData?.error) {
         console.error("Permissions API error:", permsData.error);
-        setPermissions([]);
+        setPermissions(ALL_PERMISSIONS);
       } else {
-        setPermissions(Array.isArray(permsData) ? permsData : []);
+        setPermissions(Array.isArray(permsData) && permsData.length > 0 ? permsData : ALL_PERMISSIONS);
       }
     } catch (error) {
       console.error("Failed to load data:", error);
       toast.error("Failed to load roles data");
       setRoles([]);
-      setPermissions([]);
+      setPermissions(ALL_PERMISSIONS);
     } finally {
       setLoading(false);
     }
@@ -203,7 +209,7 @@ export default function AdminRoles() {
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
-            <Button onClick={openCreateDialog} data-testid="button-create-role">
+            <Button onClick={openCreateDialog} disabled={!!authError} data-testid="button-create-role">
               <Plus className="h-4 w-4 mr-2" />
               Create Role
             </Button>
@@ -246,6 +252,20 @@ export default function AdminRoles() {
           </Card>
         </div>
 
+        {authError && (
+          <Card className="mb-6 border-red-200 bg-red-50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <Lock className="h-6 w-6 text-red-600" />
+                <div>
+                  <p className="font-medium text-red-800">{authError}</p>
+                  <p className="text-sm text-red-600">Please log in as Super Admin (phone: 8699957305) to manage roles and permissions.</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle>All Roles</CardTitle>
@@ -254,6 +274,11 @@ export default function AdminRoles() {
           <CardContent>
             {loading ? (
               <div className="text-center py-8 text-gray-500">Loading roles...</div>
+            ) : authError ? (
+              <div className="text-center py-8 text-gray-500">
+                <Lock className="h-12 w-12 mx-auto mb-4 text-red-300" />
+                <p>Admin authentication required to view roles.</p>
+              </div>
             ) : (roles || []).length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <Shield className="h-12 w-12 mx-auto mb-4 text-gray-300" />
