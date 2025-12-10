@@ -1,7 +1,10 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, insertTransporterSchema, insertVehicleSchema, insertRideSchema, insertBidSchema, insertDocumentSchema } from "@shared/schema";
+import { 
+  insertUserSchema, insertTransporterSchema, insertVehicleSchema, insertRideSchema, insertBidSchema, insertDocumentSchema,
+  insertRoleSchema, insertUserRoleSchema, insertSavedAddressSchema, insertDriverApplicationSchema, PERMISSIONS, VEHICLE_TYPES
+} from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -1724,6 +1727,498 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (error) {
       console.error("Failed to accept bid:", error);
       res.status(500).json({ error: "Failed to accept bid" });
+    }
+  });
+
+  // ============== ROLES MANAGEMENT ==============
+  
+  // Get all available permissions
+  app.get("/api/permissions", requireAdmin, async (req: Request, res: Response) => {
+    res.json(PERMISSIONS);
+  });
+
+  // Get all roles - Admin only
+  app.get("/api/roles", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const allRoles = await storage.getAllRoles();
+      res.json(allRoles);
+    } catch (error) {
+      console.error("Failed to get roles:", error);
+      res.status(500).json({ error: "Failed to get roles" });
+    }
+  });
+
+  // Create a new role - Admin only
+  app.post("/api/roles", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const parseResult = insertRoleSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid role data", details: parseResult.error.errors });
+      }
+      const newRole = await storage.createRole(parseResult.data);
+      res.status(201).json(newRole);
+    } catch (error: any) {
+      console.error("Failed to create role:", error);
+      if (error.message?.includes("unique")) {
+        return res.status(400).json({ error: "Role name already exists" });
+      }
+      res.status(500).json({ error: "Failed to create role" });
+    }
+  });
+
+  // Update a role - Admin only
+  app.patch("/api/roles/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const role = await storage.getRole(id);
+      if (!role) {
+        return res.status(404).json({ error: "Role not found" });
+      }
+      if (role.isSystem) {
+        return res.status(403).json({ error: "Cannot modify system roles" });
+      }
+      const updated = await storage.updateRole(id, req.body);
+      res.json(updated);
+    } catch (error) {
+      console.error("Failed to update role:", error);
+      res.status(500).json({ error: "Failed to update role" });
+    }
+  });
+
+  // Delete a role - Admin only
+  app.delete("/api/roles/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const role = await storage.getRole(id);
+      if (!role) {
+        return res.status(404).json({ error: "Role not found" });
+      }
+      if (role.isSystem) {
+        return res.status(403).json({ error: "Cannot delete system roles" });
+      }
+      await storage.deleteRole(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to delete role:", error);
+      res.status(500).json({ error: "Failed to delete role" });
+    }
+  });
+
+  // Get user's roles
+  app.get("/api/users/:userId/roles", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.params;
+      const sessionUser = getCurrentUser(req);
+      
+      // Allow users to see their own roles, admins can see anyone's
+      if (sessionUser.id !== userId && !sessionUser.isSuperAdmin && sessionUser.role !== "admin") {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const userRolesList = await storage.getUserRoles(userId);
+      res.json(userRolesList);
+    } catch (error) {
+      console.error("Failed to get user roles:", error);
+      res.status(500).json({ error: "Failed to get user roles" });
+    }
+  });
+
+  // Assign role to user - Admin only
+  app.post("/api/users/:userId/roles", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.params;
+      const { roleId } = req.body;
+      
+      if (!roleId) {
+        return res.status(400).json({ error: "roleId is required" });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      const role = await storage.getRole(roleId);
+      if (!role) {
+        return res.status(404).json({ error: "Role not found" });
+      }
+      
+      const sessionUser = getCurrentUser(req);
+      const userRole = await storage.assignRoleToUser({
+        userId,
+        roleId,
+        assignedBy: sessionUser.id
+      });
+      
+      res.status(201).json(userRole);
+    } catch (error: any) {
+      console.error("Failed to assign role:", error);
+      if (error.message?.includes("duplicate") || error.message?.includes("unique")) {
+        return res.status(400).json({ error: "User already has this role" });
+      }
+      res.status(500).json({ error: "Failed to assign role" });
+    }
+  });
+
+  // Remove role from user - Admin only
+  app.delete("/api/users/:userId/roles/:roleId", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { userId, roleId } = req.params;
+      await storage.removeRoleFromUser(userId, roleId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to remove role:", error);
+      res.status(500).json({ error: "Failed to remove role" });
+    }
+  });
+
+  // ============== SAVED ADDRESSES ==============
+
+  // Get transporter's saved addresses
+  app.get("/api/saved-addresses", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      
+      if (!sessionUser.transporterId) {
+        return res.status(400).json({ error: "No transporter associated with this user" });
+      }
+      
+      const addresses = await storage.getTransporterSavedAddresses(sessionUser.transporterId);
+      res.json(addresses);
+    } catch (error) {
+      console.error("Failed to get saved addresses:", error);
+      res.status(500).json({ error: "Failed to get saved addresses" });
+    }
+  });
+
+  // Create saved address
+  app.post("/api/saved-addresses", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      
+      if (!sessionUser.transporterId) {
+        return res.status(400).json({ error: "No transporter associated with this user" });
+      }
+      
+      const parseResult = insertSavedAddressSchema.safeParse({
+        ...req.body,
+        transporterId: sessionUser.transporterId,
+        userId: sessionUser.id
+      });
+      
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid address data", details: parseResult.error.errors });
+      }
+      
+      const newAddress = await storage.createSavedAddress(parseResult.data);
+      res.status(201).json(newAddress);
+    } catch (error) {
+      console.error("Failed to create saved address:", error);
+      res.status(500).json({ error: "Failed to create saved address" });
+    }
+  });
+
+  // Update saved address
+  app.patch("/api/saved-addresses/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const sessionUser = getCurrentUser(req);
+      
+      const address = await storage.getSavedAddress(id);
+      if (!address) {
+        return res.status(404).json({ error: "Address not found" });
+      }
+      
+      if (address.transporterId !== sessionUser.transporterId && !sessionUser.isSuperAdmin) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const updated = await storage.updateSavedAddress(id, req.body);
+      res.json(updated);
+    } catch (error) {
+      console.error("Failed to update saved address:", error);
+      res.status(500).json({ error: "Failed to update saved address" });
+    }
+  });
+
+  // Delete saved address
+  app.delete("/api/saved-addresses/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const sessionUser = getCurrentUser(req);
+      
+      const address = await storage.getSavedAddress(id);
+      if (!address) {
+        return res.status(404).json({ error: "Address not found" });
+      }
+      
+      if (address.transporterId !== sessionUser.transporterId && !sessionUser.isSuperAdmin) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      await storage.deleteSavedAddress(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to delete saved address:", error);
+      res.status(500).json({ error: "Failed to delete saved address" });
+    }
+  });
+
+  // ============== DRIVER APPLICATIONS ==============
+
+  // Get all driver applications - Admin or Transporter
+  app.get("/api/driver-applications", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      
+      if (sessionUser.isSuperAdmin || sessionUser.role === "admin") {
+        const applications = await storage.getAllDriverApplications();
+        res.json(applications);
+      } else if (sessionUser.role === "transporter" && sessionUser.transporterId) {
+        // Transporters can only see active applications
+        const applications = await storage.getActiveDriverApplications();
+        res.json(applications);
+      } else {
+        return res.status(403).json({ error: "Access denied" });
+      }
+    } catch (error) {
+      console.error("Failed to get driver applications:", error);
+      res.status(500).json({ error: "Failed to get driver applications" });
+    }
+  });
+
+  // Get driver application with full driver details
+  app.get("/api/driver-applications/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const sessionUser = getCurrentUser(req);
+      
+      const application = await storage.getDriverApplication(id);
+      if (!application) {
+        return res.status(404).json({ error: "Application not found" });
+      }
+      
+      // Get driver details
+      const driver = await storage.getUser(application.driverId);
+      
+      // Get driver documents
+      const documents = await storage.getUserDocuments(application.driverId);
+      
+      res.json({
+        ...application,
+        driver,
+        documents
+      });
+    } catch (error) {
+      console.error("Failed to get driver application:", error);
+      res.status(500).json({ error: "Failed to get driver application" });
+    }
+  });
+
+  // Get my driver application (for drivers)
+  app.get("/api/my-driver-application", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      
+      if (sessionUser.role !== "driver") {
+        return res.status(400).json({ error: "Only drivers can have applications" });
+      }
+      
+      const application = await storage.getDriverApplicationByDriverId(sessionUser.id);
+      res.json(application || null);
+    } catch (error) {
+      console.error("Failed to get my driver application:", error);
+      res.status(500).json({ error: "Failed to get driver application" });
+    }
+  });
+
+  // Create driver application (drivers only)
+  app.post("/api/driver-applications", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      
+      if (sessionUser.role !== "driver") {
+        return res.status(400).json({ error: "Only drivers can create job applications" });
+      }
+      
+      // Check if already has a transporter
+      const user = await storage.getUser(sessionUser.id);
+      if (user?.transporterId) {
+        return res.status(400).json({ error: "You are already associated with a transporter" });
+      }
+      
+      // Check if already has an active application
+      const existingApplication = await storage.getDriverApplicationByDriverId(sessionUser.id);
+      if (existingApplication && existingApplication.status === "active") {
+        return res.status(400).json({ error: "You already have an active job application" });
+      }
+      
+      const parseResult = insertDriverApplicationSchema.safeParse({
+        ...req.body,
+        driverId: sessionUser.id,
+        documentsComplete: user?.documentsComplete || false,
+        status: "active"
+      });
+      
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid application data", details: parseResult.error.errors });
+      }
+      
+      const newApplication = await storage.createDriverApplication(parseResult.data);
+      res.status(201).json(newApplication);
+    } catch (error) {
+      console.error("Failed to create driver application:", error);
+      res.status(500).json({ error: "Failed to create driver application" });
+    }
+  });
+
+  // Update driver application
+  app.patch("/api/driver-applications/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const sessionUser = getCurrentUser(req);
+      
+      const application = await storage.getDriverApplication(id);
+      if (!application) {
+        return res.status(404).json({ error: "Application not found" });
+      }
+      
+      // Only the driver who created it can update it
+      if (application.driverId !== sessionUser.id && !sessionUser.isSuperAdmin) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const updated = await storage.updateDriverApplication(id, req.body);
+      res.json(updated);
+    } catch (error) {
+      console.error("Failed to update driver application:", error);
+      res.status(500).json({ error: "Failed to update driver application" });
+    }
+  });
+
+  // Withdraw driver application
+  app.post("/api/driver-applications/:id/withdraw", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const sessionUser = getCurrentUser(req);
+      
+      const application = await storage.getDriverApplication(id);
+      if (!application) {
+        return res.status(404).json({ error: "Application not found" });
+      }
+      
+      if (application.driverId !== sessionUser.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const updated = await storage.updateDriverApplication(id, { status: "withdrawn" });
+      res.json({ success: true, application: updated });
+    } catch (error) {
+      console.error("Failed to withdraw application:", error);
+      res.status(500).json({ error: "Failed to withdraw application" });
+    }
+  });
+
+  // Hire a driver - Transporter only
+  app.post("/api/driver-applications/:id/hire", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const sessionUser = getCurrentUser(req);
+      
+      if (sessionUser.role !== "transporter" && !sessionUser.isSuperAdmin) {
+        return res.status(403).json({ error: "Only transporters can hire drivers" });
+      }
+      
+      if (!sessionUser.transporterId && !sessionUser.isSuperAdmin) {
+        return res.status(400).json({ error: "No transporter associated with this user" });
+      }
+      
+      const application = await storage.getDriverApplication(id);
+      if (!application) {
+        return res.status(404).json({ error: "Application not found" });
+      }
+      
+      if (application.status !== "active") {
+        return res.status(400).json({ error: "This application is no longer active" });
+      }
+      
+      // For admin, use transporterId from request body, otherwise use session transporterId
+      const transporterId = sessionUser.isSuperAdmin ? req.body.transporterId : sessionUser.transporterId;
+      
+      if (!transporterId) {
+        return res.status(400).json({ error: "transporterId is required" });
+      }
+      
+      await storage.hireDriver(id, transporterId);
+      
+      // Get driver for notification
+      const driver = await storage.getUser(application.driverId);
+      const transporter = await storage.getTransporter(transporterId);
+      
+      // Notify the driver
+      await storage.createNotification({
+        recipientId: application.driverId,
+        type: "general",
+        title: "You've Been Hired!",
+        message: `Congratulations! ${transporter?.companyName || "A transporter"} has hired you. You are now part of their team.`,
+      });
+      
+      res.json({ success: true, message: "Driver hired successfully" });
+    } catch (error) {
+      console.error("Failed to hire driver:", error);
+      res.status(500).json({ error: "Failed to hire driver" });
+    }
+  });
+
+  // Get vehicle types for driver applications
+  app.get("/api/vehicle-types", async (req: Request, res: Response) => {
+    res.json(VEHICLE_TYPES);
+  });
+
+  // ============== TRANSPORTER TRIP POSTING ==============
+
+  // Create a trip with self-assign option
+  app.post("/api/transporter/trips", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      
+      if (sessionUser.role !== "transporter" && !sessionUser.isSuperAdmin) {
+        return res.status(403).json({ error: "Only transporters can post trips" });
+      }
+      
+      if (!sessionUser.transporterId && !sessionUser.isSuperAdmin) {
+        return res.status(400).json({ error: "No transporter associated with this user" });
+      }
+      
+      // Check transporter verification
+      const transporter = await storage.getTransporter(sessionUser.transporterId);
+      if (transporter && !transporter.isVerified) {
+        return res.status(403).json({ error: "Transporter must be verified to post trips" });
+      }
+      
+      const { selfAssign, assignedDriverId, assignedVehicleId, ...rideData } = req.body;
+      
+      const parseResult = insertRideSchema.safeParse({
+        ...rideData,
+        createdById: sessionUser.id,
+        transporterId: selfAssign ? sessionUser.transporterId : undefined,
+        assignedDriverId: selfAssign ? assignedDriverId : undefined,
+        assignedVehicleId: selfAssign ? assignedVehicleId : undefined,
+        status: selfAssign ? "assigned" : "pending",
+        biddingStatus: selfAssign ? "self_assigned" : "open",
+        isSelfAssigned: selfAssign || false
+      });
+      
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid trip data", details: parseResult.error.errors });
+      }
+      
+      const newRide = await storage.createRide(parseResult.data);
+      
+      res.status(201).json(newRide);
+    } catch (error) {
+      console.error("Failed to create trip:", error);
+      res.status(500).json({ error: "Failed to create trip" });
     }
   });
 
