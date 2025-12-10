@@ -189,10 +189,10 @@ export default function AdminRoles() {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pl-64">
       <AdminSidebar />
       
-      <main className="flex-1 p-6">
+      <main className="p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Roles & Permissions</h1>
