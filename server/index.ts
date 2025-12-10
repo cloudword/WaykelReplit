@@ -4,6 +4,8 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import MemoryStore from "memorystore";
+import pgSession from "connect-pg-simple";
+import { Pool } from "pg";
 import { storage, sanitizeRequestBody } from "./storage";
 import { globalLimiter } from "./rate-limiter";
 
@@ -39,6 +41,7 @@ declare module "express-session" {
 }
 
 const MemoryStoreSession = MemoryStore(session);
+const PgSessionStore = pgSession(session);
 
 const sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret && process.env.NODE_ENV === "production") {
@@ -90,14 +93,31 @@ if (process.env.REPL_ID || process.env.NODE_ENV === "production") {
 const isProduction = process.env.NODE_ENV === "production";
 const needsCrossOriginCookies = isProduction || !!process.env.CUSTOMER_PORTAL_URL;
 
+// Create session store - use PostgreSQL if DATABASE_URL is available, otherwise MemoryStore
+const createSessionStore = () => {
+  if (process.env.DATABASE_URL) {
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+    });
+    return new PgSessionStore({
+      pool,
+      tableName: 'user_sessions',
+      createTableIfMissing: true,
+    });
+  }
+  console.warn("No DATABASE_URL found, using MemoryStore for sessions (sessions will be lost on restart)");
+  return new MemoryStoreSession({
+    checkPeriod: 86400000,
+  });
+};
+
 app.use(
   session({
     secret: sessionSecret || require("crypto").randomBytes(32).toString("hex"),
     resave: false,
     saveUninitialized: false,
-    store: new MemoryStoreSession({
-      checkPeriod: 86400000,
-    }),
+    store: createSessionStore(),
     cookie: {
       secure: isProduction, // Only require HTTPS in production
       httpOnly: true,
