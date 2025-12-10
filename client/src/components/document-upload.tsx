@@ -187,11 +187,13 @@ export function DocumentUpload({
 
         if (entityType === "driver") {
           docData.userId = entityId;
-        } else {
+        } else if (entityType === "vehicle") {
           docData.vehicleId = entityId;
         }
 
-        if (transporterId) {
+        if (entityType === "transporter") {
+          docData.transporterId = entityId;
+        } else if (transporterId) {
           docData.transporterId = transporterId;
         }
 
