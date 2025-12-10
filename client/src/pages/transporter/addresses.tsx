@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ElementType } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -21,7 +21,7 @@ interface SavedAddress {
   addressType?: string;
 }
 
-const ADDRESS_TYPE_ICONS: Record<string, React.ElementType> = {
+const ADDRESS_TYPE_ICONS: Record<string, ElementType> = {
   home: Home,
   warehouse: Warehouse,
   office: Building,
