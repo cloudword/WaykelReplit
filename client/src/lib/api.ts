@@ -246,4 +246,155 @@ export const api = {
       return res.json();
     },
   },
+  roles: {
+    list: async () => {
+      const res = await fetch(`${API_BASE}/roles`, { credentials: "include" });
+      return res.json();
+    },
+    create: async (data: { name: string; description?: string; permissions: string[] }) => {
+      const res = await fetch(`${API_BASE}/roles`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      return res.json();
+    },
+    update: async (id: string, data: { name?: string; description?: string; permissions?: string[] }) => {
+      const res = await fetch(`${API_BASE}/roles/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      return res.json();
+    },
+    delete: async (id: string) => {
+      const res = await fetch(`${API_BASE}/roles/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      return res.json();
+    },
+    getPermissions: async () => {
+      const res = await fetch(`${API_BASE}/permissions`, { credentials: "include" });
+      return res.json();
+    },
+    getUserRoles: async (userId: string) => {
+      const res = await fetch(`${API_BASE}/users/${userId}/roles`, { credentials: "include" });
+      return res.json();
+    },
+    assignToUser: async (userId: string, roleId: string) => {
+      const res = await fetch(`${API_BASE}/users/${userId}/roles`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ roleId }),
+      });
+      return res.json();
+    },
+    removeFromUser: async (userId: string, roleId: string) => {
+      const res = await fetch(`${API_BASE}/users/${userId}/roles/${roleId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      return res.json();
+    },
+  },
+  savedAddresses: {
+    list: async () => {
+      const res = await fetch(`${API_BASE}/saved-addresses`, { credentials: "include" });
+      return res.json();
+    },
+    create: async (data: { label: string; address: string; pincode?: string; city?: string; state?: string; addressType?: string }) => {
+      const res = await fetch(`${API_BASE}/saved-addresses`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      return res.json();
+    },
+    update: async (id: string, data: any) => {
+      const res = await fetch(`${API_BASE}/saved-addresses/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      return res.json();
+    },
+    delete: async (id: string) => {
+      const res = await fetch(`${API_BASE}/saved-addresses/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      return res.json();
+    },
+  },
+  driverApplications: {
+    list: async () => {
+      const res = await fetch(`${API_BASE}/driver-applications`, { credentials: "include" });
+      return res.json();
+    },
+    get: async (id: string) => {
+      const res = await fetch(`${API_BASE}/driver-applications/${id}`, { credentials: "include" });
+      return res.json();
+    },
+    getMyApplication: async () => {
+      const res = await fetch(`${API_BASE}/my-driver-application`, { credentials: "include" });
+      return res.json();
+    },
+    create: async (data: any) => {
+      const res = await fetch(`${API_BASE}/driver-applications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      return res.json();
+    },
+    update: async (id: string, data: any) => {
+      const res = await fetch(`${API_BASE}/driver-applications/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      return res.json();
+    },
+    withdraw: async (id: string) => {
+      const res = await fetch(`${API_BASE}/driver-applications/${id}/withdraw`, {
+        method: "POST",
+        credentials: "include",
+      });
+      return res.json();
+    },
+    hire: async (id: string, transporterId?: string) => {
+      const res = await fetch(`${API_BASE}/driver-applications/${id}/hire`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ transporterId }),
+      });
+      return res.json();
+    },
+  },
+  tripPosting: {
+    create: async (data: any) => {
+      const res = await fetch(`${API_BASE}/transporter/trips`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      return res.json();
+    },
+  },
+  vehicleTypes: {
+    list: async () => {
+      const res = await fetch(`${API_BASE}/vehicle-types`, { credentials: "include" });
+      return res.json();
+    },
+  },
 };
