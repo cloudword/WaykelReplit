@@ -224,7 +224,18 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (process.env.NODE_ENV === "production") {
-    serveStatic(app);
+    try {
+      serveStatic(app);
+    } catch (error) {
+      console.error("[static] Failed to set up static file serving:", error);
+      // Still serve API endpoints even if static files fail
+      app.use("*", (_req, res) => {
+        res.status(503).json({ 
+          error: "Frontend not available", 
+          message: "Static files could not be loaded. API endpoints are still available at /api/*"
+        });
+      });
+    }
   } else {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
