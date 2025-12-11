@@ -98,23 +98,41 @@ const needsCrossOriginCookies = isProduction || !!process.env.CUSTOMER_PORTAL_UR
 // Development: Use MemoryStore (sessions lost on restart)
 const createSessionStore = () => {
   if (isProduction && process.env.DATABASE_URL) {
-    console.log("Using PostgreSQL session store for production");
-    const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
-    });
-    return new PgSessionStore({
-      pool,
-      tableName: 'user_sessions',
-      createTableIfMissing: true,
-      pruneSessionInterval: 60 * 15, // Prune expired sessions every 15 min
-    });
+    try {
+      console.log("Using PostgreSQL session store for production");
+      
+      // Create a separate pool for sessions with proper error handling
+      const sessionPool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+        max: 3,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+      });
+      
+      // Handle pool errors without crashing
+      sessionPool.on('error', (err) => {
+        console.error('Session pool error (non-fatal):', err.message);
+      });
+      
+      const store = new PgSessionStore({
+        pool: sessionPool,
+        tableName: 'user_sessions',
+        createTableIfMissing: true,
+        pruneSessionInterval: 60 * 15,
+        errorLog: console.error.bind(console, 'Session store error:'),
+      });
+      
+      return store;
+    } catch (error: any) {
+      console.error("Failed to create PostgreSQL session store:", error.message);
+      console.log("Falling back to MemoryStore");
+      return new MemoryStoreSession({ checkPeriod: 86400000 });
+    }
   }
   
   console.log("Using MemoryStore for sessions (development mode)");
-  return new MemoryStoreSession({
-    checkPeriod: 86400000,
-  });
+  return new MemoryStoreSession({ checkPeriod: 86400000 });
 };
 
 app.use(
@@ -224,7 +242,18 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (process.env.NODE_ENV === "production") {
-    serveStatic(app);
+    try {
+      serveStatic(app);
+    } catch (error) {
+      console.error("[static] Failed to set up static file serving:", error);
+      // Still serve API endpoints even if static files fail
+      app.use("*", (_req, res) => {
+        res.status(503).json({ 
+          error: "Frontend not available", 
+          message: "Static files could not be loaded. API endpoints are still available at /api/*"
+        });
+      });
+    }
   } else {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);

@@ -1,0 +1,112 @@
+Dec 11 17:06:48  
+Dec 11 17:06:48  > rest-express@1.0.0 start
+Dec 11 17:06:48  > NODE_ENV=production node dist/index.cjs
+Dec 11 17:06:48  
+Dec 11 17:06:49  Using PostgreSQL session store for production
+Dec 11 17:06:49  [static] Starting static file setup...
+Dec 11 17:06:49  [static] __dirname: /workspace/dist
+Dec 11 17:06:49  [static] process.cwd(): /workspace
+Dec 11 17:06:49  [static] Checking paths for index.html:
+Dec 11 17:06:49  [static]   /workspace/dist/public - exists: true, has index.html: true
+Dec 11 17:06:49  [static] ✓ Using: /workspace/dist/public
+Dec 11 17:06:49  5:06:49 PM [express] serving on port 8080
+Dec 11 17:07:08  Uncaught Exception: TypeError: Cannot set property message of #<ya> which has only a getter
+Dec 11 17:07:08      at wA._connectionCallback (/workspace/dist/index.cjs:102:49672)
+Dec 11 17:07:08      at wA._handleErrorWhileConnecting (/workspace/dist/index.cjs:102:41606)
+Dec 11 17:07:08      at wA._handleErrorEvent (/workspace/dist/index.cjs:102:41704)
+Dec 11 17:07:08      at u.emit (/workspace/dist/index.cjs:101:136027)
+Dec 11 17:07:08      at pe.reportStreamError (/workspace/dist/index.cjs:102:33987)
+Dec 11 17:07:08      at pe.emit (/workspace/dist/index.cjs:101:136027)
+Dec 11 17:07:08      at t.<anonymous> (/workspace/dist/index.cjs:102:15669)
+Dec 11 17:07:08      at Ul (/workspace/dist/index.cjs:71:25533)
+Dec 11 17:07:08      at t.i (/workspace/dist/index.cjs:71:25099)
+Dec 11 17:07:08      at t.emit (node:events:518:28)
+Dec 11 17:07:18  Uncaught Exception: TypeError: Cannot set property message of #<ya> which has only a getter
+Dec 11 17:07:18      at wA._connectionCallback (/workspace/dist/index.cjs:102:49672)
+Dec 11 17:07:18      at wA._handleErrorWhileConnecting (/workspace/dist/index.cjs:102:41606)
+Dec 11 17:07:18      at wA._handleErrorEvent (/workspace/dist/index.cjs:102:41704)
+Dec 11 17:07:18      at u.emit (/workspace/dist/index.cjs:101:136027)
+Dec 11 17:07:18      at pe.reportStreamError (/workspace/dist/index.cjs:102:33987)
+Dec 11 17:07:18      at pe.emit (/workspace/dist/index.cjs:101:136027)
+Dec 11 17:07:18      at t.<anonymous> (/workspace/dist/index.cjs:102:15669)
+Dec 11 17:07:18      at Ul (/workspace/dist/index.cjs:71:25533)
+Dec 11 17:07:18      at t.i (/workspace/dist/index.cjs:71:25099)
+Dec 11 17:07:18      at t.emit (node:events:518:28)
+Dec 11 17:07:28  Uncaught Exception: TypeError: Cannot set property message of #<ya> which has only a getter
+Dec 11 17:07:28      at wA._connectionCallback (/workspace/dist/index.cjs:102:49672)
+Dec 11 17:07:28      at wA._handleErrorWhileConnecting (/workspace/dist/index.cjs:102:41606)
+Dec 11 17:07:28      at wA._handleErrorEvent (/workspace/dist/index.cjs:102:41704)
+Dec 11 17:07:28      at u.emit (/workspace/dist/index.cjs:101:136027)
+Dec 11 17:07:28      at pe.reportStreamError (/workspace/dist/index.cjs:102:33987)
+Dec 11 17:07:28      at pe.emit (/workspace/dist/index.cjs:101:136027)
+Dec 11 17:07:28      at t.<anonymous> (/workspace/dist/index.cjs:102:15669)
+Dec 11 17:07:28      at Ul (/workspace/dist/index.cjs:71:25533)
+Dec 11 17:07:28      at t.i (/workspace/dist/index.cjs:71:25099)
+Dec 11 17:07:28      at t.emit (node:events:518:28)
+Dec 11 17:07:38  Uncaught Exception: TypeError: Cannot set property message of #<ya> which has only a getter
+Dec 11 17:07:38      at wA._connectionCallback (/workspace/dist/index.cjs:102:49672)
+Dec 11 17:07:38      at wA._handleErrorWhileConnecting (/workspace/dist/index.cjs:102:41606)
+Dec 11 17:07:38      at wA._handleErrorEvent (/workspace/dist/index.cjs:102:41704)
+Dec 11 17:07:38      at u.emit (/workspace/dist/index.cjs:101:136027)
+Dec 11 17:07:38      at pe.reportStreamError (/workspace/dist/index.cjs:102:33987)
+Dec 11 17:07:38      at pe.emit (/workspace/dist/index.cjs:101:136027)
+Dec 11 17:07:38      at t.<anonymous> (/workspace/dist/index.cjs:102:15669)
+Dec 11 17:07:38      at Ul (/workspace/dist/index.cjs:71:25533)
+Dec 11 17:07:38      at t.i (/workspace/dist/index.cjs:71:25099)
+Dec 11 17:07:38      at t.emit (node:events:518:28)
+Dec 11 17:07:48  Uncaught Exception: TypeError: Cannot set property message of #<ya> which has only a getter
+Dec 11 17:07:48      at wA._connectionCallback (/workspace/dist/index.cjs:102:49672)
+Dec 11 17:07:48      at wA._handleErrorWhileConnecting (/workspace/dist/index.cjs:102:41606)
+Dec 11 17:07:48      at wA._handleErrorEvent (/workspace/dist/index.cjs:102:41704)
+Dec 11 17:07:48      at u.emit (/workspace/dist/index.cjs:101:136027)
+Dec 11 17:07:48      at pe.reportStreamError (/workspace/dist/index.cjs:102:33987)
+Dec 11 17:07:48      at pe.emit (/workspace/dist/index.cjs:101:136027)
+Dec 11 17:07:48      at t.<anonymous> (/workspace/dist/index.cjs:102:15669)
+Dec 11 17:07:48      at Ul (/workspace/dist/index.cjs:71:25533)
+Dec 11 17:07:48      at t.i (/workspace/dist/index.cjs:71:25099)
+Dec 11 17:07:48      at t.emit (node:events:518:28)
+Dec 11 17:07:58  Uncaught Exception: TypeError: Cannot set property message of #<ya> which has only a getter
+Dec 11 17:07:58      at wA._connectionCallback (/workspace/dist/index.cjs:102:49672)
+Dec 11 17:07:58      at wA._handleErrorWhileConnecting (/workspace/dist/index.cjs:102:41606)
+Dec 11 17:07:58      at wA._handleErrorEvent (/workspace/dist/index.cjs:102:41704)
+Dec 11 17:07:58      at u.emit (/workspace/dist/index.cjs:101:136027)
+Dec 11 17:07:58      at pe.reportStreamError (/workspace/dist/index.cjs:102:33987)
+Dec 11 17:07:58      at pe.emit (/workspace/dist/index.cjs:101:136027)
+Dec 11 17:07:58      at t.<anonymous> (/workspace/dist/index.cjs:102:15669)
+Dec 11 17:07:58      at Ul (/workspace/dist/index.cjs:71:25533)
+Dec 11 17:07:58      at t.i (/workspace/dist/index.cjs:71:25099)
+Dec 11 17:07:58      at t.emit (node:events:518:28)
+Dec 11 17:08:08  Uncaught Exception: TypeError: Cannot set property message of #<ya> which has only a getter
+Dec 11 17:08:08      at wA._connectionCallback (/workspace/dist/index.cjs:102:49672)
+Dec 11 17:08:08      at wA._handleErrorWhileConnecting (/workspace/dist/index.cjs:102:41606)
+Dec 11 17:08:08      at wA._handleErrorEvent (/workspace/dist/index.cjs:102:41704)
+Dec 11 17:08:08      at u.emit (/workspace/dist/index.cjs:101:136027)
+Dec 11 17:08:08      at pe.reportStreamError (/workspace/dist/index.cjs:102:33987)
+Dec 11 17:08:08      at pe.emit (/workspace/dist/index.cjs:101:136027)
+Dec 11 17:08:08      at t.<anonymous> (/workspace/dist/index.cjs:102:15669)
+Dec 11 17:08:08      at Ul (/workspace/dist/index.cjs:71:25533)
+Dec 11 17:08:08      at t.i (/workspace/dist/index.cjs:71:25099)
+Dec 11 17:08:08      at t.emit (node:events:518:28)
+Dec 11 17:08:18  Uncaught Exception: TypeError: Cannot set property message of #<ya> which has only a getter
+Dec 11 17:08:18      at wA._connectionCallback (/workspace/dist/index.cjs:102:49672)
+Dec 11 17:08:18      at wA._handleErrorWhileConnecting (/workspace/dist/index.cjs:102:41606)
+Dec 11 17:08:18      at wA._handleErrorEvent (/workspace/dist/index.cjs:102:41704)
+Dec 11 17:08:18      at u.emit (/workspace/dist/index.cjs:101:136027)
+Dec 11 17:08:18      at pe.reportStreamError (/workspace/dist/index.cjs:102:33987)
+Dec 11 17:08:18      at pe.emit (/workspace/dist/index.cjs:101:136027)
+Dec 11 17:08:18      at t.<anonymous> (/workspace/dist/index.cjs:102:15669)
+Dec 11 17:08:18      at Ul (/workspace/dist/index.cjs:71:25533)
+Dec 11 17:08:18      at t.i (/workspace/dist/index.cjs:71:25099)
+Dec 11 17:08:18      at t.emit (node:events:518:28)
+Dec 11 17:08:28  Uncaught Exception: TypeError: Cannot set property message of #<ya> which has only a getter
+Dec 11 17:08:28      at wA._connectionCallback (/workspace/dist/index.cjs:102:49672)
+Dec 11 17:08:28      at wA._handleErrorWhileConnecting (/workspace/dist/index.cjs:102:41606)
+Dec 11 17:08:28      at wA._handleErrorEvent (/workspace/dist/index.cjs:102:41704)
+Dec 11 17:08:28      at u.emit (/workspace/dist/index.cjs:101:136027)
+Dec 11 17:08:28      at pe.reportStreamError (/workspace/dist/index.cjs:102:33987)
+Dec 11 17:08:28      at pe.emit (/workspace/dist/index.cjs:101:136027)
+Dec 11 17:08:28      at t.<anonymous> (/workspace/dist/index.cjs:102:15669)
+Dec 11 17:08:28      at Ul (/workspace/dist/index.cjs:71:25533)
+Dec 11 17:08:28      at t.i (/workspace/dist/index.cjs:71:25099)
+Dec 11 17:08:28      at t.emit (node:events:518:28)
+Dec 11 17:08:38  ERROR failed health checks after 10 attempts with error Readiness probe failed: Get "http://100.127.17.50:8080/api/health": context deadline exceeded (Client.Timeout exceeded while awaiting headers)

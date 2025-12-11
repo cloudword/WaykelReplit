@@ -8,7 +8,8 @@ const allowlist = [
   "@google/generative-ai",
   "@neondatabase/serverless",
   "axios",
-  "connect-pg-simple",
+  // Note: connect-pg-simple and pg are excluded from bundling
+  // to avoid compatibility issues with minified code
   "cors",
   "date-fns",
   "drizzle-orm",
