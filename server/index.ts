@@ -4,8 +4,6 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import MemoryStore from "memorystore";
-import pgSession from "connect-pg-simple";
-import { Pool } from "pg";
 import { storage, sanitizeRequestBody } from "./storage";
 import { globalLimiter } from "./rate-limiter";
 
@@ -41,7 +39,6 @@ declare module "express-session" {
 }
 
 const MemoryStoreSession = MemoryStore(session);
-const PgSessionStore = pgSession(session);
 
 const sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret && process.env.NODE_ENV === "production") {
@@ -93,45 +90,12 @@ if (process.env.REPL_ID || process.env.NODE_ENV === "production") {
 const isProduction = process.env.NODE_ENV === "production";
 const needsCrossOriginCookies = isProduction || !!process.env.CUSTOMER_PORTAL_URL;
 
-// Create session store based on environment
-// Production: Use PostgreSQL for persistent sessions across deployments
-// Development: Use MemoryStore (sessions lost on restart)
+// Create session store
+// Using MemoryStore for sessions - simple and reliable
+// Note: Sessions will be cleared on app restart, but this works for most use cases
+// All app data (users, rides, etc.) still uses PostgreSQL via Neon
 const createSessionStore = () => {
-  if (isProduction && process.env.DATABASE_URL) {
-    try {
-      console.log("Using PostgreSQL session store for production");
-      
-      // Create a separate pool for sessions with proper error handling
-      const sessionPool = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false },
-        max: 3,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 10000,
-      });
-      
-      // Handle pool errors without crashing
-      sessionPool.on('error', (err) => {
-        console.error('Session pool error (non-fatal):', err.message);
-      });
-      
-      const store = new PgSessionStore({
-        pool: sessionPool,
-        tableName: 'user_sessions',
-        createTableIfMissing: true,
-        pruneSessionInterval: 60 * 15,
-        errorLog: console.error.bind(console, 'Session store error:'),
-      });
-      
-      return store;
-    } catch (error: any) {
-      console.error("Failed to create PostgreSQL session store:", error.message);
-      console.log("Falling back to MemoryStore");
-      return new MemoryStoreSession({ checkPeriod: 86400000 });
-    }
-  }
-  
-  console.log("Using MemoryStore for sessions (development mode)");
+  console.log("Using MemoryStore for sessions");
   return new MemoryStoreSession({ checkPeriod: 86400000 });
 };
 
