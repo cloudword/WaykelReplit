@@ -6,10 +6,8 @@ import { rm, readFile } from "fs/promises";
 // which helps cold start times
 const allowlist = [
   "@google/generative-ai",
-  "@neondatabase/serverless",
+  // Note: pg is excluded from bundling to avoid compatibility issues
   "axios",
-  // Note: connect-pg-simple and pg are excluded from bundling
-  // to avoid compatibility issues with minified code
   "cors",
   "date-fns",
   "drizzle-orm",

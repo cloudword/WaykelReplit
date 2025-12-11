@@ -46,7 +46,7 @@ The Waykel platform is built with a mobile-first, role-based approach, ensuring 
 ### External Dependencies
 
 **Database:**
--   **Neon PostgreSQL**: Utilized as the serverless PostgreSQL provider, accessed via `@neondatabase/serverless` and Drizzle ORM.
+-   **PostgreSQL**: Standard PostgreSQL connection via `pg` library and Drizzle ORM. Supports any PostgreSQL provider including DigitalOcean Managed Database, AWS RDS, or self-hosted.
 
 **UI/UX Components:**
 -   **Radix UI primitives**: For accessible, unstyled UI components.
