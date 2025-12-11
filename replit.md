@@ -81,7 +81,21 @@ The Waykel platform is built with a mobile-first, role-based approach, ensuring 
 -   **Native Features**: Geolocation, Camera, Push Notifications via `client/src/lib/native.ts`
 
 **Document Upload System:**
--   Direct file uploads are supported for driver and vehicle documents, storing them in cloud storage (e.g., Replit Object Storage, Google Cloud Storage, AWS S3) with private visibility and role-based access control.
+-   Direct file uploads are supported for driver and vehicle documents, storing them in cloud storage with private visibility and role-based access control.
+-   **Multi-Provider Support**: Supports both Google Cloud Storage (for Replit) and DigitalOcean Spaces (for self-hosted deployments).
+-   **Spaces Storage**: `server/spacesStorage.ts` provides S3-compatible storage for DigitalOcean Spaces.
+
+**Session Storage:**
+-   **Development**: MemoryStore (sessions lost on server restart)
+-   **Production**: PostgreSQL-backed sessions via `connect-pg-simple` (persistent across deployments)
+-   Auto-creates `user_sessions` table when using PostgreSQL session store
+
+**DigitalOcean Deployment:**
+-   Full deployment guide: `docs/DIGITALOCEAN_DEPLOYMENT.md`
+-   **Required Environment Variables**: `DATABASE_URL`, `SESSION_SECRET`, `JWT_SECRET`, `NODE_ENV`
+-   **Spaces Variables**: `DO_SPACES_ENDPOINT`, `DO_SPACES_KEY`, `DO_SPACES_SECRET`, `DO_SPACES_BUCKET`
+-   **Build Command**: `npm install && npm run build`
+-   **Run Command**: `npm start`
 
 **Replit-Specific Integrations:**
 -   Includes development plugins like `@replit/vite-plugin-runtime-error-modal` and `@replit/vite-plugin-cartographer`, which are enabled only when running on Replit.
