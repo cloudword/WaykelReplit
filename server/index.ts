@@ -94,24 +94,12 @@ const isProduction = process.env.NODE_ENV === "production";
 const needsCrossOriginCookies = isProduction || !!process.env.CUSTOMER_PORTAL_URL;
 
 // Create session store based on environment
-// Production: Use PostgreSQL for persistent sessions across deployments
-// Development: Use MemoryStore (sessions lost on restart)
+// Note: Using MemoryStore for both environments for now
+// PostgreSQL session store can be enabled once database connection is verified
 const createSessionStore = () => {
-  if (isProduction && process.env.DATABASE_URL) {
-    console.log("Using PostgreSQL session store for production");
-    const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
-    });
-    return new PgSessionStore({
-      pool,
-      tableName: 'user_sessions',
-      createTableIfMissing: true,
-      pruneSessionInterval: 60 * 15, // Prune expired sessions every 15 min
-    });
-  }
-  
-  console.log("Using MemoryStore for sessions (development mode)");
+  // Temporarily use MemoryStore in all environments to avoid pg connection issues
+  // The main app data still uses PostgreSQL via Drizzle/Neon
+  console.log("Using MemoryStore for sessions");
   return new MemoryStoreSession({
     checkPeriod: 86400000,
   });
