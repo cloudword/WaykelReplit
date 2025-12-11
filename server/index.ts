@@ -4,6 +4,8 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import MemoryStore from "memorystore";
+import pgSession from "connect-pg-simple";
+import { Pool } from "pg";
 import { storage, sanitizeRequestBody } from "./storage";
 import { globalLimiter } from "./rate-limiter";
 
@@ -39,6 +41,7 @@ declare module "express-session" {
 }
 
 const MemoryStoreSession = MemoryStore(session);
+const PgSessionStore = pgSession(session);
 
 const sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret && process.env.NODE_ENV === "production") {
@@ -90,16 +93,36 @@ if (process.env.REPL_ID || process.env.NODE_ENV === "production") {
 const isProduction = process.env.NODE_ENV === "production";
 const needsCrossOriginCookies = isProduction || !!process.env.CUSTOMER_PORTAL_URL;
 
-// Use MemoryStore for sessions (simple and reliable for development)
-// Note: Sessions will be lost on server restart - user will need to log in again
+// Create session store based on environment
+// Production: Use PostgreSQL for persistent sessions across deployments
+// Development: Use MemoryStore (sessions lost on restart)
+const createSessionStore = () => {
+  if (isProduction && process.env.DATABASE_URL) {
+    console.log("Using PostgreSQL session store for production");
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+    });
+    return new PgSessionStore({
+      pool,
+      tableName: 'user_sessions',
+      createTableIfMissing: true,
+      pruneSessionInterval: 60 * 15, // Prune expired sessions every 15 min
+    });
+  }
+  
+  console.log("Using MemoryStore for sessions (development mode)");
+  return new MemoryStoreSession({
+    checkPeriod: 86400000,
+  });
+};
+
 app.use(
   session({
     secret: sessionSecret || require("crypto").randomBytes(32).toString("hex"),
     resave: false,
     saveUninitialized: false,
-    store: new MemoryStoreSession({
-      checkPeriod: 86400000,
-    }),
+    store: createSessionStore(),
     cookie: {
       secure: isProduction, // Only require HTTPS in production
       httpOnly: true,
