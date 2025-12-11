@@ -100,12 +100,27 @@ const createSessionStore = () => {
   if (isProduction && process.env.DATABASE_URL) {
     console.log("Using PostgreSQL session store for production");
     
-    // Create a dedicated pool for sessions with SSL enabled for DigitalOcean
+    // Load DigitalOcean CA certificate
+    const fs = require('fs');
+    const path = require('path');
+    const DEFAULT_CA_PATH = './certs/digitalocean-ca.crt';
+    const caPath = path.resolve(process.cwd(), process.env.DIGITALOCEAN_CA_PATH || DEFAULT_CA_PATH);
+    
+    let sslConfig: { ca?: string; rejectUnauthorized: boolean } = { rejectUnauthorized: false };
+    
+    if (fs.existsSync(caPath)) {
+      try {
+        const ca = fs.readFileSync(caPath, 'utf8');
+        sslConfig = { ca, rejectUnauthorized: true };
+        console.log("[session] Using DigitalOcean CA certificate for SSL");
+      } catch (err) {
+        console.warn("[session] Could not read CA file, using rejectUnauthorized: false");
+      }
+    }
+    
     const sessionPool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: {
-        rejectUnauthorized: false,
-      },
+      ssl: sslConfig,
       max: 5,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
