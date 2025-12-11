@@ -1,0 +1,69 @@
+Nice — here’s a ready-to-paste db.js you can drop into your Repl (Option 1). It reads digitalocean-ca.crt from a path you set in the Replit Secrets (or falls back to ./digitalocean-ca.crt), verifies the file exists (so you get a clear helpful error if path is wrong), and configures pg to validate TLS using the DO CA.
+
+Steps before pasting
+
+Upload digitalocean-ca.crt to your Repl (root or /certs/).
+
+In Replit Secrets (lock icon) optionally add DIGITALOCEAN_CA_PATH = ./digitalocean-ca.crt (or ./certs/digitalocean-ca.crt).
+
+Paste the file below as db.js in your project.
+
+Update any imports that previously required your old pool file to const pool = require('./db'); (path as needed).
+
+Restart the Repl (Run).
+
+db.js (copy-paste)
+// db.js
+// Safe PostgreSQL Pool for DigitalOcean Managed Postgres using DO CA cert
+// Usage: place digitalocean-ca.crt in your repl (root or ./certs/) and optionally set env DIGITALOCEAN_CA_PATH
+
+const fs = require('fs');
+const path = require('path');
+const { Pool } = require('pg');
+
+const DEFAULT_CA_RELATIVE = './digitalocean-ca.crt'; // change if you place it in ./certs/digitalocean-ca.crt
+const caRelativePath = process.env.DIGITALOCEAN_CA_PATH || DEFAULT_CA_RELATIVE;
+const caPath = path.resolve(process.cwd(), caRelativePath);
+
+// helpful startup message and fail-fast if file missing in dev
+if (!fs.existsSync(caPath)) {
+  console.error('\n✖ digitalocean CA file not found.\nExpected at:', caPath);
+  console.error('Upload digitalocean-ca.crt to your Repl and/or set DIGITALOCEAN_CA_PATH to the correct path.\n');
+  // In production you may prefer not to exit; here we set process.exitCode so the Repl shows an error but won't force-kill in all cases.
+  process.exitCode = 1;
+}
+
+let ca = null;
+try {
+  ca = fs.readFileSync(caPath, 'utf8');
+} catch (err) {
+  console.error('Failed to read CA file at', caPath, ' — ', err.message);
+  // leave ca null; pool creation below will likely fail and show clear error
+}
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: ca ? { ca, rejectUnauthorized: true } : undefined
+});
+
+// Optional: handle pool errors gracefully
+pool.on('error', (err) => {
+  console.error('Postgres pool error:', err && err.message ? err.message : err);
+});
+
+module.exports = pool;
+
+Quick testing inside Replit
+
+Open the Replit console (shell) and run:
+
+# check file exists & path
+ls -l $(pwd)/digitalocean-ca.crt
+# or if you put in certs
+ls -l $(pwd)/certs/digitalocean-ca.crt
+
+# start your app exactly as Replit does to confirm environment is correct
+node dist/index.cjs
+
+
+Watch logs — the SELF_SIGNED_CERT_IN_CHAIN errors should disappear and, when connected, your health endpoint should show database: connected (or the app should stop throwing on log writes).
