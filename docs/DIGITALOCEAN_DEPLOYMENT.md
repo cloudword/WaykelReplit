@@ -70,6 +70,9 @@ Go to **Settings** → **App-Level Environment Variables** and add:
 | `SESSION_SECRET` | Random 32+ character string | Yes |
 | `JWT_SECRET` | Random 32+ character string | Yes |
 | `NODE_ENV` | `production` | No |
+| `NODE_EXTRA_CA_CERTS` | `/workspace/certs/digitalocean-ca.crt` | No |
+
+**Note on SSL Certificate**: The `NODE_EXTRA_CA_CERTS` variable tells Node.js to trust the DigitalOcean CA certificate for secure database connections. The path `/workspace/certs/digitalocean-ca.crt` is the standard App Platform path. If this doesn't work, try `/app/certs/digitalocean-ca.crt`. The CA certificate file is already included in the repository at `./certs/digitalocean-ca.crt`.
 
 #### DigitalOcean Spaces (Optional - for file uploads)
 

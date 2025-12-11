@@ -1,0 +1,104 @@
+Nice — here’s the best, production-safe fix for your situation (source in Replit; app deployed to DigitalOcean App Platform, DB is DigitalOcean Managed Postgres).
+
+Short answer (one line)
+
+Include the DigitalOcean CA file in your app image and set NODE_EXTRA_CA_CERTS=/app/certs/digitalocean-ca.crt in App Platform — this is reliable, simple, and keeps TLS verification enabled (secure).
+
+Why this is the best fix
+
+NODE_EXTRA_CA_CERTS adds the DO CA to Node’s trust store process-wide — no code changes required and it works for any library (pg, libpq bindings, etc.).
+
+Keeps rejectUnauthorized: true so you’re not disabling verification (safe vs NODE_TLS_REJECT_UNAUTHORIZED=0).
+
+Works cleanly in App Platform where you control the image repo and startup command.
+
+CA files are public (not secrets) so keeping the CA in repo is acceptable.
+
+Step-by-step: implement the fix (copy-paste)
+
+Place the DO CA in your repo
+
+Download ca-certificate.crt from DO Dashboard → Databases → Connection Details.
+
+Add it to your repo at ./certs/digitalocean-ca.crt (commit & push).
+
+Update your db.js (if not already using the smart file I provided)
+
+Use the db.js I gave previously — it already checks NODE_EXTRA_CA_CERTS and falls back to loading DIGITALOCEAN_CA_PATH. If you haven't added it, paste this snippet into db.js in your repo (it’s safe and production-ready):
+
+// use the db.js I provided earlier (supports NODE_EXTRA_CA_CERTS and DIGITALOCEAN_CA_PATH)
+
+
+Ensure your pool is created with ssl: { rejectUnauthorized: true } or with ca loaded as shown earlier.
+
+In DigitalOcean App Platform, set the env var
+
+In your App → Service → Components → Environment Variables, add:
+
+NODE_EXTRA_CA_CERTS = /app/certs/digitalocean-ca.crt
+
+
+(If your app root in App Platform maps to /app, that path is correct. If your runtime root is different, use the absolute container path your image uses.)
+
+(Optional alternative) If you prefer not to use NODE_EXTRA_CA_CERTS, set:
+
+Upload ./certs/digitalocean-ca.crt to the app
+
+Set env var:
+
+DIGITALOCEAN_CA_PATH = /app/certs/digitalocean-ca.crt
+
+
+Keep the db.js that reads DIGITALOCEAN_CA_PATH and sets ssl: { ca, rejectUnauthorized: true }.
+
+Set DATABASE_URL in App Platform
+
+Add the full DATABASE_URL from DigitalOcean (include port 25060 if provided) in App Platform env vars.
+
+Restart the App Platform service
+
+Test & verify (run these in App Platform or local container)
+
+Quick pg test (from app root after deploy):
+
+node -e "const { pool } = require('./db'); pool.query('select 1 as ok').then(r=>console.log('pg ok', r.rows)).catch(e=>console.error('pg err', e.message)).finally(()=>process.exit())"
+
+
+Openssl to inspect server chain (run from a shell that can reach the DB host):
+
+openssl s_client -connect <DO_DB_HOST>:25060 -servername <DO_DB_HOST> -showcerts </dev/null | sed -n '1,160p'
+
+
+You should see the server cert and chain; they will validate against the CA you supplied.
+
+Health-check / logging safeguard (prevent noise)
+
+Wrap DB log writes so failed writes don’t crash health endpoints — use the safeLog helper in the db.js I gave:
+
+// when logging requests:
+const { pool, safeLog } = require('./db');
+await safeLog(() => pool.query('INSERT INTO api_logs ...', [ ... ]));
+
+Notes & gotchas
+
+Don’t set NODE_TLS_REJECT_UNAUTHORIZED=0 or ssl: { rejectUnauthorized:false } in production — that disables security.
+
+CA files are public (no private key). It’s standard to include them in build artifacts for TLS validation.
+
+If App Platform shows a different runtime path (not /app), use that absolute path for NODE_EXTRA_CA_CERTS or DIGITALOCEAN_CA_PATH.
+
+If you deploy via Docker, ensure your Dockerfile copies ./certs/digitalocean-ca.crt to /app/certs/digitalocean-ca.crt.
+
+Example Dockerfile snippet:
+
+COPY certs/digitalocean-ca.crt /app/certs/digitalocean-ca.crt
+ENV NODE_EXTRA_CA_CERTS=/app/certs/digitalocean-ca.crt
+
+
+If you want, I’ll:
+
+generate the exact Dockerfile snippet or App Platform start command with NODE_EXTRA_CA_CERTS set, or
+
+produce a one-file patch (updated db.js plus safeLog) you can paste into your repo.
+
+Which would you like?

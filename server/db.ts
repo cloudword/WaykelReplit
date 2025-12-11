@@ -12,22 +12,30 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Load DigitalOcean CA certificate for proper SSL verification
-const DEFAULT_CA_PATH = './certs/digitalocean-ca.crt';
-const caPath = path.resolve(process.cwd(), process.env.DIGITALOCEAN_CA_PATH || DEFAULT_CA_PATH);
-
+// SSL configuration for DigitalOcean Managed Database
+// Priority: NODE_EXTRA_CA_CERTS > DIGITALOCEAN_CA_PATH > fallback
 let sslConfig: { ca?: string; rejectUnauthorized: boolean } = { rejectUnauthorized: false };
 
-if (fs.existsSync(caPath)) {
-  try {
-    const ca = fs.readFileSync(caPath, 'utf8');
-    sslConfig = { ca, rejectUnauthorized: true };
-    console.log('[db] Using DigitalOcean CA certificate for SSL');
-  } catch (err) {
-    console.warn('[db] Could not read CA file, using rejectUnauthorized: false');
-  }
+if (process.env.NODE_EXTRA_CA_CERTS) {
+  // Node.js automatically loads the CA from NODE_EXTRA_CA_CERTS
+  sslConfig = { rejectUnauthorized: true };
+  console.log('[db] Using NODE_EXTRA_CA_CERTS for SSL verification');
 } else {
-  console.log('[db] CA certificate not found at', caPath, '- using rejectUnauthorized: false');
+  // Fallback: manually load CA certificate
+  const DEFAULT_CA_PATH = './certs/digitalocean-ca.crt';
+  const caPath = path.resolve(process.cwd(), process.env.DIGITALOCEAN_CA_PATH || DEFAULT_CA_PATH);
+  
+  if (fs.existsSync(caPath)) {
+    try {
+      const ca = fs.readFileSync(caPath, 'utf8');
+      sslConfig = { ca, rejectUnauthorized: true };
+      console.log('[db] Using DigitalOcean CA certificate for SSL');
+    } catch (err) {
+      console.warn('[db] Could not read CA file, using rejectUnauthorized: false');
+    }
+  } else {
+    console.log('[db] CA certificate not found at', caPath, '- using rejectUnauthorized: false');
+  }
 }
 
 // Database pool configuration with safety limits
@@ -43,5 +51,16 @@ export const pool = new Pool({
 pool.on('error', (err) => {
   console.error('Database pool error:', err);
 });
+
+// Safe wrapper for non-critical database operations (like logging)
+// Prevents failures from crashing the application
+export async function safeLog<T>(fn: () => Promise<T>): Promise<T | null> {
+  try {
+    return await fn();
+  } catch (err) {
+    console.error('[db] safeLog operation failed:', err);
+    return null;
+  }
+}
 
 export const db = drizzle(pool, { schema });
