@@ -4,6 +4,8 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import MemoryStore from "memorystore";
+import pgSession from "connect-pg-simple";
+import { Pool } from "pg";
 import { storage, sanitizeRequestBody } from "./storage";
 import { globalLimiter } from "./rate-limiter";
 
@@ -39,6 +41,7 @@ declare module "express-session" {
 }
 
 const MemoryStoreSession = MemoryStore(session);
+const PgSessionStore = pgSession(session);
 
 const sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret && process.env.NODE_ENV === "production") {
@@ -91,11 +94,36 @@ const isProduction = process.env.NODE_ENV === "production";
 const needsCrossOriginCookies = isProduction || !!process.env.CUSTOMER_PORTAL_URL;
 
 // Create session store
-// Using MemoryStore for sessions - simple and reliable
-// Note: Sessions will be cleared on app restart, but this works for most use cases
-// All app data (users, rides, etc.) still uses PostgreSQL via Neon
+// Production: Use PostgreSQL for persistent sessions (with SSL for DigitalOcean)
+// Development: Use MemoryStore
 const createSessionStore = () => {
-  console.log("Using MemoryStore for sessions");
+  if (isProduction && process.env.DATABASE_URL) {
+    console.log("Using PostgreSQL session store for production");
+    
+    // Create a dedicated pool for sessions with SSL enabled for DigitalOcean
+    const sessionPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false,
+      },
+      max: 5,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    });
+    
+    sessionPool.on("error", (err) => {
+      console.error("Session pool error:", err.message);
+    });
+    
+    return new PgSessionStore({
+      pool: sessionPool,
+      tableName: 'user_sessions',
+      createTableIfMissing: true,
+      pruneSessionInterval: 60 * 15,
+    });
+  }
+  
+  console.log("Using MemoryStore for sessions (development)");
   return new MemoryStoreSession({ checkPeriod: 86400000 });
 };
 
