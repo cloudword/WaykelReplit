@@ -94,15 +94,45 @@ const isProduction = process.env.NODE_ENV === "production";
 const needsCrossOriginCookies = isProduction || !!process.env.CUSTOMER_PORTAL_URL;
 
 // Create session store based on environment
-// Note: Using MemoryStore for both environments for now
-// PostgreSQL session store can be enabled once database connection is verified
+// Production: Use PostgreSQL for persistent sessions across deployments
+// Development: Use MemoryStore (sessions lost on restart)
 const createSessionStore = () => {
-  // Temporarily use MemoryStore in all environments to avoid pg connection issues
-  // The main app data still uses PostgreSQL via Drizzle/Neon
-  console.log("Using MemoryStore for sessions");
-  return new MemoryStoreSession({
-    checkPeriod: 86400000,
-  });
+  if (isProduction && process.env.DATABASE_URL) {
+    try {
+      console.log("Using PostgreSQL session store for production");
+      
+      // Create a separate pool for sessions with proper error handling
+      const sessionPool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+        max: 3,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+      });
+      
+      // Handle pool errors without crashing
+      sessionPool.on('error', (err) => {
+        console.error('Session pool error (non-fatal):', err.message);
+      });
+      
+      const store = new PgSessionStore({
+        pool: sessionPool,
+        tableName: 'user_sessions',
+        createTableIfMissing: true,
+        pruneSessionInterval: 60 * 15,
+        errorLog: console.error.bind(console, 'Session store error:'),
+      });
+      
+      return store;
+    } catch (error: any) {
+      console.error("Failed to create PostgreSQL session store:", error.message);
+      console.log("Falling back to MemoryStore");
+      return new MemoryStoreSession({ checkPeriod: 86400000 });
+    }
+  }
+  
+  console.log("Using MemoryStore for sessions (development mode)");
+  return new MemoryStoreSession({ checkPeriod: 86400000 });
 };
 
 app.use(
