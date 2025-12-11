@@ -56,7 +56,8 @@ async function buildAll() {
     define: {
       "process.env.NODE_ENV": '"production"',
     },
-    minify: true,
+    minify: false, // Disabled to fix pg error handling compatibility
+    keepNames: true, // Preserve class/function names for better error handling
     external: externals,
     logLevel: "info",
   });
