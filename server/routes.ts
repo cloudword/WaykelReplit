@@ -398,28 +398,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // Normalize phone for lookup
       const phone = req.body.phone ? normalizePhone(req.body.phone) : undefined;
       
-      // Debug logging
-      console.log("[LOGIN DEBUG] Input:", { username, phone: req.body.phone, normalizedPhone: phone });
-      
       let user;
       if (username) {
         user = await storage.getUserByUsername(username);
-        console.log("[LOGIN DEBUG] Username lookup result:", user ? user.phone : "not found");
       }
       if (!user && phone) {
         user = await storage.getUserByPhone(phone);
-        console.log("[LOGIN DEBUG] Phone lookup result:", user ? user.phone : "not found");
       }
       // Also try looking up by phone using the username value (for flexible login)
       if (!user && username) {
         const normalizedUsername = normalizePhone(username);
-        console.log("[LOGIN DEBUG] Trying username as phone:", normalizedUsername);
         user = await storage.getUserByPhone(normalizedUsername);
-        console.log("[LOGIN DEBUG] Username-as-phone lookup result:", user ? user.phone : "not found");
       }
       
       if (!user || !(await bcrypt.compare(password, user.password))) {
-        console.log("[LOGIN DEBUG] Failed - user found:", !!user, "password match:", user ? "checking..." : "N/A");
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
@@ -1726,9 +1718,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // File upload routes for document storage (requires authentication)
+  // Note: This route only works on Replit. For DigitalOcean, use /api/spaces/upload instead
   app.post("/api/objects/upload", async (req, res) => {
     if (!req.session?.user?.id) {
       return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    // Check if running on Replit - ObjectStorageService only works there
+    const isReplit = process.env.REPL_ID !== undefined;
+    if (!isReplit) {
+      // On non-Replit environments, check if Spaces is configured and redirect
+      const spacesStorage = getSpacesStorage();
+      if (spacesStorage) {
+        return res.status(400).json({ 
+          error: "Use /api/spaces/upload for file uploads on this server",
+          useSpacesApi: true
+        });
+      }
+      return res.status(503).json({ error: "Object storage not configured for this environment" });
     }
     
     try {
@@ -1743,9 +1750,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Serve uploaded files (authenticated users with ACL access)
+  // Note: This route only works on Replit. For DigitalOcean, use /api/spaces/download/:key instead
   app.get("/objects/:objectPath(*)", async (req, res) => {
     if (!req.session?.user?.id) {
       return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    // Check if running on Replit - ObjectStorageService only works there
+    const isReplit = process.env.REPL_ID !== undefined;
+    if (!isReplit) {
+      return res.status(503).json({ 
+        error: "Object storage not available. Use /api/spaces/download/:key for file downloads.",
+        useSpacesApi: true
+      });
     }
     
     try {
@@ -1780,9 +1797,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Confirm file upload and set ACL (requires authentication)
+  // Note: This route only works on Replit. For DigitalOcean, Spaces uploads don't need confirmation
   app.post("/api/objects/confirm", async (req, res) => {
     if (!req.session?.user?.id) {
       return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    // Check if running on Replit - ObjectStorageService only works there
+    const isReplit = process.env.REPL_ID !== undefined;
+    if (!isReplit) {
+      // On Spaces, uploads don't need confirmation - ACL is set during upload
+      return res.status(200).json({ 
+        message: "Spaces uploads do not require confirmation",
+        useSpacesApi: true
+      });
     }
     
     try {
