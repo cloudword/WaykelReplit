@@ -9,6 +9,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
+import { getSpacesStorage, getDocumentStoragePath, ObjectNotFoundError as SpacesNotFoundError } from "./spacesStorage";
 import { 
   authLimiter, 
   sensitiveAuthLimiter, 
@@ -120,6 +121,91 @@ const requireAdminOrOwner = (getOwnerId: (req: Request) => string | undefined) =
     next();
   };
 };
+
+// Helper to check Spaces file access based on organized path structure
+async function checkSpacesFileAccess(
+  key: string,
+  user: { id: string; role: string; transporterId?: string; isSuperAdmin?: boolean },
+  storageInterface: typeof storage
+): Promise<boolean> {
+  // Normalize and validate key to prevent path traversal attacks
+  const normalizedKey = key.replace(/\.\./g, '').replace(/\/+/g, '/');
+  if (normalizedKey !== key) {
+    return false; // Reject suspicious paths
+  }
+
+  // Admins can access all files
+  if (user.isSuperAdmin || user.role === "admin") {
+    return true;
+  }
+
+  // Check transporter-owned paths using safe prefix matching
+  if (user.transporterId) {
+    const transporterPrefix = `/transporters/${user.transporterId}/`;
+    if (key.includes(transporterPrefix)) {
+      return true;
+    }
+  }
+
+  // Check driver-owned paths (drivers can access their own folder)
+  const driverPrefix = `/drivers/${user.id}/`;
+  if (key.includes(driverPrefix)) {
+    return true;
+  }
+
+  // Check customer-owned paths
+  const customerPrefix = `/customers/${user.id}/`;
+  if (key.includes(customerPrefix)) {
+    return true;
+  }
+
+  // Check trip paths - need to verify user has access to the ride
+  // Handles both:
+  // - trips/{rideId}/transporter/ or trips/{rideId}/customer/ (specific owner type)
+  // - trips/{rideId}/ (fallback path without owner type)
+  const tripMatchWithOwner = key.match(/\/trips\/([^\/]+)\/(transporter|customer)/);
+  const tripMatchFallback = key.match(/\/trips\/([^\/]+)(?:\/|$)/);
+  
+  const tripMatch = tripMatchWithOwner || tripMatchFallback;
+  if (tripMatch) {
+    const rideId = tripMatch[1];
+    const tripOwnerType = tripMatchWithOwner ? tripMatchWithOwner[2] : null;
+
+    try {
+      const ride = await storageInterface.getRide(rideId);
+      if (ride) {
+        // For owner-specific paths, check the specific ownership
+        if (tripOwnerType === "transporter" && user.transporterId && ride.transporterId === user.transporterId) {
+          return true;
+        }
+        if (tripOwnerType === "customer" && ride.createdById === user.id) {
+          return true;
+        }
+        
+        // For fallback paths (no owner type) or assigned drivers, check any valid relationship
+        if (!tripOwnerType) {
+          // User is the transporter who owns the ride
+          if (user.transporterId && ride.transporterId === user.transporterId) {
+            return true;
+          }
+          // User is the customer who created the ride
+          if (ride.createdById === user.id) {
+            return true;
+          }
+        }
+        
+        // Assigned driver can always access trip documents (any path type)
+        if (ride.assignedDriverId === user.id) {
+          return true;
+        }
+      }
+    } catch {
+      // Ride not found or error - deny access
+    }
+  }
+
+  return false;
+}
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   // Apply JWT token extraction middleware to all routes
@@ -1687,6 +1773,155 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (error) {
       console.error("Error confirming upload:", error);
       res.status(500).json({ error: "Failed to confirm upload" });
+    }
+  });
+
+  // ===========================================
+  // DIGITALOCEAN SPACES FILE STORAGE
+  // ===========================================
+
+  // Upload document to DigitalOcean Spaces with organized folder structure
+  app.post("/api/spaces/upload", uploadLimiter, async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const spacesStorage = getSpacesStorage();
+      if (!spacesStorage) {
+        return res.status(503).json({ error: "Spaces storage not configured" });
+      }
+
+      const { 
+        fileData, 
+        fileName, 
+        contentType,
+        entityType,
+        transporterId,
+        vehicleId,
+        userId,
+        customerId,
+        rideId
+      } = req.body;
+
+      if (!fileData || !fileName || !contentType || !entityType) {
+        return res.status(400).json({ error: "fileData, fileName, contentType, and entityType are required" });
+      }
+
+      // Validate entityType
+      const validEntityTypes = ["driver", "vehicle", "transporter", "customer", "trip"];
+      if (!validEntityTypes.includes(entityType)) {
+        return res.status(400).json({ error: `Invalid entityType. Must be one of: ${validEntityTypes.join(", ")}` });
+      }
+
+      // Get organized storage path based on entity type
+      const storagePath = getDocumentStoragePath({
+        entityType,
+        transporterId: transporterId || user.transporterId,
+        vehicleId,
+        userId: userId || user.id,
+        customerId,
+        rideId
+      });
+
+      // Decode base64 file data
+      const buffer = Buffer.from(fileData, "base64");
+
+      // Upload to Spaces with organized path
+      const { key } = await spacesStorage.uploadPrivateFile(
+        buffer,
+        fileName,
+        contentType,
+        storagePath
+      );
+
+      res.json({ 
+        key, 
+        storagePath,
+        message: "File uploaded successfully" 
+      });
+    } catch (error: any) {
+      console.error("Spaces upload error:", error);
+      res.status(500).json({ error: error.message || "Failed to upload file" });
+    }
+  });
+
+  // Download document from DigitalOcean Spaces
+  app.get("/api/spaces/download/:key(*)", async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const spacesStorage = getSpacesStorage();
+      if (!spacesStorage) {
+        return res.status(503).json({ error: "Spaces storage not configured" });
+      }
+
+      const key = req.params.key;
+      
+      // Super admins can access all documents
+      if (user.isSuperAdmin || user.role === "admin") {
+        return spacesStorage.downloadObject(key, res);
+      }
+
+      // Check if user has access to this file based on path
+      // Path formats: 
+      // - private/transporters/{transporterId}/...
+      // - private/transporters/{transporterId}/drivers/{userId}/...
+      // - private/transporters/{transporterId}/vehicles/{vehicleId}/...
+      // - private/customers/{userId}/...
+      // - private/trips/{rideId}/transporter/...
+      // - private/trips/{rideId}/customer/...
+      const hasAccess = await checkSpacesFileAccess(key, user, storage);
+
+      if (!hasAccess) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      await spacesStorage.downloadObject(key, res);
+    } catch (error) {
+      if (error instanceof SpacesNotFoundError) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      console.error("Spaces download error:", error);
+      res.status(500).json({ error: "Failed to download file" });
+    }
+  });
+
+  // Get signed URL for temporary access to a Spaces file
+  app.post("/api/spaces/signed-url", async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const spacesStorage = getSpacesStorage();
+      if (!spacesStorage) {
+        return res.status(503).json({ error: "Spaces storage not configured" });
+      }
+
+      const { key, expiresIn } = req.body;
+      if (!key) {
+        return res.status(400).json({ error: "key is required" });
+      }
+
+      // Check access permissions (same logic as download)
+      const isAdmin = user.isSuperAdmin || user.role === "admin";
+      const hasAccess = isAdmin || await checkSpacesFileAccess(key, user, storage);
+
+      if (!hasAccess) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const signedUrl = await spacesStorage.getSignedUrl(key, expiresIn || 3600);
+      res.json({ signedUrl, expiresIn: expiresIn || 3600 });
+    } catch (error) {
+      console.error("Signed URL error:", error);
+      res.status(500).json({ error: "Failed to generate signed URL" });
     }
   });
 
