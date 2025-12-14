@@ -85,60 +85,116 @@ export function DocumentUpload({
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove the data:mime/type;base64, prefix
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = error => reject(error);
+    });
+  };
+
   const uploadFile = async (uploadedFile: UploadedFile, index: number): Promise<string | null> => {
     try {
       setFiles(prev => prev.map((f, i) => i === index ? { ...f, status: "uploading", progress: 10 } : f));
 
-      const uploadResponse = await fetch("/api/objects/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ fileName: uploadedFile.file.name }),
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error("Failed to get upload URL");
-      }
-
-      const { uploadURL, objectPath } = await uploadResponse.json();
-
+      // Convert file to base64
+      const fileData = await fileToBase64(uploadedFile.file);
+      
       setFiles(prev => prev.map((f, i) => i === index ? { ...f, progress: 30 } : f));
 
-      const uploadToStorage = await fetch(uploadURL, {
-        method: "PUT",
-        body: uploadedFile.file,
-        headers: {
-          "Content-Type": uploadedFile.file.type || "application/octet-stream",
-        },
-      });
-
-      if (!uploadToStorage.ok) {
-        throw new Error("Failed to upload file to storage");
-      }
-
-      setFiles(prev => prev.map((f, i) => i === index ? { ...f, progress: 70 } : f));
-
-      const confirmResponse = await fetch("/api/objects/confirm", {
+      // Try Spaces upload first (for DigitalOcean)
+      const spacesResponse = await fetch("/api/spaces/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ objectPath }),
+        body: JSON.stringify({
+          fileData,
+          fileName: uploadedFile.file.name,
+          contentType: uploadedFile.file.type || "application/octet-stream",
+          entityType,
+          transporterId,
+          userId: entityType === "driver" ? entityId : undefined,
+          vehicleId: entityType === "vehicle" ? entityId : undefined,
+        }),
       });
 
-      if (!confirmResponse.ok) {
-        throw new Error("Failed to confirm upload");
+      // If Spaces is configured and upload succeeded
+      if (spacesResponse.ok) {
+        const { key } = await spacesResponse.json();
+        setFiles(prev => prev.map((f, i) => i === index ? { 
+          ...f, 
+          status: "success", 
+          progress: 100, 
+          objectPath: key 
+        } : f));
+        return key;
       }
 
-      const { objectPath: confirmedPath } = await confirmResponse.json();
+      // If Spaces returned 503 (not configured), fall back to Objects API (Replit)
+      if (spacesResponse.status === 503) {
+        setFiles(prev => prev.map((f, i) => i === index ? { ...f, progress: 40 } : f));
 
-      setFiles(prev => prev.map((f, i) => i === index ? { 
-        ...f, 
-        status: "success", 
-        progress: 100, 
-        objectPath: confirmedPath 
-      } : f));
+        const uploadResponse = await fetch("/api/objects/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ fileName: uploadedFile.file.name }),
+        });
 
-      return confirmedPath;
+        if (!uploadResponse.ok) {
+          throw new Error("Failed to get upload URL");
+        }
+
+        const { uploadURL, objectPath } = await uploadResponse.json();
+
+        setFiles(prev => prev.map((f, i) => i === index ? { ...f, progress: 60 } : f));
+
+        const uploadToStorage = await fetch(uploadURL, {
+          method: "PUT",
+          body: uploadedFile.file,
+          headers: {
+            "Content-Type": uploadedFile.file.type || "application/octet-stream",
+          },
+        });
+
+        if (!uploadToStorage.ok) {
+          throw new Error("Failed to upload file to storage");
+        }
+
+        setFiles(prev => prev.map((f, i) => i === index ? { ...f, progress: 80 } : f));
+
+        const confirmResponse = await fetch("/api/objects/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ objectPath }),
+        });
+
+        if (!confirmResponse.ok) {
+          throw new Error("Failed to confirm upload");
+        }
+
+        const { objectPath: confirmedPath } = await confirmResponse.json();
+
+        setFiles(prev => prev.map((f, i) => i === index ? { 
+          ...f, 
+          status: "success", 
+          progress: 100, 
+          objectPath: confirmedPath 
+        } : f));
+
+        return confirmedPath;
+      }
+
+      // Spaces returned another error
+      const errorData = await spacesResponse.json().catch(() => ({}));
+      throw new Error(errorData.error || "Upload failed");
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Upload failed";
       setFiles(prev => prev.map((f, i) => i === index ? { 
