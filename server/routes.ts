@@ -35,6 +35,23 @@ const sanitizeRequestBody = (body: any): any => {
   return sanitized;
 };
 
+// Normalize phone numbers - strip +91, spaces, dashes for consistent lookup
+const normalizePhone = (phone: string): string => {
+  if (!phone) return phone;
+  // Remove all non-digits
+  let normalized = phone.replace(/\D/g, '');
+  // Remove leading 91 (India country code) if number is longer than 10 digits
+  if (normalized.length === 12 && normalized.startsWith('91')) {
+    normalized = normalized.slice(2);
+  }
+  // Remove leading 0 if number is 11 digits (trunk prefix)
+  if (normalized.length === 11 && normalized.startsWith('0')) {
+    normalized = normalized.slice(1);
+  }
+  // Return only if we have a valid 10-digit number, otherwise return as-is
+  return normalized;
+};
+
 // Extend Request type to include tokenUser
 declare global {
   namespace Express {
@@ -278,12 +295,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Auth routes - with rate limiting
   app.post("/api/auth/register", authLimiter, async (req, res) => {
     try {
+      // Normalize phone before parsing
+      if (req.body.phone) {
+        req.body.phone = normalizePhone(req.body.phone);
+      }
       const data = insertUserSchema.parse(req.body);
       const hashedPassword = await bcrypt.hash(data.password, 10);
       
-      const existingEmail = await storage.getUserByEmail(data.email);
-      if (existingEmail) {
-        return res.status(400).json({ error: "Email already registered" });
+      if (data.email) {
+        const existingEmail = await storage.getUserByEmail(data.email);
+        if (existingEmail) {
+          return res.status(400).json({ error: "Email already registered" });
+        }
       }
 
       const existingPhone = await storage.getUserByPhone(data.phone);
@@ -371,7 +394,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.post("/api/auth/login", authLimiter, async (req, res) => {
     try {
-      const { phone, password, username } = req.body;
+      const { password, username } = req.body;
+      // Normalize phone for lookup
+      const phone = req.body.phone ? normalizePhone(req.body.phone) : undefined;
       
       let user;
       if (username) {
@@ -382,7 +407,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       // Also try looking up by phone using the username value (for flexible login)
       if (!user && username) {
-        user = await storage.getUserByPhone(username);
+        user = await storage.getUserByPhone(normalizePhone(username));
       }
       
       if (!user || !(await bcrypt.compare(password, user.password))) {

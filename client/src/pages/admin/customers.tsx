@@ -105,7 +105,7 @@ export default function AdminCustomers() {
         body: JSON.stringify({
           name: newCustomer.name,
           phone: newCustomer.phone,
-          email: newCustomer.email || `${newCustomer.phone}@customer.waykel.com`,
+          email: newCustomer.email || undefined,
           password: newCustomer.password,
           role: "customer",
         }),

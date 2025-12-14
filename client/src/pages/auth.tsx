@@ -62,45 +62,29 @@ export default function AuthPage() {
           setIsLoading(false);
           return;
         }
-        const transporter = await api.transporters.create({
+        // Backend creates transporter automatically during registration
+        const user = await api.auth.register({
+          name: signupName,
+          email: signupEmail || undefined,
+          phone: signupPhone,
+          password: signupPassword,
+          role: "transporter",
           companyName,
-          ownerName: signupName,
-          contact: signupPhone,
-          email: signupEmail || `${signupPhone}@waykel.com`,
           location,
-          baseCity: location,
+          city: location,
           fleetSize: parseInt(fleetSize) || 1,
-          status: "pending_approval",
         });
-        if (transporter.error) {
-          toast.error(transporter.error);
+        if (user.error) {
+          toast.error(user.error);
         } else {
-          const user = await api.auth.register({
-            name: signupName,
-            email: signupEmail || `${signupPhone}@waykel.com`,
-            phone: signupPhone,
-            password: signupPassword,
-            role: "transporter",
-            transporterId: transporter.id,
-          });
-          if (user.error) {
-            toast.error(user.error);
-          } else {
-            toast.success("Registration submitted! Your account is pending admin approval. You will be able to login once approved.");
-            setSignupName("");
-            setSignupPhone("");
-            setSignupEmail("");
-            setSignupPassword("");
-            setCompanyName("");
-            setFleetSize("");
-            setLocationInput("");
-            setSignupRole("driver");
-          }
+          localStorage.setItem("currentUser", JSON.stringify(user));
+          toast.success("Registration successful! You can now set up your profile, vehicles, and drivers. Document verification is required before you can post or receive trips.");
+          setLocation("/transporter");
         }
       } else {
         const user = await api.auth.register({
           name: signupName,
-          email: signupEmail || `${signupPhone}@waykel.com`,
+          email: signupEmail || undefined,
           phone: signupPhone,
           password: signupPassword,
           role: signupRole,

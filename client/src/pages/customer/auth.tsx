@@ -53,7 +53,7 @@ export default function CustomerAuthPage() {
     try {
       const user = await api.auth.register({
         name: signupName,
-        email: signupEmail || `${signupPhone}@waykel.com`,
+        email: signupEmail || undefined,
         phone: signupPhone,
         password: signupPassword,
         role: "customer",
@@ -159,7 +159,7 @@ export default function CustomerAuthPage() {
                   <Input 
                     id="signup-email" 
                     placeholder="email@example.com" 
-                    type="email" 
+                    type="email"
                     value={signupEmail}
                     onChange={(e) => setSignupEmail(e.target.value)}
                     data-testid="input-customer-signup-email"
