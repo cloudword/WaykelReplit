@@ -96,7 +96,7 @@ export default function AdminTransporters() {
         companyName: newTransporter.companyName,
         ownerName: newTransporter.ownerName,
         contact: newTransporter.contact,
-        email: newTransporter.email || `${newTransporter.contact}@waykel.com`,
+        email: newTransporter.email || undefined,
         location: newTransporter.location,
         baseCity: newTransporter.location,
         fleetSize: parseInt(newTransporter.fleetSize) || 1,

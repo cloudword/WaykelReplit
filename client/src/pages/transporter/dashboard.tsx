@@ -228,6 +228,25 @@ export default function TransporterDashboard() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {transporter && transporter.status === "pending_approval" && (
+          <Card className="mb-6 border-blue-200 bg-blue-50" data-testid="pending-approval-banner">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-4">
+                <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Clock className="h-5 w-5 text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-blue-800">Account Under Review</h3>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Your transporter account is pending approval from our team. This usually takes 24-48 hours.
+                    You can still set up your account while you wait.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {transporter && !transporter.isVerified && (
           <Card className="mb-6 border-amber-200 bg-amber-50" data-testid="verification-banner">
             <CardContent className="p-4">

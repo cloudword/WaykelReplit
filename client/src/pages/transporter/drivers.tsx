@@ -51,7 +51,7 @@ export default function TransporterDrivers() {
       const result = await api.auth.register({
         name: newDriver.name,
         phone: newDriver.phone,
-        email: newDriver.email || `${newDriver.phone}@waykel.com`,
+        email: newDriver.email || undefined,
         password: newDriver.password,
         role: "driver",
         transporterId: user.transporterId,
