@@ -398,19 +398,28 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // Normalize phone for lookup
       const phone = req.body.phone ? normalizePhone(req.body.phone) : undefined;
       
+      // Debug logging
+      console.log("[LOGIN DEBUG] Input:", { username, phone: req.body.phone, normalizedPhone: phone });
+      
       let user;
       if (username) {
         user = await storage.getUserByUsername(username);
+        console.log("[LOGIN DEBUG] Username lookup result:", user ? user.phone : "not found");
       }
       if (!user && phone) {
         user = await storage.getUserByPhone(phone);
+        console.log("[LOGIN DEBUG] Phone lookup result:", user ? user.phone : "not found");
       }
       // Also try looking up by phone using the username value (for flexible login)
       if (!user && username) {
-        user = await storage.getUserByPhone(normalizePhone(username));
+        const normalizedUsername = normalizePhone(username);
+        console.log("[LOGIN DEBUG] Trying username as phone:", normalizedUsername);
+        user = await storage.getUserByPhone(normalizedUsername);
+        console.log("[LOGIN DEBUG] Username-as-phone lookup result:", user ? user.phone : "not found");
       }
       
       if (!user || !(await bcrypt.compare(password, user.password))) {
+        console.log("[LOGIN DEBUG] Failed - user found:", !!user, "password match:", user ? "checking..." : "N/A");
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
