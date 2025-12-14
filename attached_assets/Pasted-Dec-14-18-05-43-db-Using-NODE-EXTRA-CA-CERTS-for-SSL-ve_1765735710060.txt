@@ -1,0 +1,299 @@
+Dec 14 18:05:43  [db] Using NODE_EXTRA_CA_CERTS for SSL verification
+Dec 14 18:05:43  Using PostgreSQL session store for production
+Dec 14 18:05:43  [session] Using NODE_EXTRA_CA_CERTS for SSL verification
+Dec 14 18:05:43  [static] Starting static file setup...
+Dec 14 18:05:43  [static] __dirname: /workspace/dist
+Dec 14 18:05:43  [static] process.cwd(): /workspace
+Dec 14 18:05:43  [static] Checking paths for index.html:
+Dec 14 18:05:43  [static]   /workspace/dist/public - exists: true, has index.html: true
+Dec 14 18:05:43  [static] ✓ Using: /workspace/dist/public
+Dec 14 18:05:43  6:05:43 PM [express] serving on port 8080
+Dec 14 18:05:54  6:05:54 PM [express] GET /api/health 503 in 89ms :: {"status":"unhealthy","timestamp":"2025-12-14T18:05:54.608Z","uptime":11.809465534,"database":"disconnected"}
+Dec 14 18:05:54  Failed to log API request: error: password authentication failed for user "doadmin"
+Dec 14 18:05:54      at /workspace/node_modules/pg-pool/index.js:45:11
+Dec 14 18:05:54      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Dec 14 18:05:54      at async /workspace/dist/index.cjs:44305:22
+Dec 14 18:05:54      at async DatabaseStorage.createApiLog (/workspace/dist/index.cjs:44860:22) {
+Dec 14 18:05:54    length: 103,
+Dec 14 18:05:54    severity: 'FATAL',
+Dec 14 18:05:54    code: '28P01',
+Dec 14 18:05:54    detail: undefined,
+Dec 14 18:05:54    hint: undefined,
+Dec 14 18:05:54    position: undefined,
+Dec 14 18:05:54    internalPosition: undefined,
+Dec 14 18:05:54    internalQuery: undefined,
+Dec 14 18:05:54    where: undefined,
+Dec 14 18:05:54    schema: undefined,
+Dec 14 18:05:54    table: undefined,
+Dec 14 18:05:54    column: undefined,
+Dec 14 18:05:54    dataType: undefined,
+Dec 14 18:05:54    constraint: undefined,
+Dec 14 18:05:54    file: 'auth.c',
+Dec 14 18:05:54    line: '317',
+Dec 14 18:05:54    routine: 'auth_failed'
+Dec 14 18:05:54  }
+Dec 14 18:06:04  6:06:04 PM [express] GET /api/health 503 in 31ms :: {"status":"unhealthy","timestamp":"2025-12-14T18:06:04.547Z","uptime":21.748675738,"database":"disconnected"}
+Dec 14 18:06:04  Failed to log API request: error: password authentication failed for user "doadmin"
+Dec 14 18:06:04      at /workspace/node_modules/pg-pool/index.js:45:11
+Dec 14 18:06:04      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Dec 14 18:06:04      at async /workspace/dist/index.cjs:44305:22
+Dec 14 18:06:04      at async DatabaseStorage.createApiLog (/workspace/dist/index.cjs:44860:22) {
+Dec 14 18:06:04    length: 103,
+Dec 14 18:06:04    severity: 'FATAL',
+Dec 14 18:06:04    code: '28P01',
+Dec 14 18:06:04    detail: undefined,
+Dec 14 18:06:04    hint: undefined,
+Dec 14 18:06:04    position: undefined,
+Dec 14 18:06:04    internalPosition: undefined,
+Dec 14 18:06:04    internalQuery: undefined,
+Dec 14 18:06:04    where: undefined,
+Dec 14 18:06:04    schema: undefined,
+Dec 14 18:06:04    table: undefined,
+Dec 14 18:06:04    column: undefined,
+Dec 14 18:06:04    dataType: undefined,
+Dec 14 18:06:04    constraint: undefined,
+Dec 14 18:06:04    file: 'auth.c',
+Dec 14 18:06:04    line: '317',
+Dec 14 18:06:04    routine: 'auth_failed'
+Dec 14 18:06:04  }
+Dec 14 18:06:14  6:06:14 PM [express] GET /api/health 503 in 21ms :: {"status":"unhealthy","timestamp":"2025-12-14T18:06:14.537Z","uptime":31.738935085,"database":"disconnected"}
+Dec 14 18:06:14  Failed to log API request: error: password authentication failed for user "doadmin"
+Dec 14 18:06:14      at /workspace/node_modules/pg-pool/index.js:45:11
+Dec 14 18:06:14      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Dec 14 18:06:14      at async /workspace/dist/index.cjs:44305:22
+Dec 14 18:06:14      at async DatabaseStorage.createApiLog (/workspace/dist/index.cjs:44860:22) {
+Dec 14 18:06:14    length: 103,
+Dec 14 18:06:14    severity: 'FATAL',
+Dec 14 18:06:14    code: '28P01',
+Dec 14 18:06:14    detail: undefined,
+Dec 14 18:06:14    hint: undefined,
+Dec 14 18:06:14    position: undefined,
+Dec 14 18:06:14    internalPosition: undefined,
+Dec 14 18:06:14    internalQuery: undefined,
+Dec 14 18:06:14    where: undefined,
+Dec 14 18:06:14    schema: undefined,
+Dec 14 18:06:14    table: undefined,
+Dec 14 18:06:14    column: undefined,
+Dec 14 18:06:14    dataType: undefined,
+Dec 14 18:06:14    constraint: undefined,
+Dec 14 18:06:14    file: 'auth.c',
+Dec 14 18:06:14    line: '317',
+Dec 14 18:06:14    routine: 'auth_failed'
+Dec 14 18:06:14  }
+Dec 14 18:06:24  6:06:24 PM [express] GET /api/health 503 in 31ms :: {"status":"unhealthy","timestamp":"2025-12-14T18:06:24.546Z","uptime":41.747874052,"database":"disconnected"}
+Dec 14 18:06:24  Failed to log API request: error: password authentication failed for user "doadmin"
+Dec 14 18:06:24      at /workspace/node_modules/pg-pool/index.js:45:11
+Dec 14 18:06:24      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Dec 14 18:06:24      at async /workspace/dist/index.cjs:44305:22
+Dec 14 18:06:24      at async DatabaseStorage.createApiLog (/workspace/dist/index.cjs:44860:22) {
+Dec 14 18:06:24    length: 103,
+Dec 14 18:06:24    severity: 'FATAL',
+Dec 14 18:06:24    code: '28P01',
+Dec 14 18:06:24    detail: undefined,
+Dec 14 18:06:24    hint: undefined,
+Dec 14 18:06:24    position: undefined,
+Dec 14 18:06:24    internalPosition: undefined,
+Dec 14 18:06:24    internalQuery: undefined,
+Dec 14 18:06:24    where: undefined,
+Dec 14 18:06:24    schema: undefined,
+Dec 14 18:06:24    table: undefined,
+Dec 14 18:06:24    column: undefined,
+Dec 14 18:06:24    dataType: undefined,
+Dec 14 18:06:24    constraint: undefined,
+Dec 14 18:06:24    file: 'auth.c',
+Dec 14 18:06:24    line: '317',
+Dec 14 18:06:24    routine: 'auth_failed'
+Dec 14 18:06:24  }
+Dec 14 18:06:34  6:06:34 PM [express] GET /api/health 503 in 22ms :: {"status":"unhealthy","timestamp":"2025-12-14T18:06:34.538Z","uptime":51.739331358,"database":"disconnected"}
+Dec 14 18:06:34  Failed to log API request: error: password authentication failed for user "doadmin"
+Dec 14 18:06:34      at /workspace/node_modules/pg-pool/index.js:45:11
+Dec 14 18:06:34      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Dec 14 18:06:34      at async /workspace/dist/index.cjs:44305:22
+Dec 14 18:06:34      at async DatabaseStorage.createApiLog (/workspace/dist/index.cjs:44860:22) {
+Dec 14 18:06:34    length: 103,
+Dec 14 18:06:34    severity: 'FATAL',
+Dec 14 18:06:34    code: '28P01',
+Dec 14 18:06:34    detail: undefined,
+Dec 14 18:06:34    hint: undefined,
+Dec 14 18:06:34    position: undefined,
+Dec 14 18:06:34    internalPosition: undefined,
+Dec 14 18:06:34    internalQuery: undefined,
+Dec 14 18:06:34    where: undefined,
+Dec 14 18:06:34    schema: undefined,
+Dec 14 18:06:34    table: undefined,
+Dec 14 18:06:34    column: undefined,
+Dec 14 18:06:34    dataType: undefined,
+Dec 14 18:06:34    constraint: undefined,
+Dec 14 18:06:34    file: 'auth.c',
+Dec 14 18:06:34    line: '317',
+Dec 14 18:06:34    routine: 'auth_failed'
+Dec 14 18:06:34  }
+Dec 14 18:06:44  6:06:44 PM [express] GET /api/health 503 in 20ms :: {"status":"unhealthy","timestamp":"2025-12-14T18:06:44.537Z","uptime":61.738263074,"database":"disconnected"}
+Dec 14 18:06:44  Failed to log API request: error: password authentication failed for user "doadmin"
+Dec 14 18:06:44      at /workspace/node_modules/pg-pool/index.js:45:11
+Dec 14 18:06:44      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Dec 14 18:06:44      at async /workspace/dist/index.cjs:44305:22
+Dec 14 18:06:44      at async DatabaseStorage.createApiLog (/workspace/dist/index.cjs:44860:22) {
+Dec 14 18:06:44    length: 103,
+Dec 14 18:06:44    severity: 'FATAL',
+Dec 14 18:06:44    code: '28P01',
+Dec 14 18:06:44    detail: undefined,
+Dec 14 18:06:44    hint: undefined,
+Dec 14 18:06:44    position: undefined,
+Dec 14 18:06:44    internalPosition: undefined,
+Dec 14 18:06:44    internalQuery: undefined,
+Dec 14 18:06:44    where: undefined,
+Dec 14 18:06:44    schema: undefined,
+Dec 14 18:06:44    table: undefined,
+Dec 14 18:06:44    column: undefined,
+Dec 14 18:06:44    dataType: undefined,
+Dec 14 18:06:44    constraint: undefined,
+Dec 14 18:06:44    file: 'auth.c',
+Dec 14 18:06:44    line: '317',
+Dec 14 18:06:44    routine: 'auth_failed'
+Dec 14 18:06:44  }
+Dec 14 18:06:54  6:06:54 PM [express] GET /api/health 503 in 18ms :: {"status":"unhealthy","timestamp":"2025-12-14T18:06:54.534Z","uptime":71.735288856,"database":"disconnected"}
+Dec 14 18:06:54  Failed to log API request: error: password authentication failed for user "doadmin"
+Dec 14 18:06:54      at /workspace/node_modules/pg-pool/index.js:45:11
+Dec 14 18:06:54      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Dec 14 18:06:54      at async /workspace/dist/index.cjs:44305:22
+Dec 14 18:06:54      at async DatabaseStorage.createApiLog (/workspace/dist/index.cjs:44860:22) {
+Dec 14 18:06:54    length: 103,
+Dec 14 18:06:54    severity: 'FATAL',
+Dec 14 18:06:54    code: '28P01',
+Dec 14 18:06:54    detail: undefined,
+Dec 14 18:06:54    hint: undefined,
+Dec 14 18:06:54    position: undefined,
+Dec 14 18:06:54    internalPosition: undefined,
+Dec 14 18:06:54    internalQuery: undefined,
+Dec 14 18:06:54    where: undefined,
+Dec 14 18:06:54    schema: undefined,
+Dec 14 18:06:54    table: undefined,
+Dec 14 18:06:54    column: undefined,
+Dec 14 18:06:54    dataType: undefined,
+Dec 14 18:06:54    constraint: undefined,
+Dec 14 18:06:54    file: 'auth.c',
+Dec 14 18:06:54    line: '317',
+Dec 14 18:06:54    routine: 'auth_failed'
+Dec 14 18:06:54  }
+Dec 14 18:06:54  6:06:54 PM [express] GET /api/health 503 in 23ms :: {"status":"unhealthy","timestamp":"2025-12-14T18:06:54.842Z","uptime":72.044176251,"database":"disconnected"}
+Dec 14 18:06:54  Failed to log API request: error: password authentication failed for user "doadmin"
+Dec 14 18:06:54      at /workspace/node_modules/pg-pool/index.js:45:11
+Dec 14 18:06:54      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Dec 14 18:06:54      at async /workspace/dist/index.cjs:44305:22
+Dec 14 18:06:54      at async DatabaseStorage.createApiLog (/workspace/dist/index.cjs:44860:22) {
+Dec 14 18:06:54    length: 103,
+Dec 14 18:06:54    severity: 'FATAL',
+Dec 14 18:06:54    code: '28P01',
+Dec 14 18:06:54    detail: undefined,
+Dec 14 18:06:54    hint: undefined,
+Dec 14 18:06:54    position: undefined,
+Dec 14 18:06:54    internalPosition: undefined,
+Dec 14 18:06:54    internalQuery: undefined,
+Dec 14 18:06:54    where: undefined,
+Dec 14 18:06:54    schema: undefined,
+Dec 14 18:06:54    table: undefined,
+Dec 14 18:06:54    column: undefined,
+Dec 14 18:06:54    dataType: undefined,
+Dec 14 18:06:54    constraint: undefined,
+Dec 14 18:06:54    file: 'auth.c',
+Dec 14 18:06:54    line: '317',
+Dec 14 18:06:54    routine: 'auth_failed'
+Dec 14 18:06:54  }
+Dec 14 18:07:04  6:07:04 PM [express] GET /api/health 503 in 27ms :: {"status":"unhealthy","timestamp":"2025-12-14T18:07:04.847Z","uptime":82.049054629,"database":"disconnected"}
+Dec 14 18:07:04  Failed to log API request: error: password authentication failed for user "doadmin"
+Dec 14 18:07:04      at /workspace/node_modules/pg-pool/index.js:45:11
+Dec 14 18:07:04      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Dec 14 18:07:04      at async /workspace/dist/index.cjs:44305:22
+Dec 14 18:07:04      at async DatabaseStorage.createApiLog (/workspace/dist/index.cjs:44860:22) {
+Dec 14 18:07:04    length: 103,
+Dec 14 18:07:04    severity: 'FATAL',
+Dec 14 18:07:04    code: '28P01',
+Dec 14 18:07:04    detail: undefined,
+Dec 14 18:07:04    hint: undefined,
+Dec 14 18:07:04    position: undefined,
+Dec 14 18:07:04    internalPosition: undefined,
+Dec 14 18:07:04    internalQuery: undefined,
+Dec 14 18:07:04    where: undefined,
+Dec 14 18:07:04    schema: undefined,
+Dec 14 18:07:04    table: undefined,
+Dec 14 18:07:04    column: undefined,
+Dec 14 18:07:04    dataType: undefined,
+Dec 14 18:07:04    constraint: undefined,
+Dec 14 18:07:04    file: 'auth.c',
+Dec 14 18:07:04    line: '317',
+Dec 14 18:07:04    routine: 'auth_failed'
+Dec 14 18:07:04  }
+Dec 14 18:07:14  6:07:14 PM [express] GET /api/health 503 in 22ms :: {"status":"unhealthy","timestamp":"2025-12-14T18:07:14.843Z","uptime":92.044567455,"database":"disconnected"}
+Dec 14 18:07:14  Failed to log API request: error: password authentication failed for user "doadmin"
+Dec 14 18:07:14      at /workspace/node_modules/pg-pool/index.js:45:11
+Dec 14 18:07:14      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Dec 14 18:07:14      at async /workspace/dist/index.cjs:44305:22
+Dec 14 18:07:14      at async DatabaseStorage.createApiLog (/workspace/dist/index.cjs:44860:22) {
+Dec 14 18:07:14    length: 103,
+Dec 14 18:07:14    severity: 'FATAL',
+Dec 14 18:07:14    code: '28P01',
+Dec 14 18:07:14    detail: undefined,
+Dec 14 18:07:14    hint: undefined,
+Dec 14 18:07:14    position: undefined,
+Dec 14 18:07:14    internalPosition: undefined,
+Dec 14 18:07:14    internalQuery: undefined,
+Dec 14 18:07:14    where: undefined,
+Dec 14 18:07:14    schema: undefined,
+Dec 14 18:07:14    table: undefined,
+Dec 14 18:07:14    column: undefined,
+Dec 14 18:07:14    dataType: undefined,
+Dec 14 18:07:14    constraint: undefined,
+Dec 14 18:07:14    file: 'auth.c',
+Dec 14 18:07:14    line: '317',
+Dec 14 18:07:14    routine: 'auth_failed'
+Dec 14 18:07:14  }
+Dec 14 18:07:24  6:07:24 PM [express] GET /api/health 503 in 22ms :: {"status":"unhealthy","timestamp":"2025-12-14T18:07:24.842Z","uptime":102.0437434,"database":"disconnected"}
+Dec 14 18:07:24  Failed to log API request: error: password authentication failed for user "doadmin"
+Dec 14 18:07:24      at /workspace/node_modules/pg-pool/index.js:45:11
+Dec 14 18:07:24      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Dec 14 18:07:24      at async /workspace/dist/index.cjs:44305:22
+Dec 14 18:07:24      at async DatabaseStorage.createApiLog (/workspace/dist/index.cjs:44860:22) {
+Dec 14 18:07:24    length: 103,
+Dec 14 18:07:24    severity: 'FATAL',
+Dec 14 18:07:24    code: '28P01',
+Dec 14 18:07:24    detail: undefined,
+Dec 14 18:07:24    hint: undefined,
+Dec 14 18:07:24    position: undefined,
+Dec 14 18:07:24    internalPosition: undefined,
+Dec 14 18:07:24    internalQuery: undefined,
+Dec 14 18:07:24    where: undefined,
+Dec 14 18:07:24    schema: undefined,
+Dec 14 18:07:24    table: undefined,
+Dec 14 18:07:24    column: undefined,
+Dec 14 18:07:24    dataType: undefined,
+Dec 14 18:07:24    constraint: undefined,
+Dec 14 18:07:24    file: 'auth.c',
+Dec 14 18:07:24    line: '317',
+Dec 14 18:07:24    routine: 'auth_failed'
+Dec 14 18:07:24  }
+Dec 14 18:07:34  6:07:34 PM [express] GET /api/health 503 in 18ms :: {"status":"unhealthy","timestamp":"2025-12-14T18:07:34.838Z","uptime":112.039833843,"database":"disconnected"}
+Dec 14 18:07:34  Failed to log API request: error: password authentication failed for user "doadmin"
+Dec 14 18:07:34      at /workspace/node_modules/pg-pool/index.js:45:11
+Dec 14 18:07:34      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Dec 14 18:07:34      at async /workspace/dist/index.cjs:44305:22
+Dec 14 18:07:34      at async DatabaseStorage.createApiLog (/workspace/dist/index.cjs:44860:22) {
+Dec 14 18:07:34    length: 103,
+Dec 14 18:07:34    severity: 'FATAL',
+Dec 14 18:07:34    code: '28P01',
+Dec 14 18:07:34    detail: undefined,
+Dec 14 18:07:34    hint: undefined,
+Dec 14 18:07:34    position: undefined,
+Dec 14 18:07:34    internalPosition: undefined,
+Dec 14 18:07:34    internalQuery: undefined,
+Dec 14 18:07:34    where: undefined,
+Dec 14 18:07:34    schema: undefined,
+Dec 14 18:07:34    table: undefined,
+Dec 14 18:07:34    column: undefined,
+Dec 14 18:07:34    dataType: undefined,
+Dec 14 18:07:34    constraint: undefined,
+Dec 14 18:07:34    file: 'auth.c',
+Dec 14 18:07:34    line: '317',
+Dec 14 18:07:34    routine: 'auth_failed'
+Dec 14 18:07:34  }
+Dec 14 18:07:34  ERROR failed health checks after 12 attempts with error Readiness probe failed: HTTP probe failed with statuscode: 503
