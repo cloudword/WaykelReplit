@@ -255,3 +255,46 @@ export function getSpacesStorage(): SpacesStorageService | null {
 
   return spacesStorageInstance;
 }
+
+export interface DocumentStorageContext {
+  entityType: "driver" | "vehicle" | "transporter" | "customer" | "trip";
+  transporterId?: string;
+  vehicleId?: string;
+  userId?: string;
+  customerId?: string;
+  rideId?: string;
+}
+
+export function getDocumentStoragePath(context: DocumentStorageContext): string {
+  const { entityType, transporterId, vehicleId, userId, customerId, rideId } = context;
+
+  switch (entityType) {
+    case "transporter":
+      if (!transporterId) throw new Error("transporterId required for transporter documents");
+      return `transporters/${transporterId}/documents`;
+
+    case "driver":
+      if (!transporterId) throw new Error("transporterId required for driver documents");
+      if (!userId) throw new Error("userId required for driver documents");
+      return `transporters/${transporterId}/drivers/${userId}`;
+
+    case "vehicle":
+      if (!transporterId) throw new Error("transporterId required for vehicle documents");
+      if (!vehicleId) throw new Error("vehicleId required for vehicle documents");
+      return `transporters/${transporterId}/vehicles/${vehicleId}`;
+
+    case "customer":
+      if (!customerId && !userId) throw new Error("customerId or userId required for customer documents");
+      return `customers/${customerId || userId}/documents`;
+
+    case "trip":
+      if (!rideId) throw new Error("rideId required for trip documents");
+      const tripPath = `trips/${rideId}`;
+      if (transporterId) return `${tripPath}/transporter`;
+      if (customerId) return `${tripPath}/customer`;
+      return tripPath;
+
+    default:
+      return "documents/misc";
+  }
+}
