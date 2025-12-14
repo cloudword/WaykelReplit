@@ -1,0 +1,143 @@
+Perfect! You're ready to implement. Here's your step-by-step action plan to fix all 6 issues and deploy:
+
+🎯 Step 1: Fix Issue #1 - vite.config.ts (Replit Plugins)
+In your Replit project, open vite.config.ts and replace the entire file with:
+
+typescript
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import path from "path";
+import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+import { metaImagesPlugin } from "./vite-plugin-meta-images";
+
+export default defineConfig({
+  plugins: [
+    react(),
+    runtimeErrorOverlay(),
+    tailwindcss(),
+    metaImagesPlugin(),
+    ...(process.env.NODE_ENV !== "production" && process.env.REPL_ID
+      ? [
+          (await import("@replit/vite-plugin-cartographer").then((m) =>
+            m.cartographer()
+          )),
+          (await import("@replit/vite-plugin-dev-banner").then((m) =>
+            m.devBanner()
+          )),
+        ]
+      : []),
+  ],
+  resolve: {
+    alias: {
+      "@": path.resolve(import.meta.dirname, "client", "src"),
+      "@shared": path.resolve(import.meta.dirname, "shared"),
+      "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+    },
+  },
+  css: {
+    postcss: {
+      plugins: [],
+    },
+  },
+  root: path.resolve(import.meta.dirname, "client"),
+  build: {
+    outDir: path.resolve(import.meta.dirname, "dist/public"),
+    emptyOutDir: true,
+  },
+  server: {
+    host: "0.0.0.0",
+    allowedHosts: true,
+    fs: {
+      strict: true,
+      deny: ["**/.*"],
+    },
+  },
+});
+Status: ✅ Issue #1 fixed
+
+🎯 Step 2: Fix Issue #2 - Add Session Store SSL Config
+Open server/index.ts (or wherever express-session is initialized).
+
+Find the section with express-session and connect-pg-simple setup, and ensure it looks like this:
+
+typescript
+import { Pool } from "pg";
+import session from "express-session";
+import pgSession from "connect-pg-simple";
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === "production" 
+    ? { rejectUnauthorized: false }
+    : undefined,
+});
+
+// Add error handling
+pool.on("error", (err) => {
+  console.error("Postgres pool error:", err);
+});
+
+const PgSessionStore = pgSession(session);
+
+app.use(
+  session({
+    store: new PgSessionStore({ pool }),
+    secret: process.env.SESSION_SECRET!,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    },
+  })
+);
+Status: ✅ Issue #2 fixed
+
+🎯 Step 3: Fix Issue #3 - Add Health Check Endpoint
+In the same server/index.ts, add this right after app initialization (before other routes):
+
+typescript
+// Health check endpoint (must come BEFORE auth middleware)
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date() });
+});
+Status: ✅ Issue #3 fixed
+
+🎯 Step 4: Fix Issue #4 - Use PORT Environment Variable
+Find where your server listens (usually at the end of server/index.ts), and change it to:
+
+typescript
+const PORT = process.env.PORT || 3000;
+const server = app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
+Status: ✅ Issue #4 fixed
+
+🎯 Step 5: Fix Issue #5 - Add Frontend Static Serving
+In server/index.ts, after all /api/* routes (important!), add:
+
+typescript
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const distPath = path.join(__dirname, "..", "dist", "public");
+
+// Serve static files
+app.use(express.static(distPath));
+
+// SPA fallback - serve index.html for all routes not matched by /api
+app.get("*", (req, res) => {
+  res.sendFile(path.join(distPath, "index.html"));
+});
+Status: ✅ Issue #5 fixed
+
+🎯 Step 6: Push to GitHub
+bash
+git add -A
+git commit -m "Fix: DigitalOcean deployment issues - session SSL, health check, port, SPA fallback"
+git push origin main
+Status: ✅ Code ready

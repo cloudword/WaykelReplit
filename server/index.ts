@@ -100,21 +100,28 @@ const createSessionStore = () => {
   if (isProduction && process.env.DATABASE_URL) {
     console.log("Using PostgreSQL session store for production");
     
-    // Load DigitalOcean CA certificate
+    // SSL configuration: NODE_EXTRA_CA_CERTS > DIGITALOCEAN_CA_PATH > fallback
     const fs = require('fs');
     const path = require('path');
-    const DEFAULT_CA_PATH = './certs/digitalocean-ca.crt';
-    const caPath = path.resolve(process.cwd(), process.env.DIGITALOCEAN_CA_PATH || DEFAULT_CA_PATH);
-    
     let sslConfig: { ca?: string; rejectUnauthorized: boolean } = { rejectUnauthorized: false };
     
-    if (fs.existsSync(caPath)) {
-      try {
-        const ca = fs.readFileSync(caPath, 'utf8');
-        sslConfig = { ca, rejectUnauthorized: true };
-        console.log("[session] Using DigitalOcean CA certificate for SSL");
-      } catch (err) {
-        console.warn("[session] Could not read CA file, using rejectUnauthorized: false");
+    if (process.env.NODE_EXTRA_CA_CERTS) {
+      // Node.js automatically loads the CA from NODE_EXTRA_CA_CERTS
+      sslConfig = { rejectUnauthorized: true };
+      console.log("[session] Using NODE_EXTRA_CA_CERTS for SSL verification");
+    } else {
+      // Fallback: manually load CA certificate
+      const DEFAULT_CA_PATH = './certs/digitalocean-ca.crt';
+      const caPath = path.resolve(process.cwd(), process.env.DIGITALOCEAN_CA_PATH || DEFAULT_CA_PATH);
+      
+      if (fs.existsSync(caPath)) {
+        try {
+          const ca = fs.readFileSync(caPath, 'utf8');
+          sslConfig = { ca, rejectUnauthorized: true };
+          console.log("[session] Using DigitalOcean CA certificate for SSL");
+        } catch (err) {
+          console.warn("[session] Could not read CA file, using rejectUnauthorized: false");
+        }
       }
     }
     
