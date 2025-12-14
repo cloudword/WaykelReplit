@@ -58,6 +58,29 @@ In the **Resources** section, configure your web service:
 | **HTTP Port** | `5000` |
 | **Instance Size** | Basic ($5/mo) or higher |
 
+### URL Rewrite for SPA (Required)
+
+For single-page applications to work correctly, add a URL rewrite rule in your app spec:
+
+1. Go to **Settings** → **App Spec**
+2. Add this under your service component:
+
+```yaml
+routes:
+  - path: /
+    preserve_path_prefix: true
+```
+
+Or add a catch-all rewrite:
+```yaml
+routes:
+  - path: /*
+```
+
+This ensures all routes are handled by your Node.js server instead of returning 404.
+
+See [DigitalOcean URL Rewrites documentation](https://docs.digitalocean.com/products/app-platform/how-to/url-rewrites/) for more details.
+
 ### Configure Environment Variables
 
 Go to **Settings** → **App-Level Environment Variables** and add:
