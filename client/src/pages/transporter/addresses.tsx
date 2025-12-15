@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Building2, MapPin, Plus, Edit, Trash2, BookmarkCheck, Home, Warehouse, Building, Factory } from "lucide-react";
+import { MapPin, Plus, Edit, Trash2, BookmarkCheck, Home, Warehouse, Building, Factory } from "lucide-react";
+import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -139,17 +140,14 @@ export default function TransporterAddresses() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pl-64">
+      <TransporterSidebar />
+      
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center h-16 gap-4">
-            <Button variant="ghost" size="icon" onClick={() => setLocation("/transporter")} data-testid="button-back">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div className="flex items-center gap-3">
-              <Building2 className="h-6 w-6 text-blue-600" />
-              <h1 className="text-xl font-bold text-gray-900">Saved Addresses</h1>
-            </div>
+            <MapPin className="h-6 w-6 text-blue-600" />
+            <h1 className="text-xl font-bold text-gray-900">Saved Addresses</h1>
             <div className="ml-auto">
               <Button onClick={openCreateDialog} data-testid="button-add-address">
                 <Plus className="h-4 w-4 mr-2" />
@@ -160,7 +158,7 @@ export default function TransporterAddresses() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {loading ? (
           <div className="text-center py-12 text-gray-500">Loading addresses...</div>
         ) : addresses.length === 0 ? (

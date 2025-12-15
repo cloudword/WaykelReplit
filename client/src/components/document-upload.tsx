@@ -36,7 +36,13 @@ interface UploadedFile {
   status: "pending" | "uploading" | "success" | "error";
   progress: number;
   objectPath?: string;
+  storagePath?: string;
   error?: string;
+}
+
+interface UploadResult {
+  key: string;
+  storagePath?: string;
 }
 
 interface DocumentUploadProps {
@@ -99,7 +105,7 @@ export function DocumentUpload({
     });
   };
 
-  const uploadFile = async (uploadedFile: UploadedFile, index: number): Promise<string | null> => {
+  const uploadFile = async (uploadedFile: UploadedFile, index: number): Promise<UploadResult | null> => {
     try {
       setFiles(prev => prev.map((f, i) => i === index ? { ...f, status: "uploading", progress: 10 } : f));
 
@@ -126,14 +132,15 @@ export function DocumentUpload({
 
       // If Spaces is configured and upload succeeded
       if (spacesResponse.ok) {
-        const { key } = await spacesResponse.json();
+        const { key, storagePath } = await spacesResponse.json();
         setFiles(prev => prev.map((f, i) => i === index ? { 
           ...f, 
           status: "success", 
           progress: 100, 
-          objectPath: key 
+          objectPath: key,
+          storagePath 
         } : f));
-        return key;
+        return { key, storagePath };
       }
 
       // If Spaces returned 503 (not configured), fall back to Objects API (Replit)
@@ -189,7 +196,7 @@ export function DocumentUpload({
           objectPath: confirmedPath 
         } : f));
 
-        return confirmedPath;
+        return { key: confirmedPath };
       }
 
       // Spaces returned another error
@@ -224,7 +231,7 @@ export function DocumentUpload({
         files.map((file, index) => uploadFile(file, index))
       );
 
-      const successfulUploads = uploadResults.filter((path): path is string => path !== null);
+      const successfulUploads = uploadResults.filter((result): result is UploadResult => result !== null);
 
       if (successfulUploads.length === 0) {
         toast.error("All file uploads failed");
@@ -232,14 +239,18 @@ export function DocumentUpload({
         return;
       }
 
-      for (const url of successfulUploads) {
+      for (const upload of successfulUploads) {
         const docData: any = {
           entityType,
           type: docType,
           documentName: docTypes.find(d => d.value === docType)?.label || docType,
-          url,
+          url: upload.key,
           status: "pending",
         };
+
+        if (upload.storagePath) {
+          docData.storagePath = upload.storagePath;
+        }
 
         if (entityType === "driver") {
           docData.userId = entityId;

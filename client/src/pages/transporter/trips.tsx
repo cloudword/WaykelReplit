@@ -8,9 +8,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
-  ArrowLeft, Building2, MapPin, Calendar, Clock, IndianRupee, Truck, Package, User,
+  MapPin, Calendar, Clock, IndianRupee, Truck, Package, User,
   Search, Filter, X, RefreshCw, Eye, Timer, CheckCircle2, AlertCircle
 } from "lucide-react";
+import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -195,18 +196,15 @@ export default function TransporterTrips() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pl-64">
+      <TransporterSidebar />
+      
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => setLocation("/transporter")} data-testid="button-back">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <div className="flex items-center gap-3">
-                <Building2 className="h-6 w-6 text-blue-600" />
-                <h1 className="text-xl font-bold text-gray-900">My Trips</h1>
-              </div>
+              <Package className="h-6 w-6 text-blue-600" />
+              <h1 className="text-xl font-bold text-gray-900">My Trips</h1>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)} data-testid="button-toggle-filters">

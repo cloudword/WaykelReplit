@@ -1703,6 +1703,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
       
+      // Check for duplicate document of same type for this entity
+      let existingDocs: any[] = [];
+      if (data.entityType === "driver" && data.userId) {
+        existingDocs = await storage.getUserDocuments(data.userId);
+      } else if (data.entityType === "vehicle" && data.vehicleId) {
+        existingDocs = await storage.getVehicleDocuments(data.vehicleId);
+      } else if (data.entityType === "transporter" && data.transporterId) {
+        existingDocs = await storage.getTransporterDocuments(data.transporterId);
+      }
+      
+      const duplicateDoc = existingDocs.find(d => d.type === data.type && d.status !== "rejected");
+      if (duplicateDoc) {
+        return res.status(400).json({ 
+          error: `A ${data.type} document already exists for this ${data.entityType}. Delete the existing one first or wait for it to be processed.` 
+        });
+      }
+      
       const document = await storage.createDocument(data);
       res.status(201).json(document);
     } catch (error) {
