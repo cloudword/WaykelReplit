@@ -1773,6 +1773,146 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // ============================================================
+  // UNIFIED DOCUMENT UPLOAD - Single atomic endpoint
+  // Handles: validation → duplicate check → file upload → DB record
+  // ============================================================
+  app.post("/api/documents/upload", uploadLimiter, async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      const { 
+        fileData, 
+        fileName, 
+        contentType,
+        entityType,
+        type: docType,
+        entityId,
+        expiryDate
+      } = req.body;
+
+      // 1️⃣ Validate required fields
+      if (!fileData || !fileName || !contentType) {
+        return res.status(400).json({ error: "File data is required" });
+      }
+      if (!entityType || !docType) {
+        return res.status(400).json({ error: "entityType and type are required" });
+      }
+
+      const validEntityTypes = ["driver", "vehicle", "transporter"];
+      if (!validEntityTypes.includes(entityType)) {
+        return res.status(400).json({ error: `Invalid entityType. Must be one of: ${validEntityTypes.join(", ")}` });
+      }
+
+      // 2️⃣ Resolve entity IDs based on entityType
+      let resolvedTransporterId: string | undefined;
+      let resolvedUserId: string | undefined;
+      let resolvedVehicleId: string | undefined;
+
+      if (entityType === "transporter") {
+        // For transporter docs, use entityId if provided, fallback to session
+        resolvedTransporterId = entityId || user.transporterId;
+        if (!resolvedTransporterId) {
+          return res.status(400).json({ error: "Transporter ID not found. Please re-login." });
+        }
+      } else if (entityType === "driver") {
+        // For driver docs, entityId is the driver's userId
+        resolvedUserId = entityId || user.id;
+        resolvedTransporterId = user.transporterId;
+        if (!resolvedTransporterId) {
+          return res.status(400).json({ error: "Transporter ID required for driver documents" });
+        }
+      } else if (entityType === "vehicle") {
+        // For vehicle docs, entityId is the vehicleId
+        resolvedVehicleId = entityId;
+        resolvedTransporterId = user.transporterId;
+        if (!resolvedVehicleId) {
+          return res.status(400).json({ error: "Vehicle ID is required for vehicle documents" });
+        }
+        if (!resolvedTransporterId) {
+          return res.status(400).json({ error: "Transporter ID required for vehicle documents" });
+        }
+      }
+
+      // 3️⃣ Check for duplicate documents (block pending/verified, allow expired/rejected)
+      let existingDocs: any[] = [];
+      if (entityType === "driver" && resolvedUserId) {
+        existingDocs = await storage.getUserDocuments(resolvedUserId);
+      } else if (entityType === "vehicle" && resolvedVehicleId) {
+        existingDocs = await storage.getVehicleDocuments(resolvedVehicleId);
+      } else if (entityType === "transporter" && resolvedTransporterId) {
+        existingDocs = await storage.getTransporterDocuments(resolvedTransporterId);
+      }
+
+      const duplicateDoc = existingDocs.find(
+        d => d.type === docType && (d.status === "pending" || d.status === "verified")
+      );
+      if (duplicateDoc) {
+        const statusLabel = duplicateDoc.status === "pending" ? "under review" : "already verified";
+        return res.status(400).json({ 
+          error: `This document type is ${statusLabel}. Cannot upload duplicate.`
+        });
+      }
+
+      // 4️⃣ Upload file to storage
+      const spacesStorage = getSpacesStorage();
+      if (!spacesStorage) {
+        return res.status(503).json({ error: "File storage not configured" });
+      }
+
+      const storagePath = getDocumentStoragePath({
+        entityType,
+        transporterId: resolvedTransporterId,
+        vehicleId: resolvedVehicleId,
+        userId: resolvedUserId,
+      });
+
+      const buffer = Buffer.from(fileData, "base64");
+      const { key } = await spacesStorage.uploadPrivateFile(
+        buffer,
+        fileName,
+        contentType,
+        storagePath
+      );
+
+      // 5️⃣ Create document DB record with proper entity associations
+      const docData: any = {
+        entityType,
+        type: docType,
+        documentName: docType,
+        url: key,
+        storagePath,
+        status: "pending",
+      };
+
+      // Set entity-specific IDs based on entityType
+      if (entityType === "transporter") {
+        docData.transporterId = resolvedTransporterId;
+        docData.userId = user.id; // Who uploaded
+      } else if (entityType === "driver") {
+        docData.transporterId = resolvedTransporterId;
+        docData.userId = resolvedUserId; // The driver whose document this is
+      } else if (entityType === "vehicle") {
+        docData.transporterId = resolvedTransporterId;
+        docData.vehicleId = resolvedVehicleId;
+        docData.userId = user.id; // Who uploaded
+      }
+
+      if (expiryDate) docData.expiryDate = expiryDate;
+
+      const document = await storage.createDocument(docData);
+
+      // 6️⃣ Success - return the created document
+      res.status(201).json(document);
+    } catch (error: any) {
+      console.error("Document upload error:", error);
+      res.status(500).json({ error: error.message || "Document upload failed" });
+    }
+  });
+
   // File upload routes for document storage (requires authentication)
   // Note: This route only works on Replit. For DigitalOcean, use /api/spaces/upload instead
   app.post("/api/objects/upload", async (req, res) => {

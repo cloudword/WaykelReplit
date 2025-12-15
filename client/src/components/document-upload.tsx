@@ -267,55 +267,47 @@ export function DocumentUpload({
     }
 
     if (files.length === 0) {
-      toast.error("Please select at least one file to upload");
+      toast.error("Please select a file to upload");
       return;
     }
 
     setIsSubmitting(true);
+    setFiles(prev => prev.map((f, i) => i === 0 ? { ...f, status: "uploading", progress: 10 } : f));
 
     try {
-      // 2️⃣ Upload file to storage
-      const uploadResult = await uploadFile(files[0], 0);
-      if (!uploadResult) {
-        throw new Error("File upload failed");
-      }
-
-      // 3️⃣ Create document DB record (atomic - this is the real success)
-      const docData: any = {
-        entityType,
-        type: docType,
-        documentName: docTypes.find(d => d.value === docType)?.label || docType,
-        url: uploadResult.key,
-        status: "pending",
-      };
-
-      if (uploadResult.storagePath) {
-        docData.storagePath = uploadResult.storagePath;
-      }
-
-      if (entityType === "driver") {
-        docData.userId = entityId;
-      } else if (entityType === "vehicle") {
-        docData.vehicleId = entityId;
-      }
-
-      if (entityType === "transporter") {
-        docData.transporterId = entityId;
-      } else if (transporterId) {
-        docData.transporterId = transporterId;
-      }
-
-      if (expiryDate) {
-        docData.expiryDate = expiryDate;
-      }
-
-      const response = await api.documents.create(docData);
+      // Convert file to base64
+      const file = files[0].file;
+      const fileData = await fileToBase64(file);
       
-      if (response?.error) {
-        throw new Error(response.error);
+      setFiles(prev => prev.map((f, i) => i === 0 ? { ...f, progress: 30 } : f));
+
+      // 2️⃣ SINGLE API CALL - Backend handles everything atomically
+      const response = await fetch("/api/documents/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          fileData,
+          fileName: file.name,
+          contentType: file.type || "application/octet-stream",
+          entityType,
+          type: docType,
+          entityId,
+          expiryDate: expiryDate || undefined,
+        }),
+      });
+
+      setFiles(prev => prev.map((f, i) => i === 0 ? { ...f, progress: 80 } : f));
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Upload failed");
       }
 
-      // 4️⃣ SUCCESS — only here after DB record created
+      setFiles(prev => prev.map((f, i) => i === 0 ? { ...f, status: "success", progress: 100 } : f));
+
+      // 3️⃣ SUCCESS — single toast after atomic operation
       toast.success("Document uploaded successfully");
       
       // Refresh list and close modal
@@ -325,6 +317,11 @@ export function DocumentUpload({
       setExpiryDate("");
       setFiles([]);
     } catch (error) {
+      setFiles(prev => prev.map((f, i) => i === 0 ? { 
+        ...f, 
+        status: "error", 
+        error: error instanceof Error ? error.message : "Upload failed" 
+      } : f));
       toast.error(
         getFriendlyErrorMessage(
           error instanceof Error ? error.message : "Upload failed"
