@@ -1427,6 +1427,36 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // POST /api/transporters/:id/verify - Admin only (approves and verifies transporter)
+  app.post("/api/transporters/:id/verify", requireAdmin, async (req, res) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const transporter = await storage.getTransporter(req.params.id);
+      if (!transporter) {
+        return res.status(404).json({ error: "Transporter not found" });
+      }
+      
+      // Verify the transporter (sets isVerified=true, status=active)
+      await storage.verifyTransporter(req.params.id, sessionUser.id);
+      
+      // Get updated transporter to return
+      const updatedTransporter = await storage.getTransporter(req.params.id);
+      
+      res.json({ 
+        success: true, 
+        message: "Transporter verified and approved successfully",
+        transporter: updatedTransporter
+      });
+    } catch (error) {
+      console.error("Failed to verify transporter:", error);
+      res.status(400).json({ error: "Failed to verify transporter" });
+    }
+  });
+
   // User routes
   // GET /api/users - Admin only (or transporter can see their own users)
   app.get("/api/users", requireAuth, async (req, res) => {

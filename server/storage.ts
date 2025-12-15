@@ -110,6 +110,8 @@ export interface IStorage {
   // Smart Matching
   findMatchingTransporters(ride: Ride): Promise<{transporter: Transporter; matchScore: number; matchReason: string; vehicles: Vehicle[]}[]>;
   getActiveTransporters(): Promise<Transporter[]>;
+  getTransportersByStatus(status: string): Promise<Transporter[]>;
+  verifyTransporter(id: string, verifiedById: string): Promise<void>;
   getVehiclesByTypeAndCapacity(vehicleType: string | null, minCapacityKg: number | null): Promise<Vehicle[]>;
   updateRideAcceptedBid(rideId: string, bidId: string, transporterId: string): Promise<void>;
   
@@ -412,7 +414,25 @@ export class DatabaseStorage implements IStorage {
 
   // Smart Matching
   async getActiveTransporters(): Promise<Transporter[]> {
-    return await db.select().from(transporters).where(eq(transporters.status, "active"));
+    // Only return transporters that are both active AND verified
+    return await db.select().from(transporters).where(
+      and(eq(transporters.status, "active"), eq(transporters.isVerified, true))
+    );
+  }
+
+  // Get transporters by status (for admin filtering)
+  async getTransportersByStatus(status: string): Promise<Transporter[]> {
+    return await db.select().from(transporters).where(eq(transporters.status, status as any)).orderBy(desc(transporters.createdAt));
+  }
+
+  // Verify a transporter (admin action)
+  async verifyTransporter(id: string, verifiedById: string): Promise<void> {
+    await db.update(transporters).set({
+      isVerified: true,
+      status: "active",
+      verifiedAt: new Date(),
+      verifiedBy: verifiedById,
+    }).where(eq(transporters.id, id));
   }
 
   async getVehiclesByTypeAndCapacity(vehicleType: string | null, minCapacityKg: number | null): Promise<Vehicle[]> {

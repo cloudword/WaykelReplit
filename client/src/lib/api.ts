@@ -174,6 +174,14 @@ export const api = {
       });
       return res.json();
     },
+    verify: async (id: string) => {
+      const res = await fetch(`${API_BASE}/transporters/${id}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      return res.json();
+    },
   },
   drivers: {
     list: async () => {
