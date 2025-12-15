@@ -99,7 +99,8 @@ export interface IStorage {
   getVehicleDocuments(vehicleId: string): Promise<Document[]>;
   getAllDocuments(): Promise<Document[]>;
   createDocument(document: InsertDocument): Promise<Document>;
-  updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected"): Promise<void>;
+  updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced", rejectionReason?: string | null): Promise<void>;
+  markDocumentReplaced(id: string, replacedById: string): Promise<void>;
   
   // Notifications
   createNotification(notification: InsertNotification): Promise<Notification>;
@@ -392,8 +393,19 @@ export class DatabaseStorage implements IStorage {
     return document;
   }
 
-  async updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected"): Promise<void> {
-    await db.update(documents).set({ status }).where(eq(documents.id, id));
+  async updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced", rejectionReason?: string | null): Promise<void> {
+    const updateData: any = { status };
+    if (rejectionReason !== undefined) {
+      updateData.rejectionReason = rejectionReason;
+    }
+    await db.update(documents).set(updateData).where(eq(documents.id, id));
+  }
+
+  async markDocumentReplaced(id: string, replacedById: string): Promise<void> {
+    await db.update(documents).set({ 
+      status: "replaced" as const,
+      replacedById 
+    }).where(eq(documents.id, id));
   }
 
   // Notifications

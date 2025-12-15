@@ -33,40 +33,70 @@ export default function TransporterDocuments() {
       return;
     }
     setLoading(true);
-    try {
-      const [docsData, usersData, vehiclesData, transporterData] = await Promise.all([
-        api.documents.list({ transporterId: user.transporterId }),
-        api.users.list({ transporterId: user.transporterId, role: "driver" }),
-        api.vehicles.list({ transporterId: user.transporterId }),
-        api.transporters.get(user.transporterId),
-      ]);
-      
-      // Check for API errors in responses
+    
+    // Fetch each resource independently so one failure doesn't block others
+    const results = await Promise.allSettled([
+      api.documents.list({ transporterId: user.transporterId }),
+      api.users.list({ transporterId: user.transporterId, role: "driver" }),
+      api.vehicles.list({ transporterId: user.transporterId }),
+      api.transporters.get(user.transporterId),
+    ]);
+    
+    // Process documents
+    const docsResult = results[0];
+    if (docsResult.status === "fulfilled") {
+      const docsData = docsResult.value;
       if (docsData?.error) {
         console.error("Documents API error:", docsData.error);
         toast.error(docsData.error);
         setDocuments([]);
       } else {
+        console.log("Documents loaded:", docsData?.length || 0, "docs");
         setDocuments(Array.isArray(docsData) ? docsData : []);
       }
-      
+    } else {
+      console.error("Documents fetch failed:", docsResult.reason);
+      toast.error("Failed to load documents");
+      setDocuments([]);
+    }
+    
+    // Process drivers
+    const usersResult = results[1];
+    if (usersResult.status === "fulfilled") {
+      const usersData = usersResult.value;
       if (usersData?.error) {
         console.error("Users API error:", usersData.error);
       }
       setDrivers(Array.isArray(usersData) ? usersData : []);
-      
+    } else {
+      console.error("Users fetch failed:", usersResult.reason);
+      setDrivers([]);
+    }
+    
+    // Process vehicles
+    const vehiclesResult = results[2];
+    if (vehiclesResult.status === "fulfilled") {
+      const vehiclesData = vehiclesResult.value;
       if (vehiclesData?.error) {
         console.error("Vehicles API error:", vehiclesData.error);
       }
       setVehicles(Array.isArray(vehiclesData) ? vehiclesData : []);
-      
-      setTransporter(transporterData?.error ? null : transporterData);
-    } catch (error) {
-      console.error("Failed to load data:", error);
-      toast.error("Failed to load documents");
-    } finally {
-      setLoading(false);
+    } else {
+      console.error("Vehicles fetch failed:", vehiclesResult.reason);
+      setVehicles([]);
     }
+    
+    // Process transporter
+    const transporterResult = results[3];
+    if (transporterResult.status === "fulfilled") {
+      const transporterData = transporterResult.value;
+      setTransporter(transporterData?.error ? null : transporterData);
+    } else {
+      console.error("Transporter fetch failed:", transporterResult.reason);
+      setTransporter(null);
+    }
+    
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -83,7 +113,33 @@ export default function TransporterDocuments() {
       case "pending": return "bg-yellow-100 text-yellow-800";
       case "expired": return "bg-red-100 text-red-800";
       case "rejected": return "bg-red-100 text-red-800";
+      case "replaced": return "bg-gray-100 text-gray-500";
       default: return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const [replaceDocType, setReplaceDocType] = useState<string | null>(null);
+  const [replaceEntityType, setReplaceEntityType] = useState<"driver" | "vehicle" | "transporter" | null>(null);
+  const [replaceEntityId, setReplaceEntityId] = useState<string | null>(null);
+
+  const handleReplaceDocument = (doc: any) => {
+    setReplaceDocType(doc.type);
+    if (doc.entityType === "transporter") {
+      setReplaceEntityType("transporter");
+      setReplaceEntityId(doc.transporterId);
+      setShowBusinessUpload(true);
+    } else if (doc.entityType === "driver") {
+      setReplaceEntityType("driver");
+      setReplaceEntityId(doc.userId);
+      setUploadEntityType("driver");
+      setSelectedEntityId(doc.userId);
+      setShowUploadDialog(true);
+    } else if (doc.entityType === "vehicle") {
+      setReplaceEntityType("vehicle");
+      setReplaceEntityId(doc.vehicleId);
+      setUploadEntityType("vehicle");
+      setSelectedEntityId(doc.vehicleId);
+      setShowUploadDialog(true);
     }
   };
 
@@ -220,7 +276,7 @@ export default function TransporterDocuments() {
               </div>
             ) : businessDocs.length > 0 ? (
               <div className="space-y-3">
-                {businessDocs.map(doc => (
+                {businessDocs.filter(d => d.status !== "replaced").map(doc => (
                   <Card key={doc.id} data-testid={`doc-card-${doc.id}`}>
                     <CardContent className="p-4 flex items-center justify-between">
                       <div className="flex items-center gap-4">
@@ -231,9 +287,25 @@ export default function TransporterDocuments() {
                           {doc.expiryDate && (
                             <p className="text-xs text-gray-400">Expires: {doc.expiryDate}</p>
                           )}
+                          {doc.status === "rejected" && doc.rejectionReason && (
+                            <p className="text-xs text-red-600 mt-1">Reason: {doc.rejectionReason}</p>
+                          )}
                         </div>
                       </div>
-                      <Badge className={getStatusColor(doc.status)}>{doc.status}</Badge>
+                      <div className="flex items-center gap-2">
+                        {doc.status === "rejected" && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleReplaceDocument(doc)}
+                            data-testid={`button-replace-${doc.id}`}
+                          >
+                            <RefreshCw className="h-4 w-4 mr-1" />
+                            Replace
+                          </Button>
+                        )}
+                        <Badge className={getStatusColor(doc.status)}>{doc.status}</Badge>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -258,7 +330,7 @@ export default function TransporterDocuments() {
               </div>
             ) : driverDocs.length > 0 ? (
               <div className="space-y-3">
-                {driverDocs.map(doc => (
+                {driverDocs.filter(d => d.status !== "replaced").map(doc => (
                   <Card key={doc.id} data-testid={`doc-card-${doc.id}`}>
                     <CardContent className="p-4 flex items-center justify-between">
                       <div className="flex items-center gap-4">
@@ -269,9 +341,25 @@ export default function TransporterDocuments() {
                           {doc.expiryDate && (
                             <p className="text-xs text-gray-400">Expires: {doc.expiryDate}</p>
                           )}
+                          {doc.status === "rejected" && doc.rejectionReason && (
+                            <p className="text-xs text-red-600 mt-1">Reason: {doc.rejectionReason}</p>
+                          )}
                         </div>
                       </div>
-                      <Badge className={getStatusColor(doc.status)}>{doc.status}</Badge>
+                      <div className="flex items-center gap-2">
+                        {doc.status === "rejected" && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleReplaceDocument(doc)}
+                            data-testid={`button-replace-${doc.id}`}
+                          >
+                            <RefreshCw className="h-4 w-4 mr-1" />
+                            Replace
+                          </Button>
+                        )}
+                        <Badge className={getStatusColor(doc.status)}>{doc.status}</Badge>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -295,7 +383,7 @@ export default function TransporterDocuments() {
               </div>
             ) : vehicleDocs.length > 0 ? (
               <div className="space-y-3">
-                {vehicleDocs.map(doc => (
+                {vehicleDocs.filter(d => d.status !== "replaced").map(doc => (
                   <Card key={doc.id} data-testid={`doc-card-${doc.id}`}>
                     <CardContent className="p-4 flex items-center justify-between">
                       <div className="flex items-center gap-4">
@@ -306,9 +394,25 @@ export default function TransporterDocuments() {
                           {doc.expiryDate && (
                             <p className="text-xs text-gray-400">Expires: {doc.expiryDate}</p>
                           )}
+                          {doc.status === "rejected" && doc.rejectionReason && (
+                            <p className="text-xs text-red-600 mt-1">Reason: {doc.rejectionReason}</p>
+                          )}
                         </div>
                       </div>
-                      <Badge className={getStatusColor(doc.status)}>{doc.status}</Badge>
+                      <div className="flex items-center gap-2">
+                        {doc.status === "rejected" && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleReplaceDocument(doc)}
+                            data-testid={`button-replace-${doc.id}`}
+                          >
+                            <RefreshCw className="h-4 w-4 mr-1" />
+                            Replace
+                          </Button>
+                        )}
+                        <Badge className={getStatusColor(doc.status)}>{doc.status}</Badge>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
