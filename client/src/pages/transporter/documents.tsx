@@ -28,7 +28,10 @@ export default function TransporterDocuments() {
   });
 
   const loadData = async () => {
-    if (!user?.transporterId) return;
+    if (!user?.transporterId) {
+      console.log("No transporterId found in user:", user);
+      return;
+    }
     setLoading(true);
     try {
       const [docsData, usersData, vehiclesData, transporterData] = await Promise.all([
@@ -37,10 +40,27 @@ export default function TransporterDocuments() {
         api.vehicles.list({ transporterId: user.transporterId }),
         api.transporters.get(user.transporterId),
       ]);
-      setDocuments(Array.isArray(docsData) ? docsData : []);
+      
+      // Check for API errors in responses
+      if (docsData?.error) {
+        console.error("Documents API error:", docsData.error);
+        toast.error(docsData.error);
+        setDocuments([]);
+      } else {
+        setDocuments(Array.isArray(docsData) ? docsData : []);
+      }
+      
+      if (usersData?.error) {
+        console.error("Users API error:", usersData.error);
+      }
       setDrivers(Array.isArray(usersData) ? usersData : []);
+      
+      if (vehiclesData?.error) {
+        console.error("Vehicles API error:", vehiclesData.error);
+      }
       setVehicles(Array.isArray(vehiclesData) ? vehiclesData : []);
-      setTransporter(transporterData);
+      
+      setTransporter(transporterData?.error ? null : transporterData);
     } catch (error) {
       console.error("Failed to load data:", error);
       toast.error("Failed to load documents");
