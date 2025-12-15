@@ -1,0 +1,161 @@
+What’s happening (root cause)
+
+Your API endpoint:
+
+POST /api/spaces/upload
+
+
+is throwing a 500 error with:
+
+"transporterId required for transporter documents"
+
+
+The stack trace points to:
+
+getDocumentStoragePath (/workspace/dist/index.cjs:45520)
+
+Meaning in plain English
+
+Your upload logic has document-type–based storage rules.
+
+For transporter documents, your backend expects a transporterId, but the request does not contain it.
+
+So when the backend tries to compute the storage path (likely something like):
+
+/spaces/transporter/{transporterId}/documents/...
+
+
+…it fails because transporterId is undefined.
+
+Why /api/health is fine
+
+This confirms:
+
+App is running
+
+DB is connected
+
+Express is healthy
+
+So this is not infra, not DB, not deployment
+👉 It’s a request validation / API contract issue
+
+Where the failure happens (important)
+
+This line is key:
+
+Error: transporterId required for transporter documents
+at getDocumentStoragePath
+
+
+That means:
+
+Validation is happening inside storage-path resolution
+
+Not at request validation layer (Zod/Joi/middleware)
+
+So bad requests are reaching deep logic → causing 500s ❌
+
+What you should fix (3 levels)
+✅ Fix 1: Ensure frontend / client sends transporterId
+
+If the document type is transporter-related, your request must include:
+
+Example request (multipart)
+POST /api/spaces/upload
+Content-Type: multipart/form-data
+
+{
+  "documentType": "TRANSPORTER_DOC",
+  "transporterId": "tr_123456",
+  "file": <binary>
+}
+
+
+If you’re using FormData in frontend:
+
+const formData = new FormData();
+formData.append("file", file);
+formData.append("documentType", "TRANSPORTER_DOC");
+formData.append("transporterId", transporterId); // REQUIRED
+
+
+🚨 If transporterId is missing → this error is expected.
+
+✅ Fix 2: Validate earlier (recommended)
+
+Right now, your backend throws this too late.
+
+Add validation before calling getDocumentStoragePath.
+
+Example (Express middleware)
+if (documentType === "TRANSPORTER_DOC" && !transporterId) {
+  return res.status(400).json({
+    error: "transporterId is required for transporter documents"
+  });
+}
+
+
+This converts:
+
+❌ 500 Internal Server Error
+
+✅ 400 Bad Request (correct behavior)
+
+✅ Fix 3: Make document types explicit (best practice)
+
+If you don’t already have this, define a clear rule:
+
+documentType	Required IDs
+TRANSPORTER_DOC	transporterId
+VEHICLE_DOC	vehicleId
+DRIVER_DOC	driverId
+GENERAL	none
+
+Then enforce centrally:
+
+const REQUIRED_IDS = {
+  TRANSPORTER_DOC: "transporterId",
+  VEHICLE_DOC: "vehicleId",
+  DRIVER_DOC: "driverId"
+};
+
+const requiredField = REQUIRED_IDS[documentType];
+
+if (requiredField && !req.body[requiredField]) {
+  return res.status(400).json({
+    error: `${requiredField} required for ${documentType}`
+  });
+}
+
+Why this matters (PM + backend perspective)
+
+Since you’re a Product Manager with strong tech depth, this is important:
+
+This is an API contract mismatch
+
+Frontend + backend assumptions are misaligned
+
+500 errors here will:
+
+Break uploads silently
+
+Confuse users
+
+Pollute error logs
+
+Mask real infra issues
+
+👉 This should be treated as a P1 API correctness fix, not just a bug.
+
+TL;DR
+
+❌ Error is not infra or DB
+
+❌ Backend expects transporterId but request doesn’t send it
+
+✅ Send transporterId from client
+
+✅ Add early validation → return 400, not 500
+
+✅ Centralize document-type → required-ID mapping
