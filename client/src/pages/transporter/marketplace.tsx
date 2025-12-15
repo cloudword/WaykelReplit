@@ -3,7 +3,8 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Building2, RefreshCw, MapPin, Clock, Package, Truck, IndianRupee, Calendar, User, Phone, Star, Sparkles, Filter, AlertCircle, FileText } from "lucide-react";
+import { RefreshCw, MapPin, Clock, Package, Truck, IndianRupee, Calendar, User, Phone, Star, Sparkles, Filter, AlertCircle, FileText } from "lucide-react";
+import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 import { VehicleSelector } from "@/components/vehicle-selector";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -103,17 +104,14 @@ export default function TransporterMarketplace() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pl-64">
+      <TransporterSidebar />
+      
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center h-16 gap-4">
-            <Button variant="ghost" size="icon" onClick={() => setLocation("/transporter")} data-testid="button-back">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div className="flex items-center gap-3">
-              <Building2 className="h-6 w-6 text-blue-600" />
-              <h1 className="text-xl font-bold text-gray-900">Load Marketplace</h1>
-            </div>
+            <MapPin className="h-6 w-6 text-blue-600" />
+            <h1 className="text-xl font-bold text-gray-900">Load Marketplace</h1>
             <div className="ml-auto">
               <Button variant="outline" size="sm" onClick={loadRides} data-testid="button-refresh">
                 <RefreshCw className="h-4 w-4 mr-2" />

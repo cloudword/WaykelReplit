@@ -6,11 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { 
   Bell, Building2, Truck, Users, FileText, TrendingUp, 
-  Plus, LogOut, Settings, IndianRupee, MapPin, Package, CheckCircle, X, 
+  Plus, Settings, IndianRupee, MapPin, Package, CheckCircle, X, 
   BarChart3, Route, Clock, ArrowRight
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 
 export default function TransporterDashboard() {
   const [_, setLocation] = useLocation();
@@ -158,14 +159,16 @@ export default function TransporterDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pl-64">
+      <TransporterSidebar />
+      
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-3">
               <Building2 className="h-8 w-8 text-blue-600" />
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Transporter Panel</h1>
+                <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
                 <p className="text-xs text-gray-500">{user.name}</p>
               </div>
             </div>
@@ -187,45 +190,10 @@ export default function TransporterDashboard() {
               <Button variant="ghost" size="icon" onClick={() => setLocation("/transporter/settings")} data-testid="button-settings">
                 <Settings className="h-5 w-5" />
               </Button>
-              <Button variant="outline" size="sm" onClick={handleLogout} data-testid="button-logout">
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </Button>
             </div>
           </div>
         </div>
       </header>
-
-      <nav className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex gap-4 overflow-x-auto py-2">
-            <Button variant="ghost" className="text-blue-600 border-b-2 border-blue-600 rounded-none" data-testid="nav-dashboard">
-              Dashboard
-            </Button>
-            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/trips")} data-testid="nav-trips">
-              Trips
-            </Button>
-            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/marketplace")} data-testid="nav-marketplace">
-              Marketplace
-            </Button>
-            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/bids")} data-testid="nav-bids">
-              Bids
-            </Button>
-            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/analytics")} data-testid="nav-analytics">
-              Analytics
-            </Button>
-            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/vehicles")} data-testid="nav-vehicles">
-              Vehicles
-            </Button>
-            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/drivers")} data-testid="nav-drivers">
-              Drivers
-            </Button>
-            <Button variant="ghost" className="text-gray-600" onClick={() => setLocation("/transporter/documents")} data-testid="nav-documents">
-              Documents
-            </Button>
-          </div>
-        </div>
-      </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {transporter && transporter.status === "pending_approval" && (

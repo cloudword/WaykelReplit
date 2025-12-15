@@ -1687,6 +1687,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const data = insertDocumentSchema.parse(req.body);
       
+      // Always set userId from session for audit trail (who uploaded the document)
+      if (!data.userId) {
+        data.userId = req.session.user.id;
+      }
+      
       // For transporters, enforce that transporterId matches session
       if (req.session.user.transporterId) {
         if (data.transporterId && data.transporterId !== req.session.user.transporterId) {
@@ -1696,6 +1701,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         if (!data.transporterId) {
           data.transporterId = req.session.user.transporterId;
         }
+      }
+      
+      // Check for duplicate document of same type for this entity
+      let existingDocs: any[] = [];
+      if (data.entityType === "driver" && data.userId) {
+        existingDocs = await storage.getUserDocuments(data.userId);
+      } else if (data.entityType === "vehicle" && data.vehicleId) {
+        existingDocs = await storage.getVehicleDocuments(data.vehicleId);
+      } else if (data.entityType === "transporter" && data.transporterId) {
+        existingDocs = await storage.getTransporterDocuments(data.transporterId);
+      }
+      
+      const duplicateDoc = existingDocs.find(d => d.type === data.type && d.status !== "rejected");
+      if (duplicateDoc) {
+        return res.status(400).json({ 
+          error: `A ${data.type} document already exists for this ${data.entityType}. Delete the existing one first or wait for it to be processed.` 
+        });
       }
       
       const document = await storage.createDocument(data);
@@ -1882,33 +1904,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const resolvedUserId = userId || user.id;
       const resolvedCustomerId = customerId || (user.role === "customer" ? user.id : undefined);
 
-      // Debug: log what IDs we have
-      console.log("[Spaces Upload] entityType:", entityType, "user.role:", user.role);
-      console.log("[Spaces Upload] Resolved IDs - transporterId:", resolvedTransporterId, "userId:", resolvedUserId, "vehicleId:", vehicleId);
-      console.log("[Spaces Upload] From session - user.transporterId:", user.transporterId, "user.id:", user.id);
-
       // Early validation for required IDs based on entityType
       if (entityType === "transporter" && !resolvedTransporterId) {
-        return res.status(400).json({ 
-          error: "transporterId is required for transporter documents",
-          debug: { 
-            hint: "Session user does not have transporterId set. User may need to re-login.",
-            sessionTransporterId: user.transporterId,
-            userRole: user.role
-          }
-        });
+        return res.status(400).json({ error: "transporterId is required for transporter documents. Please re-login." });
       }
       if (entityType === "driver" && (!resolvedTransporterId || !resolvedUserId)) {
-        return res.status(400).json({ 
-          error: "transporterId and userId are required for driver documents",
-          debug: { resolvedTransporterId, resolvedUserId, userRole: user.role }
-        });
+        return res.status(400).json({ error: "transporterId and userId are required for driver documents" });
       }
       if (entityType === "vehicle" && (!resolvedTransporterId || !vehicleId)) {
-        return res.status(400).json({ 
-          error: "transporterId and vehicleId are required for vehicle documents",
-          debug: { resolvedTransporterId, vehicleId, userRole: user.role }
-        });
+        return res.status(400).json({ error: "transporterId and vehicleId are required for vehicle documents" });
       }
       if (entityType === "customer" && !resolvedCustomerId && !resolvedUserId) {
         return res.status(400).json({ error: "customerId or userId is required for customer documents" });
