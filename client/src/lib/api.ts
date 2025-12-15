@@ -182,6 +182,15 @@ export const api = {
       });
       return res.json();
     },
+    addDriver: async (data: { name: string; phone: string; email?: string }) => {
+      const res = await fetch(`${API_BASE}/transporter/drivers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      return res.json();
+    },
   },
   drivers: {
     list: async () => {

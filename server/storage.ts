@@ -42,6 +42,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByPhone(phone: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByTransporterId(transporterId: string): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
   getCustomers(): Promise<User[]>;
   getDrivers(): Promise<User[]>;
@@ -92,6 +93,7 @@ export interface IStorage {
   updateBidStatus(id: string, status: "pending" | "accepted" | "rejected"): Promise<void>;
   
   // Documents
+  getDocument(id: string): Promise<Document | undefined>;
   getUserDocuments(userId: string): Promise<Document[]>;
   getTransporterDocuments(transporterId: string): Promise<Document[]>;
   getVehicleDocuments(vehicleId: string): Promise<Document[]>;
@@ -164,6 +166,11 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByPhone(phone: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.phone, phone));
+    return user || undefined;
+  }
+
+  async getUserByTransporterId(transporterId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.transporterId, transporterId));
     return user || undefined;
   }
 
@@ -359,6 +366,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Documents
+  async getDocument(id: string): Promise<Document | undefined> {
+    const [document] = await db.select().from(documents).where(eq(documents.id, id));
+    return document || undefined;
+  }
+
   async getUserDocuments(userId: string): Promise<Document[]> {
     return await db.select().from(documents).where(eq(documents.userId, userId)).orderBy(desc(documents.createdAt));
   }

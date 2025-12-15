@@ -1763,12 +1763,61 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // PATCH /api/documents/:id/status - Admin only (to verify/reject documents)
+  // Includes auto-activation logic: if all required docs approved, transporter becomes active
   app.patch("/api/documents/:id/status", requireAdmin, async (req, res) => {
     try {
       const { status } = req.body;
+      const document = await storage.getDocument(req.params.id);
+      
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
       await storage.updateDocumentStatus(req.params.id, status);
+      
+      // Auto-activation: Check if all required transporter documents are now verified
+      if (status === "verified" && document.entityType === "transporter" && document.transporterId) {
+        const REQUIRED_DOCS = ["pan", "gst_certificate"];
+        const transporterDocs = await storage.getTransporterDocuments(document.transporterId);
+        
+        // Check if all required docs are verified
+        const allRequiredVerified = REQUIRED_DOCS.every(docType => 
+          transporterDocs.some(d => d.type === docType && d.status === "verified")
+        );
+        
+        if (allRequiredVerified) {
+          // Get transporter to check current status
+          const transporter = await storage.getTransporter(document.transporterId);
+          
+          if (transporter && transporter.status !== "active") {
+            // Auto-activate transporter (set status=active, isVerified=true)
+            const sessionUser = getCurrentUser(req);
+            await storage.verifyTransporter(document.transporterId, sessionUser?.id || "system");
+            
+            // Notify the transporter
+            const transporterUser = await storage.getUserByTransporterId(document.transporterId);
+            if (transporterUser) {
+              await storage.createNotification({
+                recipientId: transporterUser.id,
+                recipientTransporterId: document.transporterId,
+                type: "general",
+                title: "Account Activated!",
+                message: "Congratulations! All your documents have been verified and your account is now active. You can start receiving trips and placing bids.",
+              });
+            }
+            
+            return res.json({ 
+              success: true, 
+              autoActivated: true,
+              message: "Document verified and transporter auto-activated (all required documents verified)"
+            });
+          }
+        }
+      }
+      
       res.json({ success: true });
     } catch (error) {
+      console.error("Failed to update document status:", error);
       res.status(400).json({ error: "Failed to update document status" });
     }
   });
@@ -2917,6 +2966,96 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Get vehicle types for driver applications
   app.get("/api/vehicle-types", async (req: Request, res: Response) => {
     res.json(VEHICLE_TYPES);
+  });
+
+  // ============== TRANSPORTER DRIVER MANAGEMENT ==============
+
+  // Add driver with auto-generated credentials
+  app.post("/api/transporter/drivers", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      
+      if (sessionUser.role !== "transporter" && !sessionUser.isSuperAdmin) {
+        return res.status(403).json({ error: "Only transporters can add drivers" });
+      }
+      
+      const transporterId = sessionUser.transporterId;
+      if (!transporterId && !sessionUser.isSuperAdmin) {
+        return res.status(400).json({ error: "No transporter associated with this user" });
+      }
+      
+      const { name, phone, email } = req.body;
+      
+      if (!name || !phone) {
+        return res.status(400).json({ error: "Name and phone are required" });
+      }
+      
+      // Normalize phone
+      const normalizedPhone = normalizePhone(phone);
+      
+      // Check if phone already exists
+      const existingUser = await storage.getUserByPhone(normalizedPhone);
+      if (existingUser) {
+        return res.status(400).json({ error: "Phone number already registered" });
+      }
+      
+      // Check if email already exists (if provided)
+      if (email) {
+        const existingEmail = await storage.getUserByEmail(email);
+        if (existingEmail) {
+          return res.status(400).json({ error: "Email already registered" });
+        }
+      }
+      
+      // Auto-generate password (8 chars: 4 letters + 4 numbers)
+      const generatePassword = () => {
+        const letters = 'abcdefghjkmnpqrstuvwxyz'; // no i, l, o for clarity
+        const numbers = '23456789'; // no 0, 1 for clarity
+        let pwd = '';
+        for (let i = 0; i < 4; i++) pwd += letters[Math.floor(Math.random() * letters.length)];
+        for (let i = 0; i < 4; i++) pwd += numbers[Math.floor(Math.random() * numbers.length)];
+        return pwd;
+      };
+      
+      const plainPassword = generatePassword();
+      const hashedPassword = await bcrypt.hash(plainPassword, 10);
+      
+      // Create the driver user
+      const driver = await storage.createUser({
+        name,
+        phone: normalizedPhone,
+        email: email || undefined,
+        password: hashedPassword,
+        role: "driver",
+        transporterId: transporterId,
+      });
+      
+      // Get transporter details for notification
+      const transporter = await storage.getTransporter(transporterId!);
+      
+      // Create welcome notification for the driver
+      await storage.createNotification({
+        recipientId: driver.id,
+        type: "general",
+        title: "Welcome to Waykel!",
+        message: `You've been added as a driver by ${transporter?.companyName || "your transporter"}. Use your phone number and password to log in.`,
+      });
+      
+      // Return driver info with credentials (transporter can share with driver)
+      const { password, ...driverWithoutPassword } = driver;
+      
+      res.status(201).json({
+        driver: driverWithoutPassword,
+        credentials: {
+          phone: normalizedPhone,
+          password: plainPassword, // Plain password for transporter to share
+        },
+        message: "Driver added successfully. Share the login credentials with the driver.",
+      });
+    } catch (error) {
+      console.error("Failed to add driver:", error);
+      res.status(500).json({ error: "Failed to add driver" });
+    }
   });
 
   // ============== TRANSPORTER TRIP POSTING ==============
