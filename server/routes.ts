@@ -295,6 +295,33 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // One-time migration endpoint to add missing columns
+  app.post("/api/migrate/add-document-columns", async (req, res) => {
+    try {
+      const { Pool } = await import("pg");
+      const fs = await import("fs");
+      
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.DIGITALOCEAN_CA_PATH ? {
+          rejectUnauthorized: true,
+          ca: fs.readFileSync(process.env.DIGITALOCEAN_CA_PATH).toString()
+        } : undefined
+      });
+      
+      // Add missing columns
+      await pool.query("ALTER TABLE documents ADD COLUMN IF NOT EXISTS rejection_reason TEXT");
+      await pool.query("ALTER TABLE documents ADD COLUMN IF NOT EXISTS replaced_by_id VARCHAR");
+      
+      await pool.end();
+      
+      res.json({ success: true, message: "Document columns added successfully" });
+    } catch (error: any) {
+      console.error("Migration error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Auth routes - with rate limiting
   app.post("/api/auth/register", authLimiter, async (req, res) => {
     try {
