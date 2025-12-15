@@ -1648,7 +1648,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // GET /api/documents - Auth required, users can only see their own
   app.get("/api/documents", requireAuth, async (req, res) => {
     const { userId, vehicleId, transporterId } = req.query;
-    const user = req.session.user!;
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
     const isAdmin = user.isSuperAdmin || user.role === "admin";
     
     try {
@@ -1680,7 +1683,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.post("/api/documents", uploadLimiter, async (req, res) => {
-    if (!req.session?.user?.id) {
+    const sessionUser = getCurrentUser(req);
+    if (!sessionUser?.id) {
       return res.status(401).json({ error: "Authentication required" });
     }
     
@@ -1689,17 +1693,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       
       // Always set userId from session for audit trail (who uploaded the document)
       if (!data.userId) {
-        data.userId = req.session.user.id;
+        data.userId = sessionUser.id;
       }
       
       // For transporters, enforce that transporterId matches session
-      if (req.session.user.transporterId) {
-        if (data.transporterId && data.transporterId !== req.session.user.transporterId) {
+      if (sessionUser.transporterId) {
+        if (data.transporterId && data.transporterId !== sessionUser.transporterId) {
           return res.status(403).json({ error: "Cannot create document for another transporter" });
         }
         // Auto-set transporterId from session if not provided
         if (!data.transporterId) {
-          data.transporterId = req.session.user.transporterId;
+          data.transporterId = sessionUser.transporterId;
         }
       }
       
