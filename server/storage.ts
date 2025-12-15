@@ -42,6 +42,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByPhone(phone: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByTransporterId(transporterId: string): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
   getCustomers(): Promise<User[]>;
   getDrivers(): Promise<User[]>;
@@ -92,6 +93,7 @@ export interface IStorage {
   updateBidStatus(id: string, status: "pending" | "accepted" | "rejected"): Promise<void>;
   
   // Documents
+  getDocument(id: string): Promise<Document | undefined>;
   getUserDocuments(userId: string): Promise<Document[]>;
   getTransporterDocuments(transporterId: string): Promise<Document[]>;
   getVehicleDocuments(vehicleId: string): Promise<Document[]>;
@@ -110,6 +112,8 @@ export interface IStorage {
   // Smart Matching
   findMatchingTransporters(ride: Ride): Promise<{transporter: Transporter; matchScore: number; matchReason: string; vehicles: Vehicle[]}[]>;
   getActiveTransporters(): Promise<Transporter[]>;
+  getTransportersByStatus(status: string): Promise<Transporter[]>;
+  verifyTransporter(id: string, verifiedById: string): Promise<void>;
   getVehiclesByTypeAndCapacity(vehicleType: string | null, minCapacityKg: number | null): Promise<Vehicle[]>;
   updateRideAcceptedBid(rideId: string, bidId: string, transporterId: string): Promise<void>;
   
@@ -162,6 +166,11 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByPhone(phone: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.phone, phone));
+    return user || undefined;
+  }
+
+  async getUserByTransporterId(transporterId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.transporterId, transporterId));
     return user || undefined;
   }
 
@@ -357,6 +366,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Documents
+  async getDocument(id: string): Promise<Document | undefined> {
+    const [document] = await db.select().from(documents).where(eq(documents.id, id));
+    return document || undefined;
+  }
+
   async getUserDocuments(userId: string): Promise<Document[]> {
     return await db.select().from(documents).where(eq(documents.userId, userId)).orderBy(desc(documents.createdAt));
   }
@@ -412,7 +426,25 @@ export class DatabaseStorage implements IStorage {
 
   // Smart Matching
   async getActiveTransporters(): Promise<Transporter[]> {
-    return await db.select().from(transporters).where(eq(transporters.status, "active"));
+    // Only return transporters that are both active AND verified
+    return await db.select().from(transporters).where(
+      and(eq(transporters.status, "active"), eq(transporters.isVerified, true))
+    );
+  }
+
+  // Get transporters by status (for admin filtering)
+  async getTransportersByStatus(status: string): Promise<Transporter[]> {
+    return await db.select().from(transporters).where(eq(transporters.status, status as any)).orderBy(desc(transporters.createdAt));
+  }
+
+  // Verify a transporter (admin action)
+  async verifyTransporter(id: string, verifiedById: string): Promise<void> {
+    await db.update(transporters).set({
+      isVerified: true,
+      status: "active",
+      verifiedAt: new Date(),
+      verifiedBy: verifiedById,
+    }).where(eq(transporters.id, id));
   }
 
   async getVehiclesByTypeAndCapacity(vehicleType: string | null, minCapacityKg: number | null): Promise<Vehicle[]> {

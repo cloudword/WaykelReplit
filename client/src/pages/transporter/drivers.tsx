@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Users, Phone, Mail, Search, FileText, CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { Plus, Users, Phone, Mail, Search, FileText, CheckCircle, Clock, AlertCircle, Copy, Key } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
@@ -17,12 +17,13 @@ export default function TransporterDrivers() {
   const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showCredentialsDialog, setShowCredentialsDialog] = useState(false);
+  const [credentials, setCredentials] = useState<{ phone: string; password: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [newDriver, setNewDriver] = useState({
     name: "",
     phone: "",
     email: "",
-    password: "",
   });
   const [user] = useState<any>(() => {
     const stored = localStorage.getItem("currentUser");
@@ -68,26 +69,30 @@ export default function TransporterDrivers() {
   const handleAddDriver = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const result = await api.auth.register({
+      const result = await api.transporters.addDriver({
         name: newDriver.name,
         phone: newDriver.phone,
         email: newDriver.email || undefined,
-        password: newDriver.password,
-        role: "driver",
-        transporterId: user.transporterId,
       });
       
       if (result.error) {
         toast.error(result.error);
       } else {
-        toast.success("Driver added successfully!");
+        // Show credentials dialog
+        setCredentials(result.credentials);
         setShowAddDialog(false);
-        setNewDriver({ name: "", phone: "", email: "", password: "" });
+        setShowCredentialsDialog(true);
+        setNewDriver({ name: "", phone: "", email: "" });
         loadDrivers();
       }
     } catch (error) {
       toast.error("Failed to add driver");
     }
+  };
+  
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Copied to clipboard!");
   };
 
   const filteredDrivers = drivers.filter(driver => 
@@ -168,17 +173,12 @@ export default function TransporterDrivers() {
                     data-testid="input-driver-email"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="password">Password</Label>
-                  <Input 
-                    id="password" 
-                    type="password"
-                    value={newDriver.password}
-                    onChange={(e) => setNewDriver({...newDriver, password: e.target.value})}
-                    required
-                    data-testid="input-driver-password"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Min 8 chars, 1 uppercase, 1 number</p>
+                <div className="p-3 bg-blue-50 rounded-lg">
+                  <div className="flex items-center gap-2 text-sm text-blue-700">
+                    <Key className="h-4 w-4" />
+                    <span>Password will be auto-generated</span>
+                  </div>
+                  <p className="text-xs text-blue-600 mt-1">Login credentials will be shown after adding the driver</p>
                 </div>
                 <Button type="submit" className="w-full" data-testid="button-submit-driver">
                   Add Driver
@@ -187,6 +187,68 @@ export default function TransporterDrivers() {
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Credentials Dialog */}
+        <Dialog open={showCredentialsDialog} onOpenChange={setShowCredentialsDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Key className="h-5 w-5 text-green-600" />
+                Driver Login Credentials
+              </DialogTitle>
+            </DialogHeader>
+            {credentials && (
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Share these credentials with the driver so they can log in:
+                </p>
+                <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-gray-500">Phone</p>
+                      <p className="font-mono font-semibold">{credentials.phone}</p>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => copyToClipboard(credentials.phone)}
+                      data-testid="button-copy-phone"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-gray-500">Password</p>
+                      <p className="font-mono font-semibold">{credentials.password}</p>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => copyToClipboard(credentials.password)}
+                      data-testid="button-copy-password"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                  This is the only time the password will be shown. Please save or share it now.
+                </p>
+                <Button 
+                  className="w-full" 
+                  onClick={() => {
+                    setShowCredentialsDialog(false);
+                    setCredentials(null);
+                  }}
+                  data-testid="button-close-credentials"
+                >
+                  Done
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {loading ? (
           <div className="text-center py-12 text-gray-500">

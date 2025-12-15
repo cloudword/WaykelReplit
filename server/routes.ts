@@ -1427,6 +1427,36 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // POST /api/transporters/:id/verify - Admin only (approves and verifies transporter)
+  app.post("/api/transporters/:id/verify", requireAdmin, async (req, res) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const transporter = await storage.getTransporter(req.params.id);
+      if (!transporter) {
+        return res.status(404).json({ error: "Transporter not found" });
+      }
+      
+      // Verify the transporter (sets isVerified=true, status=active)
+      await storage.verifyTransporter(req.params.id, sessionUser.id);
+      
+      // Get updated transporter to return
+      const updatedTransporter = await storage.getTransporter(req.params.id);
+      
+      res.json({ 
+        success: true, 
+        message: "Transporter verified and approved successfully",
+        transporter: updatedTransporter
+      });
+    } catch (error) {
+      console.error("Failed to verify transporter:", error);
+      res.status(400).json({ error: "Failed to verify transporter" });
+    }
+  });
+
   // User routes
   // GET /api/users - Admin only (or transporter can see their own users)
   app.get("/api/users", requireAuth, async (req, res) => {
@@ -1733,13 +1763,202 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // PATCH /api/documents/:id/status - Admin only (to verify/reject documents)
+  // Includes auto-activation logic: if all required docs approved, transporter becomes active
   app.patch("/api/documents/:id/status", requireAdmin, async (req, res) => {
     try {
       const { status } = req.body;
+      const document = await storage.getDocument(req.params.id);
+      
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+      
       await storage.updateDocumentStatus(req.params.id, status);
+      
+      // Auto-activation: Check if all required transporter documents are now verified
+      if (status === "verified" && document.entityType === "transporter" && document.transporterId) {
+        const REQUIRED_DOCS = ["pan", "gst_certificate"];
+        const transporterDocs = await storage.getTransporterDocuments(document.transporterId);
+        
+        // Check if all required docs are verified
+        const allRequiredVerified = REQUIRED_DOCS.every(docType => 
+          transporterDocs.some(d => d.type === docType && d.status === "verified")
+        );
+        
+        if (allRequiredVerified) {
+          // Get transporter to check current status
+          const transporter = await storage.getTransporter(document.transporterId);
+          
+          if (transporter && transporter.status !== "active") {
+            // Auto-activate transporter (set status=active, isVerified=true)
+            const sessionUser = getCurrentUser(req);
+            await storage.verifyTransporter(document.transporterId, sessionUser?.id || "system");
+            
+            // Notify the transporter
+            const transporterUser = await storage.getUserByTransporterId(document.transporterId);
+            if (transporterUser) {
+              await storage.createNotification({
+                recipientId: transporterUser.id,
+                recipientTransporterId: document.transporterId,
+                type: "general",
+                title: "Account Activated!",
+                message: "Congratulations! All your documents have been verified and your account is now active. You can start receiving trips and placing bids.",
+              });
+            }
+            
+            return res.json({ 
+              success: true, 
+              autoActivated: true,
+              message: "Document verified and transporter auto-activated (all required documents verified)"
+            });
+          }
+        }
+      }
+      
       res.json({ success: true });
     } catch (error) {
+      console.error("Failed to update document status:", error);
       res.status(400).json({ error: "Failed to update document status" });
+    }
+  });
+
+  // ============================================================
+  // UNIFIED DOCUMENT UPLOAD - Single atomic endpoint
+  // Handles: validation → duplicate check → file upload → DB record
+  // ============================================================
+  app.post("/api/documents/upload", uploadLimiter, async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      const { 
+        fileData, 
+        fileName, 
+        contentType,
+        entityType,
+        type: docType,
+        entityId,
+        expiryDate
+      } = req.body;
+
+      // 1️⃣ Validate required fields
+      if (!fileData || !fileName || !contentType) {
+        return res.status(400).json({ error: "File data is required" });
+      }
+      if (!entityType || !docType) {
+        return res.status(400).json({ error: "entityType and type are required" });
+      }
+
+      const validEntityTypes = ["driver", "vehicle", "transporter"];
+      if (!validEntityTypes.includes(entityType)) {
+        return res.status(400).json({ error: `Invalid entityType. Must be one of: ${validEntityTypes.join(", ")}` });
+      }
+
+      // 2️⃣ Resolve entity IDs based on entityType
+      let resolvedTransporterId: string | undefined;
+      let resolvedUserId: string | undefined;
+      let resolvedVehicleId: string | undefined;
+
+      if (entityType === "transporter") {
+        // For transporter docs, use entityId if provided, fallback to session
+        resolvedTransporterId = entityId || user.transporterId;
+        if (!resolvedTransporterId) {
+          return res.status(400).json({ error: "Transporter ID not found. Please re-login." });
+        }
+      } else if (entityType === "driver") {
+        // For driver docs, entityId is the driver's userId
+        resolvedUserId = entityId || user.id;
+        resolvedTransporterId = user.transporterId;
+        if (!resolvedTransporterId) {
+          return res.status(400).json({ error: "Transporter ID required for driver documents" });
+        }
+      } else if (entityType === "vehicle") {
+        // For vehicle docs, entityId is the vehicleId
+        resolvedVehicleId = entityId;
+        resolvedTransporterId = user.transporterId;
+        if (!resolvedVehicleId) {
+          return res.status(400).json({ error: "Vehicle ID is required for vehicle documents" });
+        }
+        if (!resolvedTransporterId) {
+          return res.status(400).json({ error: "Transporter ID required for vehicle documents" });
+        }
+      }
+
+      // 3️⃣ Check for duplicate documents (block pending/verified, allow expired/rejected)
+      let existingDocs: any[] = [];
+      if (entityType === "driver" && resolvedUserId) {
+        existingDocs = await storage.getUserDocuments(resolvedUserId);
+      } else if (entityType === "vehicle" && resolvedVehicleId) {
+        existingDocs = await storage.getVehicleDocuments(resolvedVehicleId);
+      } else if (entityType === "transporter" && resolvedTransporterId) {
+        existingDocs = await storage.getTransporterDocuments(resolvedTransporterId);
+      }
+
+      const duplicateDoc = existingDocs.find(
+        d => d.type === docType && (d.status === "pending" || d.status === "verified")
+      );
+      if (duplicateDoc) {
+        const statusLabel = duplicateDoc.status === "pending" ? "under review" : "already verified";
+        return res.status(400).json({ 
+          error: `This document type is ${statusLabel}. Cannot upload duplicate.`
+        });
+      }
+
+      // 4️⃣ Upload file to storage
+      const spacesStorage = getSpacesStorage();
+      if (!spacesStorage) {
+        return res.status(503).json({ error: "File storage not configured" });
+      }
+
+      const storagePath = getDocumentStoragePath({
+        entityType,
+        transporterId: resolvedTransporterId,
+        vehicleId: resolvedVehicleId,
+        userId: resolvedUserId,
+      });
+
+      const buffer = Buffer.from(fileData, "base64");
+      const { key } = await spacesStorage.uploadPrivateFile(
+        buffer,
+        fileName,
+        contentType,
+        storagePath
+      );
+
+      // 5️⃣ Create document DB record with proper entity associations
+      const docData: any = {
+        entityType,
+        type: docType,
+        documentName: docType,
+        url: key,
+        storagePath,
+        status: "pending",
+      };
+
+      // Set entity-specific IDs based on entityType
+      if (entityType === "transporter") {
+        docData.transporterId = resolvedTransporterId;
+        docData.userId = user.id; // Who uploaded
+      } else if (entityType === "driver") {
+        docData.transporterId = resolvedTransporterId;
+        docData.userId = resolvedUserId; // The driver whose document this is
+      } else if (entityType === "vehicle") {
+        docData.transporterId = resolvedTransporterId;
+        docData.vehicleId = resolvedVehicleId;
+        docData.userId = user.id; // Who uploaded
+      }
+
+      if (expiryDate) docData.expiryDate = expiryDate;
+
+      const document = await storage.createDocument(docData);
+
+      // 6️⃣ Success - return the created document
+      res.status(201).json(document);
+    } catch (error: any) {
+      console.error("Document upload error:", error);
+      res.status(500).json({ error: error.message || "Document upload failed" });
     }
   });
 
@@ -2747,6 +2966,96 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Get vehicle types for driver applications
   app.get("/api/vehicle-types", async (req: Request, res: Response) => {
     res.json(VEHICLE_TYPES);
+  });
+
+  // ============== TRANSPORTER DRIVER MANAGEMENT ==============
+
+  // Add driver with auto-generated credentials
+  app.post("/api/transporter/drivers", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      
+      if (sessionUser.role !== "transporter" && !sessionUser.isSuperAdmin) {
+        return res.status(403).json({ error: "Only transporters can add drivers" });
+      }
+      
+      const transporterId = sessionUser.transporterId;
+      if (!transporterId && !sessionUser.isSuperAdmin) {
+        return res.status(400).json({ error: "No transporter associated with this user" });
+      }
+      
+      const { name, phone, email } = req.body;
+      
+      if (!name || !phone) {
+        return res.status(400).json({ error: "Name and phone are required" });
+      }
+      
+      // Normalize phone
+      const normalizedPhone = normalizePhone(phone);
+      
+      // Check if phone already exists
+      const existingUser = await storage.getUserByPhone(normalizedPhone);
+      if (existingUser) {
+        return res.status(400).json({ error: "Phone number already registered" });
+      }
+      
+      // Check if email already exists (if provided)
+      if (email) {
+        const existingEmail = await storage.getUserByEmail(email);
+        if (existingEmail) {
+          return res.status(400).json({ error: "Email already registered" });
+        }
+      }
+      
+      // Auto-generate password (8 chars: 4 letters + 4 numbers)
+      const generatePassword = () => {
+        const letters = 'abcdefghjkmnpqrstuvwxyz'; // no i, l, o for clarity
+        const numbers = '23456789'; // no 0, 1 for clarity
+        let pwd = '';
+        for (let i = 0; i < 4; i++) pwd += letters[Math.floor(Math.random() * letters.length)];
+        for (let i = 0; i < 4; i++) pwd += numbers[Math.floor(Math.random() * numbers.length)];
+        return pwd;
+      };
+      
+      const plainPassword = generatePassword();
+      const hashedPassword = await bcrypt.hash(plainPassword, 10);
+      
+      // Create the driver user
+      const driver = await storage.createUser({
+        name,
+        phone: normalizedPhone,
+        email: email || undefined,
+        password: hashedPassword,
+        role: "driver",
+        transporterId: transporterId,
+      });
+      
+      // Get transporter details for notification
+      const transporter = await storage.getTransporter(transporterId!);
+      
+      // Create welcome notification for the driver
+      await storage.createNotification({
+        recipientId: driver.id,
+        type: "general",
+        title: "Welcome to Waykel!",
+        message: `You've been added as a driver by ${transporter?.companyName || "your transporter"}. Use your phone number and password to log in.`,
+      });
+      
+      // Return driver info with credentials (transporter can share with driver)
+      const { password, ...driverWithoutPassword } = driver;
+      
+      res.status(201).json({
+        driver: driverWithoutPassword,
+        credentials: {
+          phone: normalizedPhone,
+          password: plainPassword, // Plain password for transporter to share
+        },
+        message: "Driver added successfully. Share the login credentials with the driver.",
+      });
+    } catch (error) {
+      console.error("Failed to add driver:", error);
+      res.status(500).json({ error: "Failed to add driver" });
+    }
   });
 
   // ============== TRANSPORTER TRIP POSTING ==============

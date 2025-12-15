@@ -105,13 +105,15 @@ export function DocumentUpload({
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(e.target.files || []);
-    const newFiles: UploadedFile[] = selectedFiles.map(file => ({
-      file,
-      status: "pending",
-      progress: 0,
-    }));
-    setFiles(prev => [...prev, ...newFiles]);
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      // Replace existing file (single file per document type)
+      setFiles([{
+        file: selectedFile,
+        status: "pending",
+        progress: 0,
+      }]);
+    }
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -247,6 +249,7 @@ export function DocumentUpload({
   };
 
   const handleSubmit = async () => {
+    // 1️⃣ BLOCK EARLY — before upload
     if (!docType) {
       toast.error("Please select a document type");
       return;
@@ -255,97 +258,75 @@ export function DocumentUpload({
     if (isDocTypeDisabled(docType)) {
       const status = getDocTypeStatus(docType);
       const docLabel = docTypes.find(d => d.value === docType)?.label || docType;
-      if (status === "pending") {
-        toast.error(`${docLabel} has already been uploaded and is pending verification.`);
-      } else if (status === "verified") {
-        toast.error(`${docLabel} has already been verified. Contact support if you need to update it.`);
-      }
+      toast.error(
+        status === "pending"
+          ? `${docLabel} already uploaded and under review.`
+          : `${docLabel} already verified.`
+      );
       return;
     }
 
     if (files.length === 0) {
-      toast.error("Please select at least one file to upload");
+      toast.error("Please select a file to upload");
       return;
     }
 
     setIsSubmitting(true);
-    let successCount = 0;
-    let lastError = "";
+    setFiles(prev => prev.map((f, i) => i === 0 ? { ...f, status: "uploading", progress: 10 } : f));
 
     try {
-      for (let index = 0; index < files.length; index++) {
-        const uploadedFile = files[index];
-        
-        const uploadResult = await uploadFile(uploadedFile, index);
-        
-        if (!uploadResult) {
-          continue;
-        }
+      // Convert file to base64
+      const file = files[0].file;
+      const fileData = await fileToBase64(file);
+      
+      setFiles(prev => prev.map((f, i) => i === 0 ? { ...f, progress: 30 } : f));
 
-        const docData: any = {
+      // 2️⃣ SINGLE API CALL - Backend handles everything atomically
+      const response = await fetch("/api/documents/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          fileData,
+          fileName: file.name,
+          contentType: file.type || "application/octet-stream",
           entityType,
           type: docType,
-          documentName: docTypes.find(d => d.value === docType)?.label || docType,
-          url: uploadResult.key,
-          status: "pending",
-        };
+          entityId,
+          expiryDate: expiryDate || undefined,
+        }),
+      });
 
-        if (uploadResult.storagePath) {
-          docData.storagePath = uploadResult.storagePath;
-        }
+      setFiles(prev => prev.map((f, i) => i === 0 ? { ...f, progress: 80 } : f));
 
-        if (entityType === "driver") {
-          docData.userId = entityId;
-        } else if (entityType === "vehicle") {
-          docData.vehicleId = entityId;
-        }
+      const data = await response.json();
 
-        if (entityType === "transporter") {
-          docData.transporterId = entityId;
-        } else if (transporterId) {
-          docData.transporterId = transporterId;
-        }
-
-        if (expiryDate) {
-          docData.expiryDate = expiryDate;
-        }
-
-        const response = await api.documents.create(docData);
-        
-        if (response?.error) {
-          lastError = response.error;
-          setFiles(prev => prev.map((f, i) => i === index ? { 
-            ...f, 
-            status: "error", 
-            error: getFriendlyErrorMessage(response.error) 
-          } : f));
-        } else {
-          setFiles(prev => prev.map((f, i) => i === index ? { 
-            ...f, 
-            status: "success", 
-            progress: 100 
-          } : f));
-          successCount++;
-        }
+      if (!response.ok) {
+        throw new Error(data.error || "Upload failed");
       }
 
-      if (successCount > 0) {
-        toast.success(`${successCount} document(s) uploaded successfully`);
-        onSuccess?.();
-        setTimeout(() => {
-          onOpenChange(false);
-          setDocType("");
-          setExpiryDate("");
-          setFiles([]);
-        }, 500);
-      } else if (lastError) {
-        toast.error(getFriendlyErrorMessage(lastError));
-      } else {
-        toast.error("Failed to upload documents");
-      }
+      setFiles(prev => prev.map((f, i) => i === 0 ? { ...f, status: "success", progress: 100 } : f));
+
+      // 3️⃣ SUCCESS — single toast after atomic operation
+      toast.success("Document uploaded successfully");
+      
+      // Refresh list and close modal
+      onSuccess?.();
+      onOpenChange(false);
+      setDocType("");
+      setExpiryDate("");
+      setFiles([]);
     } catch (error) {
-      console.error("Failed to create document records:", error);
-      toast.error("Failed to save document records");
+      setFiles(prev => prev.map((f, i) => i === 0 ? { 
+        ...f, 
+        status: "error", 
+        error: error instanceof Error ? error.message : "Upload failed" 
+      } : f));
+      toast.error(
+        getFriendlyErrorMessage(
+          error instanceof Error ? error.message : "Upload failed"
+        )
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -397,62 +378,97 @@ export function DocumentUpload({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {disabledDocTypes.length > 0 && (
+          {/* Render existing documents from backend data */}
+          {existingDocuments.length > 0 ? (
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-green-500" />
-                Already Uploaded ({disabledDocTypes.length})
+                Uploaded Documents ({existingDocuments.length})
               </Label>
               <div className="space-y-2 max-h-48 overflow-y-auto">
-                {disabledDocTypes.map(type => {
-                  const existingDoc = getExistingDoc(type.value);
-                  const status = existingDoc?.status;
-                  const fileName = existingDoc?.url ? existingDoc.url.split('/').pop() : null;
+                {existingDocuments.map(doc => {
+                  const fileName = doc.url?.split("/").pop();
+                  
+                  // Status-based styling
+                  const getStatusStyles = (status: string) => {
+                    switch (status) {
+                      case "pending":
+                        return {
+                          container: "bg-yellow-50 border-yellow-200",
+                          icon: <Clock className="h-5 w-5 text-yellow-600 flex-shrink-0" />,
+                          badge: "bg-yellow-100 text-yellow-700 border-yellow-300",
+                          label: "Under Review"
+                        };
+                      case "verified":
+                        return {
+                          container: "bg-green-50 border-green-200",
+                          icon: <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />,
+                          badge: "bg-green-100 text-green-700 border-green-300",
+                          label: "Verified"
+                        };
+                      case "expired":
+                        return {
+                          container: "bg-red-50 border-red-200",
+                          icon: <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />,
+                          badge: "bg-red-100 text-red-700 border-red-300",
+                          label: "Expired"
+                        };
+                      case "rejected":
+                        return {
+                          container: "bg-red-50 border-red-200",
+                          icon: <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />,
+                          badge: "bg-red-100 text-red-700 border-red-300",
+                          label: "Rejected"
+                        };
+                      default:
+                        return {
+                          container: "bg-gray-50 border-gray-200",
+                          icon: <Info className="h-5 w-5 text-gray-600 flex-shrink-0" />,
+                          badge: "bg-gray-100 text-gray-700 border-gray-300",
+                          label: status
+                        };
+                    }
+                  };
+                  
+                  const styles = getStatusStyles(doc.status);
                   
                   return (
                     <div 
-                      key={type.value} 
-                      className={`flex items-center gap-3 p-3 rounded-lg border ${
-                        status === "pending" 
-                          ? "bg-yellow-50 border-yellow-200" 
-                          : "bg-green-50 border-green-200"
-                      }`}
-                      data-testid={`existing-doc-${type.value}`}
+                      key={doc.id} 
+                      className={`flex items-center gap-3 p-3 rounded-lg border ${styles.container}`}
+                      data-testid={`existing-doc-${doc.id}`}
                     >
-                      {status === "pending" ? (
-                        <Clock className="h-5 w-5 text-yellow-600 flex-shrink-0" />
-                      ) : (
-                        <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-                      )}
+                      {styles.icon}
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm text-gray-900">
-                          {existingDoc?.documentName || type.label}
+                          {doc.documentName || doc.type}
                         </p>
                         {fileName && (
                           <p className="text-xs text-gray-500 truncate">
                             File: {decodeURIComponent(fileName)}
                           </p>
                         )}
-                        {existingDoc?.expiryDate && (
+                        {doc.expiryDate && (
                           <p className="text-xs text-gray-500">
-                            Expires: {existingDoc.expiryDate}
+                            Expires: {doc.expiryDate}
                           </p>
                         )}
                       </div>
                       <Badge 
                         variant="outline"
-                        className={status === "pending" 
-                          ? "bg-yellow-100 text-yellow-700 border-yellow-300" 
-                          : "bg-green-100 text-green-700 border-green-300"
-                        }
+                        className={styles.badge}
                       >
-                        {status === "pending" ? "Under Review" : "Verified"}
+                        {styles.label}
                       </Badge>
                     </div>
                   );
                 })}
               </div>
             </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-2">
+              No documents uploaded yet.
+            </p>
           )}
 
           <div className="space-y-2">
@@ -491,7 +507,6 @@ export function DocumentUpload({
                   <input
                     ref={fileInputRef}
                     type="file"
-                    multiple
                     accept="image/*,.pdf,.doc,.docx"
                     onChange={handleFileSelect}
                     className="hidden"
@@ -499,7 +514,7 @@ export function DocumentUpload({
                   />
                   <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
                   <p className="text-sm text-gray-600">
-                    Click to select files or drag and drop
+                    Click to select a file
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
                     Supports images, PDF, and Word documents
@@ -509,7 +524,7 @@ export function DocumentUpload({
 
               {files.length > 0 && (
                 <div className="space-y-2">
-                  <Label>Selected Files ({files.length})</Label>
+                  <Label>Selected File</Label>
                   <div className="max-h-40 overflow-y-auto space-y-2">
                     {files.map((uploadedFile, index) => (
                       <div
@@ -585,7 +600,7 @@ export function DocumentUpload({
               ) : (
                 <>
                   <Upload className="h-4 w-4 mr-2" />
-                  Upload {files.length > 0 ? `(${files.length})` : ""}
+                  Upload
                 </>
               )}
             </Button>

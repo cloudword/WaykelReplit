@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, MoreHorizontal, Building2, Download, Plus, CheckCircle, XCircle, Loader2, Users, Truck, MapPin, IndianRupee, Phone, Mail, Eye } from "lucide-react";
+import { Search, MoreHorizontal, Building2, Download, Plus, CheckCircle, XCircle, Loader2, Users, Truck, MapPin, IndianRupee, Phone, Mail, Eye, ShieldCheck, Clock, AlertCircle } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
@@ -23,6 +23,9 @@ interface Transporter {
   baseCity: string;
   fleetSize: number;
   status: string;
+  isVerified?: boolean;
+  documentsComplete?: boolean;
+  verifiedAt?: string;
   preferredRoutes?: string[];
   createdAt: string;
 }
@@ -38,6 +41,8 @@ export default function AdminTransporters() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedTransporter, setSelectedTransporter] = useState<Transporter | null>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
   
   const [newTransporter, setNewTransporter] = useState({
     companyName: "",
@@ -81,6 +86,23 @@ export default function AdminTransporters() {
       fetchData();
     } catch (error) {
       toast.error("Failed to update status");
+    }
+  };
+
+  const handleVerifyTransporter = async (id: string) => {
+    setVerifyingId(id);
+    try {
+      const result = await api.transporters.verify(id);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success("Transporter verified and approved successfully!");
+        fetchData();
+      }
+    } catch (error) {
+      toast.error("Failed to verify transporter");
+    } finally {
+      setVerifyingId(null);
     }
   };
 
@@ -146,18 +168,47 @@ export default function AdminTransporters() {
     setShowDetailDialog(true);
   };
 
-  const filteredTransporters = transporters.filter(t => 
-    t.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.location.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredTransporters = transporters.filter(t => {
+    const matchesSearch = 
+      t.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      t.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      t.location.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    if (!matchesSearch) return false;
+    
+    if (statusFilter === "all") return true;
+    return t.status === statusFilter;
+  });
+
+  const getStatusCounts = () => {
+    return {
+      all: transporters.length,
+      pending_verification: transporters.filter(t => t.status === "pending_verification").length,
+      pending_approval: transporters.filter(t => t.status === "pending_approval").length,
+      active: transporters.filter(t => t.status === "active").length,
+      suspended: transporters.filter(t => t.status === "suspended").length,
+    };
+  };
+
+  const statusCounts = getStatusCounts();
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case 'active': return 'default';
       case 'pending_approval': return 'secondary';
+      case 'pending_verification': return 'outline';
       case 'suspended': return 'destructive';
       default: return 'outline';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'active': return 'Active';
+      case 'pending_approval': return 'Pending Approval';
+      case 'pending_verification': return 'Pending Verification';
+      case 'suspended': return 'Suspended';
+      default: return status;
     }
   };
 
@@ -277,6 +328,58 @@ export default function AdminTransporters() {
           </div>
         </div>
 
+        {/* Status Filter Tabs */}
+        <div className="mb-6 flex flex-wrap gap-2">
+          <Button
+            variant={statusFilter === "all" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("all")}
+            data-testid="filter-all"
+          >
+            All ({statusCounts.all})
+          </Button>
+          <Button
+            variant={statusFilter === "pending_verification" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("pending_verification")}
+            className={statusFilter === "pending_verification" ? "" : "text-orange-600 border-orange-200 hover:bg-orange-50"}
+            data-testid="filter-pending-verification"
+          >
+            <Clock className="h-4 w-4 mr-1" />
+            Pending Verification ({statusCounts.pending_verification})
+          </Button>
+          <Button
+            variant={statusFilter === "pending_approval" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("pending_approval")}
+            className={statusFilter === "pending_approval" ? "" : "text-yellow-600 border-yellow-200 hover:bg-yellow-50"}
+            data-testid="filter-pending-approval"
+          >
+            <AlertCircle className="h-4 w-4 mr-1" />
+            Pending Approval ({statusCounts.pending_approval})
+          </Button>
+          <Button
+            variant={statusFilter === "active" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("active")}
+            className={statusFilter === "active" ? "" : "text-green-600 border-green-200 hover:bg-green-50"}
+            data-testid="filter-active"
+          >
+            <CheckCircle className="h-4 w-4 mr-1" />
+            Active ({statusCounts.active})
+          </Button>
+          <Button
+            variant={statusFilter === "suspended" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("suspended")}
+            className={statusFilter === "suspended" ? "" : "text-red-600 border-red-200 hover:bg-red-50"}
+            data-testid="filter-suspended"
+          >
+            <XCircle className="h-4 w-4 mr-1" />
+            Suspended ({statusCounts.suspended})
+          </Button>
+        </div>
+
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2 w-full max-w-md">
@@ -357,42 +460,72 @@ export default function AdminTransporters() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={getStatusBadgeVariant(t.status)}>
-                          {t.status === 'pending_approval' ? 'Pending' : t.status}
-                        </Badge>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant={getStatusBadgeVariant(t.status)}>
+                            {getStatusLabel(t.status)}
+                          </Badge>
+                          {t.isVerified && (
+                            <div className="flex items-center gap-1 text-xs text-green-600">
+                              <ShieldCheck className="h-3 w-3" />
+                              Verified
+                            </div>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" data-testid={`button-actions-${t.id}`}>
-                              <MoreHorizontal className="h-4 w-4" />
+                        <div className="flex items-center justify-end gap-2">
+                          {/* Verify button for pending_verification transporters */}
+                          {t.status === 'pending_verification' && (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => handleVerifyTransporter(t.id)}
+                              disabled={verifyingId === t.id}
+                              data-testid={`button-verify-${t.id}`}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              {verifyingId === t.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <ShieldCheck className="h-4 w-4 mr-1" />
+                                  Verify
+                                </>
+                              )}
                             </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openTransporterDetails(t)}>
-                              <Eye className="h-4 w-4 mr-2" />
-                              View Details
-                            </DropdownMenuItem>
-                            {t.status === 'pending_approval' && (
-                              <DropdownMenuItem onClick={() => handleStatusUpdate(t.id, 'active')}>
-                                <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
-                                Approve
+                          )}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" data-testid={`button-actions-${t.id}`}>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openTransporterDetails(t)}>
+                                <Eye className="h-4 w-4 mr-2" />
+                                View Details
                               </DropdownMenuItem>
-                            )}
-                            {t.status === 'active' && (
-                              <DropdownMenuItem onClick={() => handleStatusUpdate(t.id, 'suspended')}>
-                                <XCircle className="h-4 w-4 mr-2 text-red-600" />
-                                Suspend
-                              </DropdownMenuItem>
-                            )}
-                            {t.status === 'suspended' && (
-                              <DropdownMenuItem onClick={() => handleStatusUpdate(t.id, 'active')}>
-                                <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
-                                Reactivate
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              {t.status === 'pending_approval' && (
+                                <DropdownMenuItem onClick={() => handleStatusUpdate(t.id, 'active')}>
+                                  <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
+                                  Approve
+                                </DropdownMenuItem>
+                              )}
+                              {t.status === 'active' && (
+                                <DropdownMenuItem onClick={() => handleStatusUpdate(t.id, 'suspended')}>
+                                  <XCircle className="h-4 w-4 mr-2 text-red-600" />
+                                  Suspend
+                                </DropdownMenuItem>
+                              )}
+                              {t.status === 'suspended' && (
+                                <DropdownMenuItem onClick={() => handleStatusUpdate(t.id, 'active')}>
+                                  <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
+                                  Reactivate
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -434,9 +567,17 @@ export default function AdminTransporters() {
                   </div>
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <p className="text-sm text-gray-500">Status</p>
-                    <Badge variant={getStatusBadgeVariant(selectedTransporter.status)}>
-                      {selectedTransporter.status === 'pending_approval' ? 'Pending Approval' : selectedTransporter.status}
-                    </Badge>
+                    <div className="flex flex-col gap-1">
+                      <Badge variant={getStatusBadgeVariant(selectedTransporter.status)}>
+                        {getStatusLabel(selectedTransporter.status)}
+                      </Badge>
+                      {selectedTransporter.isVerified && (
+                        <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
+                          <ShieldCheck className="h-3 w-3" />
+                          Verified
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <p className="text-sm text-gray-500 flex items-center gap-1"><Phone className="h-3 w-3" /> Contact</p>
