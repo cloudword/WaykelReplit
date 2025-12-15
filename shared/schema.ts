@@ -93,6 +93,11 @@ export type InsertVehicle = z.infer<typeof insertVehicleSchema>;
 export type Vehicle = typeof vehicles.$inferSelect;
 
 // Rides/Loads table
+// TODO: Add database indexes for performance:
+// CREATE INDEX idx_rides_status ON rides(status);
+// CREATE INDEX idx_rides_created_by ON rides(created_by_id);
+// CREATE INDEX idx_bids_ride_id ON bids(ride_id);
+// CREATE INDEX idx_bids_user_id ON bids(user_id);
 export const rides = pgTable("rides", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   pickupLocation: text("pickup_location").notNull(),

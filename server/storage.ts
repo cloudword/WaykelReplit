@@ -42,7 +42,6 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByPhone(phone: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
-  getUserByTransporterId(transporterId: string): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
   getCustomers(): Promise<User[]>;
   getDrivers(): Promise<User[]>;
@@ -93,14 +92,12 @@ export interface IStorage {
   updateBidStatus(id: string, status: "pending" | "accepted" | "rejected"): Promise<void>;
   
   // Documents
-  getDocument(id: string): Promise<Document | undefined>;
   getUserDocuments(userId: string): Promise<Document[]>;
   getTransporterDocuments(transporterId: string): Promise<Document[]>;
   getVehicleDocuments(vehicleId: string): Promise<Document[]>;
   getAllDocuments(): Promise<Document[]>;
   createDocument(document: InsertDocument): Promise<Document>;
-  updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced", rejectionReason?: string | null): Promise<void>;
-  markDocumentReplaced(id: string, replacedById: string): Promise<void>;
+  updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected"): Promise<void>;
   
   // Notifications
   createNotification(notification: InsertNotification): Promise<Notification>;
@@ -167,11 +164,6 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByPhone(phone: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.phone, phone));
-    return user || undefined;
-  }
-
-  async getUserByTransporterId(transporterId: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.transporterId, transporterId));
     return user || undefined;
   }
 
@@ -362,16 +354,13 @@ export class DatabaseStorage implements IStorage {
     return bid;
   }
 
+  // TODO: Implement transaction support for bid acceptance
+  // This operation should be atomic to prevent race conditions
   async updateBidStatus(id: string, status: "pending" | "accepted" | "rejected"): Promise<void> {
     await db.update(bids).set({ status }).where(eq(bids.id, id));
   }
 
   // Documents
-  async getDocument(id: string): Promise<Document | undefined> {
-    const [document] = await db.select().from(documents).where(eq(documents.id, id));
-    return document || undefined;
-  }
-
   async getUserDocuments(userId: string): Promise<Document[]> {
     return await db.select().from(documents).where(eq(documents.userId, userId)).orderBy(desc(documents.createdAt));
   }
@@ -393,19 +382,8 @@ export class DatabaseStorage implements IStorage {
     return document;
   }
 
-  async updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced", rejectionReason?: string | null): Promise<void> {
-    const updateData: any = { status };
-    if (rejectionReason !== undefined) {
-      updateData.rejectionReason = rejectionReason;
-    }
-    await db.update(documents).set(updateData).where(eq(documents.id, id));
-  }
-
-  async markDocumentReplaced(id: string, replacedById: string): Promise<void> {
-    await db.update(documents).set({ 
-      status: "replaced" as const,
-      replacedById 
-    }).where(eq(documents.id, id));
+  async updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected"): Promise<void> {
+    await db.update(documents).set({ status }).where(eq(documents.id, id));
   }
 
   // Notifications
@@ -457,6 +435,11 @@ export class DatabaseStorage implements IStorage {
       verifiedAt: new Date(),
       verifiedBy: verifiedById,
     }).where(eq(transporters.id, id));
+    
+    // Update associated users' document completion status
+    await db.update(users).set({
+      profileComplete: true
+    }).where(eq(users.transporterId, id));
   }
 
   async getVehiclesByTypeAndCapacity(vehicleType: string | null, minCapacityKg: number | null): Promise<Vehicle[]> {
@@ -589,9 +572,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   // API Logs
-  async createApiLog(log: InsertApiLog): Promise<ApiLog> {
-    const [apiLog] = await db.insert(apiLogs).values(log).returning();
-    return apiLog;
+  async createApiLog(log: InsertApiLog): Promise<ApiLog | null> {
+    try {
+      const [apiLog] = await db.insert(apiLogs).values(log).returning();
+      return apiLog;
+    } catch (err) {
+      // Don't let API logging failures crash the app
+      console.error('[storage] Failed to create API log:', err instanceof Error ? err.message : 'Unknown error');
+      return null;
+    }
   }
 
   async getApiLogs(limit: number = 100, offset: number = 0): Promise<ApiLog[]> {

@@ -2,6 +2,12 @@ import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
+import { useEffect } from "react";
+
+// Global error handler
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled promise rejection:', event.reason);
+});
 import NotFound from "@/pages/not-found";
 import SplashScreen from "@/pages/splash";
 import AuthPage from "@/pages/auth";

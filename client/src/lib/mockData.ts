@@ -107,6 +107,8 @@ export const MOCK_TRANSPORTERS: Transporter[] = [
   }
 ];
 
+// DEPRECATED: This file is no longer used. All data comes from the API.
+// Mock data for rides (LEGACY - DO NOT USE)
 export const MOCK_RIDES: Ride[] = [
   {
     id: "r1",
