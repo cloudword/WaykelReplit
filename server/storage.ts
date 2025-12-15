@@ -572,9 +572,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   // API Logs
-  async createApiLog(log: InsertApiLog): Promise<ApiLog> {
-    const [apiLog] = await db.insert(apiLogs).values(log).returning();
-    return apiLog;
+  async createApiLog(log: InsertApiLog): Promise<ApiLog | null> {
+    try {
+      const [apiLog] = await db.insert(apiLogs).values(log).returning();
+      return apiLog;
+    } catch (err) {
+      // Don't let API logging failures crash the app
+      console.error('[storage] Failed to create API log:', err instanceof Error ? err.message : 'Unknown error');
+      return null;
+    }
   }
 
   async getApiLogs(limit: number = 100, offset: number = 0): Promise<ApiLog[]> {

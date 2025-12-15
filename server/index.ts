@@ -103,9 +103,13 @@ const createSessionStore = () => {
     // SSL configuration: NODE_EXTRA_CA_CERTS > DIGITALOCEAN_CA_PATH > fallback
     const fs = require('fs');
     const path = require('path');
-    let sslConfig: { ca?: string; rejectUnauthorized: boolean } = { rejectUnauthorized: false };
+    let sslConfig: { ca?: string; rejectUnauthorized: boolean } | boolean = false;
     
-    if (process.env.NODE_EXTRA_CA_CERTS) {
+    // In development, skip SSL for local databases
+    if (process.env.DATABASE_URL.includes('localhost')) {
+      sslConfig = false;
+      console.log('[session] Using non-SSL connection for local database');
+    } else if (process.env.NODE_EXTRA_CA_CERTS) {
       // Node.js automatically loads the CA from NODE_EXTRA_CA_CERTS
       sslConfig = { rejectUnauthorized: true };
       console.log("[session] Using NODE_EXTRA_CA_CERTS for SSL verification");
@@ -121,20 +125,26 @@ const createSessionStore = () => {
           console.log("[session] Using DigitalOcean CA certificate for SSL");
         } catch (err) {
           console.warn("[session] Could not read CA file, using rejectUnauthorized: false");
+          sslConfig = { rejectUnauthorized: false };
         }
+      } else {
+        console.warn("[session] CA certificate not found, using rejectUnauthorized: false");
+        sslConfig = { rejectUnauthorized: false };
       }
     }
     
     const sessionPool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: sslConfig,
-      max: 5,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
+      max: 3, // Reduced to prevent pool exhaustion
+      min: 1,
+      idleTimeoutMillis: 20000,
+      connectionTimeoutMillis: 5000,
+      allowExitOnIdle: false,
     });
     
     sessionPool.on("error", (err) => {
-      console.error("Session pool error:", err.message);
+      console.error("[session] Pool error:", err.message);
     });
     
     return new PgSessionStore({
@@ -142,6 +152,9 @@ const createSessionStore = () => {
       tableName: 'user_sessions',
       createTableIfMissing: true,
       pruneSessionInterval: 60 * 15,
+      errorLog: (err) => {
+        console.error('[session] Store error:', err.message);
+      },
     });
   }
   

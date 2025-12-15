@@ -252,7 +252,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         responseLogged = true;
         const responseTime = Date.now() - startTime;
         
-        // Log asynchronously to not block response
+        // Log asynchronously to not block response - with error handling
         storage.createApiLog({
           method: req.method,
           path: req.path,
@@ -266,7 +266,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           responseTime,
           errorMessage: res.statusCode >= 400 ? (body?.error || body?.message || null) : null,
           isExternal: !!isExternal,
-        }).catch(err => console.error('API log error:', err));
+        }).catch(err => {
+          // Don't let logging failures affect the response
+          console.error('[routes] API log failed:', err instanceof Error ? err.message : 'Unknown error');
+        });
       }
       return originalJson(body);
     };

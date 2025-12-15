@@ -14,9 +14,13 @@ if (!process.env.DATABASE_URL) {
 
 // SSL configuration for DigitalOcean Managed Database
 // Priority: NODE_EXTRA_CA_CERTS > DIGITALOCEAN_CA_PATH > fallback
-let sslConfig: { ca?: string; rejectUnauthorized: boolean } = { rejectUnauthorized: false };
+let sslConfig: { ca?: string; rejectUnauthorized: boolean } | boolean = false;
 
-if (process.env.NODE_EXTRA_CA_CERTS) {
+// In development, skip SSL for local databases
+if (process.env.NODE_ENV === 'development' && process.env.DATABASE_URL.includes('localhost')) {
+  sslConfig = false;
+  console.log('[db] Using non-SSL connection for local development');
+} else if (process.env.NODE_EXTRA_CA_CERTS) {
   // Node.js automatically loads the CA from NODE_EXTRA_CA_CERTS
   sslConfig = { rejectUnauthorized: true };
   console.log('[db] Using NODE_EXTRA_CA_CERTS for SSL verification');
@@ -32,9 +36,11 @@ if (process.env.NODE_EXTRA_CA_CERTS) {
       console.log('[db] Using DigitalOcean CA certificate for SSL');
     } catch (err) {
       console.warn('[db] Could not read CA file, using rejectUnauthorized: false');
+      sslConfig = { rejectUnauthorized: false };
     }
   } else {
-    console.log('[db] CA certificate not found at', caPath, '- using rejectUnauthorized: false');
+    console.warn('[db] CA certificate not found, using rejectUnauthorized: false');
+    sslConfig = { rejectUnauthorized: false };
   }
 }
 
@@ -42,15 +48,27 @@ if (process.env.NODE_EXTRA_CA_CERTS) {
 export const pool = new Pool({ 
   connectionString: process.env.DATABASE_URL,
   ssl: sslConfig,
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
+  max: 5, // Reduced to prevent pool exhaustion
+  min: 1, // Keep at least 1 connection alive
+  idleTimeoutMillis: 20000,
+  connectionTimeoutMillis: 5000,
+  allowExitOnIdle: false,
 });
 
 // Pool error handler to prevent unhandled rejections
 pool.on('error', (err) => {
-  console.error('Database pool error:', err);
+  console.error('[db] Unexpected pool error:', err.message);
 });
+
+// Test connection on startup
+pool.connect()
+  .then(client => {
+    console.log('[db] Successfully connected to database');
+    client.release();
+  })
+  .catch(err => {
+    console.error('[db] Failed to connect to database:', err.message);
+  });
 
 // Safe wrapper for non-critical database operations (like logging)
 // Prevents failures from crashing the application
