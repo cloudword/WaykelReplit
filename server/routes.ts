@@ -1877,13 +1877,35 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ error: `Invalid entityType. Must be one of: ${validEntityTypes.join(", ")}` });
       }
 
+      // Resolve IDs - use request body values or fall back to session user
+      const resolvedTransporterId = transporterId || user.transporterId;
+      const resolvedUserId = userId || user.id;
+      const resolvedCustomerId = customerId || (user.role === "customer" ? user.id : undefined);
+
+      // Early validation for required IDs based on entityType
+      if (entityType === "transporter" && !resolvedTransporterId) {
+        return res.status(400).json({ error: "transporterId is required for transporter documents" });
+      }
+      if (entityType === "driver" && (!resolvedTransporterId || !resolvedUserId)) {
+        return res.status(400).json({ error: "transporterId and userId are required for driver documents" });
+      }
+      if (entityType === "vehicle" && (!resolvedTransporterId || !vehicleId)) {
+        return res.status(400).json({ error: "transporterId and vehicleId are required for vehicle documents" });
+      }
+      if (entityType === "customer" && !resolvedCustomerId && !resolvedUserId) {
+        return res.status(400).json({ error: "customerId or userId is required for customer documents" });
+      }
+      if (entityType === "trip" && !rideId) {
+        return res.status(400).json({ error: "rideId is required for trip documents" });
+      }
+
       // Get organized storage path based on entity type
       const storagePath = getDocumentStoragePath({
         entityType,
-        transporterId: transporterId || user.transporterId,
+        transporterId: resolvedTransporterId,
         vehicleId,
-        userId: userId || user.id,
-        customerId,
+        userId: resolvedUserId,
+        customerId: resolvedCustomerId,
         rideId
       });
 
