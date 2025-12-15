@@ -336,6 +336,7 @@ export default function TransporterDocuments() {
           vehicles={vehicles}
           transporterId={user.transporterId}
           onSuccess={loadData}
+          documents={documents}
         />
       )}
 
@@ -347,6 +348,7 @@ export default function TransporterDocuments() {
           entityId={user.transporterId}
           transporterId={user.transporterId}
           onSuccess={loadData}
+          existingDocuments={businessDocs.map(d => ({ id: d.id, type: d.type, status: d.status, documentName: d.documentName, url: d.url, expiryDate: d.expiryDate }))}
         />
       )}
     </div>
@@ -361,6 +363,7 @@ function DocumentUploadWithSelection({
   vehicles,
   transporterId,
   onSuccess,
+  documents,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -369,11 +372,25 @@ function DocumentUploadWithSelection({
   vehicles: any[];
   transporterId: string;
   onSuccess?: () => void;
+  documents: any[];
 }) {
   const [selectedId, setSelectedId] = useState("");
   const [showDocUpload, setShowDocUpload] = useState(false);
 
   const entities = entityType === "driver" ? drivers : vehicles;
+  
+  const getExistingDocsForEntity = () => {
+    if (!selectedId) return [];
+    const filtered = documents.filter(d => {
+      if (entityType === "driver") {
+        return d.entityType === "driver" && d.userId === selectedId;
+      } else if (entityType === "vehicle") {
+        return d.entityType === "vehicle" && d.vehicleId === selectedId;
+      }
+      return false;
+    });
+    return filtered.map(d => ({ id: d.id, type: d.type, status: d.status, documentName: d.documentName, url: d.url, expiryDate: d.expiryDate }));
+  };
 
   if (showDocUpload && selectedId) {
     return (
@@ -390,6 +407,7 @@ function DocumentUploadWithSelection({
         entityId={selectedId}
         transporterId={transporterId}
         onSuccess={onSuccess}
+        existingDocuments={getExistingDocsForEntity()}
       />
     );
   }
