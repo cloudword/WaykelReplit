@@ -253,12 +253,12 @@ export const api = {
       });
       return res.json();
     },
-    updateStatus: async (id: string, status: string) => {
+    updateStatus: async (id: string, status: string, reason?: string) => {
       const res = await fetch(`${API_BASE}/documents/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, reason }),
       });
       return res.json();
     },

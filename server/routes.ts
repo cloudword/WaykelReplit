@@ -1766,14 +1766,26 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Includes auto-activation logic: if all required docs approved, transporter becomes active
   app.patch("/api/documents/:id/status", requireAdmin, async (req, res) => {
     try {
-      const { status } = req.body;
+      const { status, reason } = req.body;
       const document = await storage.getDocument(req.params.id);
       
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
+
+      // Validate status
+      if (!["verified", "pending", "expired", "rejected"].includes(status)) {
+        return res.status(400).json({ error: "Invalid status" });
+      }
+
+      // Rejection reason is mandatory when rejecting
+      if (status === "rejected" && !reason) {
+        return res.status(400).json({ error: "Rejection reason is required" });
+      }
       
-      await storage.updateDocumentStatus(req.params.id, status);
+      // Clear rejection reason on approval, set it on rejection
+      const rejectionReason = status === "rejected" ? reason : (status === "verified" ? null : undefined);
+      await storage.updateDocumentStatus(req.params.id, status, rejectionReason);
       
       // Auto-activation: Check if all required transporter documents are now verified
       if (status === "verified" && document.entityType === "transporter" && document.transporterId) {
@@ -1896,6 +1908,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         existingDocs = await storage.getTransporterDocuments(resolvedTransporterId);
       }
 
+      // Check for pending/verified documents (block re-upload)
       const duplicateDoc = existingDocs.find(
         d => d.type === docType && (d.status === "pending" || d.status === "verified")
       );
@@ -1904,6 +1917,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ 
           error: `This document type is ${statusLabel}. Cannot upload duplicate.`
         });
+      }
+
+      // Find any rejected document of the same type (will be marked as replaced BEFORE upload)
+      const rejectedDoc = existingDocs.find(
+        d => d.type === docType && d.status === "rejected"
+      );
+
+      // 3️⃣b Mark rejected document as replaced FIRST (before creating new one)
+      // This ensures audit trail is created atomically
+      if (rejectedDoc) {
+        await storage.updateDocumentStatus(rejectedDoc.id, "replaced");
       }
 
       // 4️⃣ Upload file to storage
@@ -1953,6 +1977,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (expiryDate) docData.expiryDate = expiryDate;
 
       const document = await storage.createDocument(docData);
+
+      // 5️⃣b Update the replaced document with the new document's ID for audit trail
+      if (rejectedDoc) {
+        await storage.markDocumentReplaced(rejectedDoc.id, document.id);
+      }
 
       // 6️⃣ Success - return the created document
       res.status(201).json(document);

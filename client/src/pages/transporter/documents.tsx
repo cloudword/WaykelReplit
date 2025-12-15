@@ -83,7 +83,33 @@ export default function TransporterDocuments() {
       case "pending": return "bg-yellow-100 text-yellow-800";
       case "expired": return "bg-red-100 text-red-800";
       case "rejected": return "bg-red-100 text-red-800";
+      case "replaced": return "bg-gray-100 text-gray-500";
       default: return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const [replaceDocType, setReplaceDocType] = useState<string | null>(null);
+  const [replaceEntityType, setReplaceEntityType] = useState<"driver" | "vehicle" | "transporter" | null>(null);
+  const [replaceEntityId, setReplaceEntityId] = useState<string | null>(null);
+
+  const handleReplaceDocument = (doc: any) => {
+    setReplaceDocType(doc.type);
+    if (doc.entityType === "transporter") {
+      setReplaceEntityType("transporter");
+      setReplaceEntityId(doc.transporterId);
+      setShowBusinessUpload(true);
+    } else if (doc.entityType === "driver") {
+      setReplaceEntityType("driver");
+      setReplaceEntityId(doc.userId);
+      setUploadEntityType("driver");
+      setSelectedEntityId(doc.userId);
+      setShowUploadDialog(true);
+    } else if (doc.entityType === "vehicle") {
+      setReplaceEntityType("vehicle");
+      setReplaceEntityId(doc.vehicleId);
+      setUploadEntityType("vehicle");
+      setSelectedEntityId(doc.vehicleId);
+      setShowUploadDialog(true);
     }
   };
 
@@ -220,7 +246,7 @@ export default function TransporterDocuments() {
               </div>
             ) : businessDocs.length > 0 ? (
               <div className="space-y-3">
-                {businessDocs.map(doc => (
+                {businessDocs.filter(d => d.status !== "replaced").map(doc => (
                   <Card key={doc.id} data-testid={`doc-card-${doc.id}`}>
                     <CardContent className="p-4 flex items-center justify-between">
                       <div className="flex items-center gap-4">
@@ -231,9 +257,25 @@ export default function TransporterDocuments() {
                           {doc.expiryDate && (
                             <p className="text-xs text-gray-400">Expires: {doc.expiryDate}</p>
                           )}
+                          {doc.status === "rejected" && doc.rejectionReason && (
+                            <p className="text-xs text-red-600 mt-1">Reason: {doc.rejectionReason}</p>
+                          )}
                         </div>
                       </div>
-                      <Badge className={getStatusColor(doc.status)}>{doc.status}</Badge>
+                      <div className="flex items-center gap-2">
+                        {doc.status === "rejected" && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleReplaceDocument(doc)}
+                            data-testid={`button-replace-${doc.id}`}
+                          >
+                            <RefreshCw className="h-4 w-4 mr-1" />
+                            Replace
+                          </Button>
+                        )}
+                        <Badge className={getStatusColor(doc.status)}>{doc.status}</Badge>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -258,7 +300,7 @@ export default function TransporterDocuments() {
               </div>
             ) : driverDocs.length > 0 ? (
               <div className="space-y-3">
-                {driverDocs.map(doc => (
+                {driverDocs.filter(d => d.status !== "replaced").map(doc => (
                   <Card key={doc.id} data-testid={`doc-card-${doc.id}`}>
                     <CardContent className="p-4 flex items-center justify-between">
                       <div className="flex items-center gap-4">
@@ -269,9 +311,25 @@ export default function TransporterDocuments() {
                           {doc.expiryDate && (
                             <p className="text-xs text-gray-400">Expires: {doc.expiryDate}</p>
                           )}
+                          {doc.status === "rejected" && doc.rejectionReason && (
+                            <p className="text-xs text-red-600 mt-1">Reason: {doc.rejectionReason}</p>
+                          )}
                         </div>
                       </div>
-                      <Badge className={getStatusColor(doc.status)}>{doc.status}</Badge>
+                      <div className="flex items-center gap-2">
+                        {doc.status === "rejected" && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleReplaceDocument(doc)}
+                            data-testid={`button-replace-${doc.id}`}
+                          >
+                            <RefreshCw className="h-4 w-4 mr-1" />
+                            Replace
+                          </Button>
+                        )}
+                        <Badge className={getStatusColor(doc.status)}>{doc.status}</Badge>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -295,7 +353,7 @@ export default function TransporterDocuments() {
               </div>
             ) : vehicleDocs.length > 0 ? (
               <div className="space-y-3">
-                {vehicleDocs.map(doc => (
+                {vehicleDocs.filter(d => d.status !== "replaced").map(doc => (
                   <Card key={doc.id} data-testid={`doc-card-${doc.id}`}>
                     <CardContent className="p-4 flex items-center justify-between">
                       <div className="flex items-center gap-4">
@@ -306,9 +364,25 @@ export default function TransporterDocuments() {
                           {doc.expiryDate && (
                             <p className="text-xs text-gray-400">Expires: {doc.expiryDate}</p>
                           )}
+                          {doc.status === "rejected" && doc.rejectionReason && (
+                            <p className="text-xs text-red-600 mt-1">Reason: {doc.rejectionReason}</p>
+                          )}
                         </div>
                       </div>
-                      <Badge className={getStatusColor(doc.status)}>{doc.status}</Badge>
+                      <div className="flex items-center gap-2">
+                        {doc.status === "rejected" && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleReplaceDocument(doc)}
+                            data-testid={`button-replace-${doc.id}`}
+                          >
+                            <RefreshCw className="h-4 w-4 mr-1" />
+                            Replace
+                          </Button>
+                        )}
+                        <Badge className={getStatusColor(doc.status)}>{doc.status}</Badge>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
