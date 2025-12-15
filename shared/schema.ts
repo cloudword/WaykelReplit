@@ -184,7 +184,9 @@ export const documents = pgTable("documents", {
   url: text("url").notNull(),
   storagePath: text("storage_path"),
   expiryDate: text("expiry_date"),
-  status: text("status").notNull().$type<"verified" | "pending" | "expired" | "rejected">().default("pending"),
+  status: text("status").notNull().$type<"verified" | "pending" | "expired" | "rejected" | "replaced">().default("pending"),
+  rejectionReason: text("rejection_reason"),
+  replacedById: varchar("replaced_by_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
