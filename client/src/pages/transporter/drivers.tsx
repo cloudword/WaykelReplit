@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Users, Phone, Mail, Search } from "lucide-react";
+import { Plus, Users, Phone, Mail, Search, FileText, CheckCircle, Clock, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
@@ -14,6 +14,7 @@ import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 export default function TransporterDrivers() {
   const [_, setLocation] = useLocation();
   const [drivers, setDrivers] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -32,13 +33,31 @@ export default function TransporterDrivers() {
     if (!user?.transporterId) return;
     setLoading(true);
     try {
-      const data = await api.users.list({ transporterId: user.transporterId, role: "driver" });
-      setDrivers(Array.isArray(data) ? data : []);
+      const [driversData, docsData] = await Promise.all([
+        api.users.list({ transporterId: user.transporterId, role: "driver" }),
+        api.documents.list({ transporterId: user.transporterId }),
+      ]);
+      setDrivers(Array.isArray(driversData) ? driversData : []);
+      const driverDocs = Array.isArray(docsData) ? docsData.filter((d: any) => d.entityType === "driver") : [];
+      setDocuments(driverDocs);
     } catch (error) {
       console.error("Failed to load drivers:", error);
       toast.error("Failed to load drivers");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getDriverDocuments = (driverId: string) => {
+    return documents.filter(d => d.userId === driverId);
+  };
+
+  const getDocStatusIcon = (status: string) => {
+    switch (status) {
+      case "verified": return <CheckCircle className="h-3 w-3 text-green-500" />;
+      case "pending": return <Clock className="h-3 w-3 text-yellow-500" />;
+      case "rejected": return <AlertCircle className="h-3 w-3 text-red-500" />;
+      default: return <AlertCircle className="h-3 w-3 text-gray-400" />;
     }
   };
 
@@ -204,6 +223,34 @@ export default function TransporterDrivers() {
                       {driver.rating && (
                         <div className="mt-2">
                           <span className="text-xs text-gray-500">Rating: {driver.rating}/5</span>
+                        </div>
+                      )}
+                      {/* Driver Documents */}
+                      {getDriverDocuments(driver.id).length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
+                            <FileText className="h-3 w-3" />
+                            Documents
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {getDriverDocuments(driver.id).map(doc => (
+                              <Badge 
+                                key={doc.id} 
+                                variant="outline" 
+                                className={`text-xs ${
+                                  doc.status === "verified" 
+                                    ? "bg-green-50 text-green-700 border-green-200" 
+                                    : doc.status === "pending"
+                                    ? "bg-yellow-50 text-yellow-700 border-yellow-200"
+                                    : "bg-red-50 text-red-700 border-red-200"
+                                }`}
+                                data-testid={`doc-badge-${doc.id}`}
+                              >
+                                {getDocStatusIcon(doc.status)}
+                                <span className="ml-1">{doc.documentName}</span>
+                              </Badge>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>

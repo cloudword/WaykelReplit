@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Truck, Plus, Search } from "lucide-react";
+import { Truck, Plus, Search, FileText, CheckCircle, Clock, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
@@ -15,6 +15,7 @@ import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 export default function TransporterVehicles() {
   const [_, setLocation] = useLocation();
   const [vehicles, setVehicles] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -33,13 +34,31 @@ export default function TransporterVehicles() {
     if (!user?.transporterId) return;
     setLoading(true);
     try {
-      const data = await api.vehicles.list({ transporterId: user.transporterId });
-      setVehicles(Array.isArray(data) ? data : []);
+      const [vehiclesData, docsData] = await Promise.all([
+        api.vehicles.list({ transporterId: user.transporterId }),
+        api.documents.list({ transporterId: user.transporterId }),
+      ]);
+      setVehicles(Array.isArray(vehiclesData) ? vehiclesData : []);
+      const vehicleDocs = Array.isArray(docsData) ? docsData.filter((d: any) => d.entityType === "vehicle") : [];
+      setDocuments(vehicleDocs);
     } catch (error) {
       console.error("Failed to load vehicles:", error);
       toast.error("Failed to load vehicles");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getVehicleDocuments = (vehicleId: string) => {
+    return documents.filter(d => d.vehicleId === vehicleId);
+  };
+
+  const getDocStatusIcon = (status: string) => {
+    switch (status) {
+      case "verified": return <CheckCircle className="h-3 w-3 text-green-500" />;
+      case "pending": return <Clock className="h-3 w-3 text-yellow-500" />;
+      case "rejected": return <AlertCircle className="h-3 w-3 text-red-500" />;
+      default: return <AlertCircle className="h-3 w-3 text-gray-400" />;
     }
   };
 
@@ -205,6 +224,34 @@ export default function TransporterVehicles() {
                         <p>{vehicle.model || vehicle.type}</p>
                         <p>Type: {vehicle.type} {vehicle.capacity && `• ${vehicle.capacity} tons`}</p>
                       </div>
+                      {/* Vehicle Documents */}
+                      {getVehicleDocuments(vehicle.id).length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
+                            <FileText className="h-3 w-3" />
+                            Documents
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {getVehicleDocuments(vehicle.id).map(doc => (
+                              <Badge 
+                                key={doc.id} 
+                                variant="outline" 
+                                className={`text-xs ${
+                                  doc.status === "verified" 
+                                    ? "bg-green-50 text-green-700 border-green-200" 
+                                    : doc.status === "pending"
+                                    ? "bg-yellow-50 text-yellow-700 border-yellow-200"
+                                    : "bg-red-50 text-red-700 border-red-200"
+                                }`}
+                                data-testid={`doc-badge-${doc.id}`}
+                              >
+                                {getDocStatusIcon(doc.status)}
+                                <span className="ml-1">{doc.documentName}</span>
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>
