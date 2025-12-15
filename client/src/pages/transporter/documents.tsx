@@ -348,7 +348,7 @@ export default function TransporterDocuments() {
           entityId={user.transporterId}
           transporterId={user.transporterId}
           onSuccess={loadData}
-          existingDocuments={businessDocs.map(d => ({ id: d.id, type: d.type, status: d.status, documentName: d.documentName }))}
+          existingDocuments={businessDocs.map(d => ({ id: d.id, type: d.type, status: d.status, documentName: d.documentName, url: d.url, expiryDate: d.expiryDate }))}
         />
       )}
     </div>
@@ -389,7 +389,7 @@ function DocumentUploadWithSelection({
       }
       return false;
     });
-    return filtered.map(d => ({ id: d.id, type: d.type, status: d.status, documentName: d.documentName }));
+    return filtered.map(d => ({ id: d.id, type: d.type, status: d.status, documentName: d.documentName, url: d.url, expiryDate: d.expiryDate }));
   };
 
   if (showDocUpload && selectedId) {

@@ -51,6 +51,9 @@ interface ExistingDocument {
   type: string;
   status: string;
   documentName?: string;
+  url?: string;
+  expiryDate?: string;
+  createdAt?: string;
 }
 
 interface DocumentUploadProps {
@@ -395,27 +398,59 @@ export function DocumentUpload({
 
         <div className="space-y-4 py-4">
           {disabledDocTypes.length > 0 && (
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-start gap-2">
-                <Info className="h-4 w-4 text-blue-600 mt-0.5" />
-                <div className="text-sm">
-                  <p className="font-medium text-blue-800">Already uploaded documents:</p>
-                  <div className="mt-1 flex flex-wrap gap-2">
-                    {disabledDocTypes.map(type => {
-                      const status = getDocTypeStatus(type.value);
-                      return (
-                        <Badge 
-                          key={type.value} 
-                          variant="outline"
-                          className={status === "pending" ? "bg-yellow-50 text-yellow-700 border-yellow-300" : "bg-green-50 text-green-700 border-green-300"}
-                        >
-                          <Clock className="h-3 w-3 mr-1" />
-                          {type.label} ({status === "pending" ? "Under review" : "Verified"})
-                        </Badge>
-                      );
-                    })}
-                  </div>
-                </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                Already Uploaded ({disabledDocTypes.length})
+              </Label>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {disabledDocTypes.map(type => {
+                  const existingDoc = getExistingDoc(type.value);
+                  const status = existingDoc?.status;
+                  const fileName = existingDoc?.url ? existingDoc.url.split('/').pop() : null;
+                  
+                  return (
+                    <div 
+                      key={type.value} 
+                      className={`flex items-center gap-3 p-3 rounded-lg border ${
+                        status === "pending" 
+                          ? "bg-yellow-50 border-yellow-200" 
+                          : "bg-green-50 border-green-200"
+                      }`}
+                      data-testid={`existing-doc-${type.value}`}
+                    >
+                      {status === "pending" ? (
+                        <Clock className="h-5 w-5 text-yellow-600 flex-shrink-0" />
+                      ) : (
+                        <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-gray-900">
+                          {existingDoc?.documentName || type.label}
+                        </p>
+                        {fileName && (
+                          <p className="text-xs text-gray-500 truncate">
+                            File: {decodeURIComponent(fileName)}
+                          </p>
+                        )}
+                        {existingDoc?.expiryDate && (
+                          <p className="text-xs text-gray-500">
+                            Expires: {existingDoc.expiryDate}
+                          </p>
+                        )}
+                      </div>
+                      <Badge 
+                        variant="outline"
+                        className={status === "pending" 
+                          ? "bg-yellow-100 text-yellow-700 border-yellow-300" 
+                          : "bg-green-100 text-green-700 border-green-300"
+                        }
+                      >
+                        {status === "pending" ? "Under Review" : "Verified"}
+                      </Badge>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
