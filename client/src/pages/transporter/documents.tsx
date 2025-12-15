@@ -33,40 +33,70 @@ export default function TransporterDocuments() {
       return;
     }
     setLoading(true);
-    try {
-      const [docsData, usersData, vehiclesData, transporterData] = await Promise.all([
-        api.documents.list({ transporterId: user.transporterId }),
-        api.users.list({ transporterId: user.transporterId, role: "driver" }),
-        api.vehicles.list({ transporterId: user.transporterId }),
-        api.transporters.get(user.transporterId),
-      ]);
-      
-      // Check for API errors in responses
+    
+    // Fetch each resource independently so one failure doesn't block others
+    const results = await Promise.allSettled([
+      api.documents.list({ transporterId: user.transporterId }),
+      api.users.list({ transporterId: user.transporterId, role: "driver" }),
+      api.vehicles.list({ transporterId: user.transporterId }),
+      api.transporters.get(user.transporterId),
+    ]);
+    
+    // Process documents
+    const docsResult = results[0];
+    if (docsResult.status === "fulfilled") {
+      const docsData = docsResult.value;
       if (docsData?.error) {
         console.error("Documents API error:", docsData.error);
         toast.error(docsData.error);
         setDocuments([]);
       } else {
+        console.log("Documents loaded:", docsData?.length || 0, "docs");
         setDocuments(Array.isArray(docsData) ? docsData : []);
       }
-      
+    } else {
+      console.error("Documents fetch failed:", docsResult.reason);
+      toast.error("Failed to load documents");
+      setDocuments([]);
+    }
+    
+    // Process drivers
+    const usersResult = results[1];
+    if (usersResult.status === "fulfilled") {
+      const usersData = usersResult.value;
       if (usersData?.error) {
         console.error("Users API error:", usersData.error);
       }
       setDrivers(Array.isArray(usersData) ? usersData : []);
-      
+    } else {
+      console.error("Users fetch failed:", usersResult.reason);
+      setDrivers([]);
+    }
+    
+    // Process vehicles
+    const vehiclesResult = results[2];
+    if (vehiclesResult.status === "fulfilled") {
+      const vehiclesData = vehiclesResult.value;
       if (vehiclesData?.error) {
         console.error("Vehicles API error:", vehiclesData.error);
       }
       setVehicles(Array.isArray(vehiclesData) ? vehiclesData : []);
-      
-      setTransporter(transporterData?.error ? null : transporterData);
-    } catch (error) {
-      console.error("Failed to load data:", error);
-      toast.error("Failed to load documents");
-    } finally {
-      setLoading(false);
+    } else {
+      console.error("Vehicles fetch failed:", vehiclesResult.reason);
+      setVehicles([]);
     }
+    
+    // Process transporter
+    const transporterResult = results[3];
+    if (transporterResult.status === "fulfilled") {
+      const transporterData = transporterResult.value;
+      setTransporter(transporterData?.error ? null : transporterData);
+    } else {
+      console.error("Transporter fetch failed:", transporterResult.reason);
+      setTransporter(null);
+    }
+    
+    setLoading(false);
   };
 
   useEffect(() => {
