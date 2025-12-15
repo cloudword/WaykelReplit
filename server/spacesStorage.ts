@@ -21,10 +21,11 @@ interface SpacesConfig {
 }
 
 function getSpacesConfig(): SpacesConfig | null {
-  const endpoint = process.env.DO_SPACES_ENDPOINT;
-  const accessKeyId = process.env.DO_SPACES_KEY;
-  const secretAccessKey = process.env.DO_SPACES_SECRET;
-  const bucket = process.env.DO_SPACES_BUCKET;
+  // Support both DO_SPACES_* and SPACES_* naming conventions
+  const endpoint = process.env.DO_SPACES_ENDPOINT || process.env.SPACES_ENDPOINT;
+  const accessKeyId = process.env.DO_SPACES_KEY || process.env.SPACES_KEY;
+  const secretAccessKey = process.env.DO_SPACES_SECRET || process.env.SPACES_SECRET;
+  const bucket = process.env.DO_SPACES_BUCKET || process.env.SPACES_BUCKET;
 
   if (!endpoint || !accessKeyId || !secretAccessKey || !bucket) {
     return null;
@@ -35,7 +36,7 @@ function getSpacesConfig(): SpacesConfig | null {
     accessKeyId,
     secretAccessKey,
     bucket,
-    region: process.env.DO_SPACES_REGION || "nyc3",
+    region: process.env.DO_SPACES_REGION || process.env.SPACES_REGION || "nyc3",
   };
 }
 
