@@ -91,18 +91,23 @@ export class SpacesStorageService {
     const ext = originalFilename.split(".").pop() || "";
     const key = `${directory}/${randomUUID()}.${ext}`;
 
-    const upload = new Upload({
-      client: this.client,
-      params: {
-        Bucket: this.bucket,
-        Key: key,
-        Body: buffer,
-        ContentType: contentType,
-        ACL: isPublic ? "public-read" : "private",
-      },
-    });
+    try {
+      const upload = new Upload({
+        client: this.client,
+        params: {
+          Bucket: this.bucket,
+          Key: key,
+          Body: buffer,
+          ContentType: contentType,
+          ACL: isPublic ? "public-read" : "private",
+        },
+      });
 
-    await upload.done();
+      await upload.done();
+    } catch (error: any) {
+      console.error('Upload failed:', error);
+      throw new Error(`Failed to upload file: ${error.message}`);
+    }
 
     const url = isPublic
       ? `${this.endpoint}/${this.bucket}/${key}`

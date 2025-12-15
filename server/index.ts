@@ -288,4 +288,16 @@ app.use((req, res, next) => {
       log(`serving on port ${port}`);
     },
   );
+
+  // Graceful shutdown
+  const shutdown = async () => {
+    console.log('Shutting down gracefully...');
+    httpServer.close(() => {
+      console.log('HTTP server closed');
+      process.exit(0);
+    });
+  };
+
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 })();

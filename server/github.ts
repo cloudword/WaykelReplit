@@ -1,3 +1,5 @@
+// DEPRECATED: GitHub Integration - Not currently used in the application
+// This can be removed or used for future CI/CD integration
 // GitHub Integration - Using Replit's GitHub connector
 import { Octokit } from '@octokit/rest'
 
