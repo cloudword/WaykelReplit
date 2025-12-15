@@ -1882,15 +1882,33 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const resolvedUserId = userId || user.id;
       const resolvedCustomerId = customerId || (user.role === "customer" ? user.id : undefined);
 
+      // Debug: log what IDs we have
+      console.log("[Spaces Upload] entityType:", entityType, "user.role:", user.role);
+      console.log("[Spaces Upload] Resolved IDs - transporterId:", resolvedTransporterId, "userId:", resolvedUserId, "vehicleId:", vehicleId);
+      console.log("[Spaces Upload] From session - user.transporterId:", user.transporterId, "user.id:", user.id);
+
       // Early validation for required IDs based on entityType
       if (entityType === "transporter" && !resolvedTransporterId) {
-        return res.status(400).json({ error: "transporterId is required for transporter documents" });
+        return res.status(400).json({ 
+          error: "transporterId is required for transporter documents",
+          debug: { 
+            hint: "Session user does not have transporterId set. User may need to re-login.",
+            sessionTransporterId: user.transporterId,
+            userRole: user.role
+          }
+        });
       }
       if (entityType === "driver" && (!resolvedTransporterId || !resolvedUserId)) {
-        return res.status(400).json({ error: "transporterId and userId are required for driver documents" });
+        return res.status(400).json({ 
+          error: "transporterId and userId are required for driver documents",
+          debug: { resolvedTransporterId, resolvedUserId, userRole: user.role }
+        });
       }
       if (entityType === "vehicle" && (!resolvedTransporterId || !vehicleId)) {
-        return res.status(400).json({ error: "transporterId and vehicleId are required for vehicle documents" });
+        return res.status(400).json({ 
+          error: "transporterId and vehicleId are required for vehicle documents",
+          debug: { resolvedTransporterId, vehicleId, userRole: user.role }
+        });
       }
       if (entityType === "customer" && !resolvedCustomerId && !resolvedUserId) {
         return res.status(400).json({ error: "customerId or userId is required for customer documents" });
