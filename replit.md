@@ -46,7 +46,9 @@ The Waykel platform is built with a mobile-first, role-based approach, ensuring 
 ### External Dependencies
 
 **Database:**
--   **PostgreSQL**: Standard PostgreSQL connection via `pg` library and Drizzle ORM. Supports any PostgreSQL provider including DigitalOcean Managed Database, AWS RDS, or self-hosted.
+-   **Dual Database Configuration**: Development uses Replit's built-in Neon PostgreSQL (auto-detected via PGHOST containing `neon.tech`), production uses DigitalOcean Managed Database (via DATABASE_URL).
+-   **Schema Migrations**: Use `drizzle-kit push:pg` for local development. For production migrations, run SQL directly in DigitalOcean database console (drizzle-kit times out connecting to remote databases).
+-   **Connection Logic** (in `server/db.ts`): In development, constructs connection string from PGHOST/PGUSER/PGPASSWORD/PGDATABASE environment variables when Neon is detected. In production, uses DATABASE_URL directly.
 
 **UI/UX Components:**
 -   **Radix UI primitives**: For accessible, unstyled UI components.
