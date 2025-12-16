@@ -5,11 +5,103 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, FileText, Upload, Users, Truck, RefreshCw, Loader2, CheckCircle, AlertCircle, Eye, Download } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Building2, FileText, Upload, Users, Truck, RefreshCw, Loader2, CheckCircle, AlertCircle, Eye, Download, X, ZoomIn } from "lucide-react";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 import { DocumentUpload } from "@/components/document-upload";
 import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
+
+function DocumentThumbnail({ doc, onView }: { doc: any; onView: () => void }) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const isImage = doc.url?.match(/\.(jpg|jpeg|png|gif|webp)$/i) || 
+                  doc.url?.includes("image") ||
+                  doc.contentType?.startsWith("image/");
+
+  useEffect(() => {
+    const loadPreview = async () => {
+      if (!doc.url || !isImage) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        if (doc.url.startsWith("private/")) {
+          const response = await fetch(`${API_BASE}/spaces/signed-url`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ key: doc.url }),
+          });
+          if (response.ok) {
+            const { signedUrl } = await response.json();
+            setPreviewUrl(signedUrl);
+          } else {
+            setError(true);
+          }
+        } else {
+          setPreviewUrl(`/objects/${doc.url}`);
+        }
+      } catch (err) {
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPreview();
+  }, [doc.url, isImage]);
+
+  if (!isImage) {
+    return (
+      <div 
+        className="h-16 w-16 bg-gray-100 rounded-lg flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors"
+        onClick={onView}
+      >
+        <FileText className="h-8 w-8 text-gray-400" />
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="h-16 w-16 bg-gray-100 rounded-lg flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  if (error || !previewUrl) {
+    return (
+      <div 
+        className="h-16 w-16 bg-gray-100 rounded-lg flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors"
+        onClick={onView}
+      >
+        <FileText className="h-8 w-8 text-gray-400" />
+      </div>
+    );
+  }
+
+  return (
+    <div 
+      className="h-16 w-16 rounded-lg overflow-hidden cursor-pointer relative group"
+      onClick={onView}
+    >
+      <img 
+        src={previewUrl} 
+        alt={doc.documentName || "Document"} 
+        className="h-full w-full object-cover"
+        onError={() => setError(true)}
+      />
+      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+        <ZoomIn className="h-6 w-6 text-white" />
+      </div>
+    </div>
+  );
+}
 
 const handleViewDocument = async (doc: any) => {
   if (!doc.url) {
@@ -305,21 +397,22 @@ export default function TransporterDocuments() {
               <div className="space-y-3">
                 {businessDocs.filter(d => d.status !== "replaced").map(doc => (
                   <Card key={doc.id} data-testid={`doc-card-${doc.id}`}>
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <Building2 className="h-5 w-5 text-gray-400" />
-                        <div>
-                          <p className="font-medium">{doc.documentName}</p>
-                          <p className="text-sm text-gray-500">Business Document</p>
-                          {doc.expiryDate && (
-                            <p className="text-xs text-gray-400">Expires: {doc.expiryDate}</p>
-                          )}
-                          {doc.status === "rejected" && doc.rejectionReason && (
-                            <p className="text-xs text-red-600 mt-1">Reason: {doc.rejectionReason}</p>
-                          )}
-                        </div>
+                    <CardContent className="p-4 flex items-center gap-4">
+                      <DocumentThumbnail 
+                        doc={doc} 
+                        onView={() => handleViewDocument(doc)} 
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium">{doc.documentName}</p>
+                        <p className="text-sm text-gray-500">Business Document</p>
+                        {doc.expiryDate && (
+                          <p className="text-xs text-gray-400">Expires: {doc.expiryDate}</p>
+                        )}
+                        {doc.status === "rejected" && doc.rejectionReason && (
+                          <p className="text-xs text-red-600 mt-1">Reason: {doc.rejectionReason}</p>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         {doc.url && (
                           <Button 
                             variant="outline" 
@@ -370,21 +463,22 @@ export default function TransporterDocuments() {
               <div className="space-y-3">
                 {driverDocs.filter(d => d.status !== "replaced").map(doc => (
                   <Card key={doc.id} data-testid={`doc-card-${doc.id}`}>
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <FileText className="h-5 w-5 text-gray-400" />
-                        <div>
-                          <p className="font-medium">{doc.documentName}</p>
-                          <p className="text-sm text-gray-500">Driver: {getDriverName(doc.userId)}</p>
-                          {doc.expiryDate && (
-                            <p className="text-xs text-gray-400">Expires: {doc.expiryDate}</p>
-                          )}
-                          {doc.status === "rejected" && doc.rejectionReason && (
-                            <p className="text-xs text-red-600 mt-1">Reason: {doc.rejectionReason}</p>
-                          )}
-                        </div>
+                    <CardContent className="p-4 flex items-center gap-4">
+                      <DocumentThumbnail 
+                        doc={doc} 
+                        onView={() => handleViewDocument(doc)} 
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium">{doc.documentName}</p>
+                        <p className="text-sm text-gray-500">Driver: {getDriverName(doc.userId)}</p>
+                        {doc.expiryDate && (
+                          <p className="text-xs text-gray-400">Expires: {doc.expiryDate}</p>
+                        )}
+                        {doc.status === "rejected" && doc.rejectionReason && (
+                          <p className="text-xs text-red-600 mt-1">Reason: {doc.rejectionReason}</p>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         {doc.url && (
                           <Button 
                             variant="outline" 
@@ -434,21 +528,22 @@ export default function TransporterDocuments() {
               <div className="space-y-3">
                 {vehicleDocs.filter(d => d.status !== "replaced").map(doc => (
                   <Card key={doc.id} data-testid={`doc-card-${doc.id}`}>
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <FileText className="h-5 w-5 text-gray-400" />
-                        <div>
-                          <p className="font-medium">{doc.documentName}</p>
-                          <p className="text-sm text-gray-500">Vehicle: {getVehiclePlate(doc.vehicleId)}</p>
-                          {doc.expiryDate && (
-                            <p className="text-xs text-gray-400">Expires: {doc.expiryDate}</p>
-                          )}
-                          {doc.status === "rejected" && doc.rejectionReason && (
-                            <p className="text-xs text-red-600 mt-1">Reason: {doc.rejectionReason}</p>
-                          )}
-                        </div>
+                    <CardContent className="p-4 flex items-center gap-4">
+                      <DocumentThumbnail 
+                        doc={doc} 
+                        onView={() => handleViewDocument(doc)} 
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium">{doc.documentName}</p>
+                        <p className="text-sm text-gray-500">Vehicle: {getVehiclePlate(doc.vehicleId)}</p>
+                        {doc.expiryDate && (
+                          <p className="text-xs text-gray-400">Expires: {doc.expiryDate}</p>
+                        )}
+                        {doc.status === "rejected" && doc.rejectionReason && (
+                          <p className="text-xs text-red-600 mt-1">Reason: {doc.rejectionReason}</p>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         {doc.url && (
                           <Button 
                             variant="outline" 
