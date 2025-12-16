@@ -2,7 +2,7 @@ name: Build Android Apps
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'client/**'
       - 'shared/**'
@@ -31,7 +31,7 @@ jobs:
   build-customer:
     name: Build Customer App (Android)
     runs-on: ubuntu-latest
-    if: github.event.inputs.app != 'driver'
+    if: ${{ github.event.inputs.app == '' || github.event.inputs.app == 'customer' || github.event.inputs.app == 'both' }}
     
     steps:
       - name: Checkout repository
@@ -77,34 +77,10 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
 
-      - name: Build Release APK (if secrets available)
-        if: env.CUSTOMER_KEYSTORE_BASE64 != ''
-        env:
-          CUSTOMER_KEYSTORE_BASE64: ${{ secrets.CUSTOMER_KEYSTORE_BASE64 }}
-          CUSTOMER_KEYSTORE_PASSWORD: ${{ secrets.CUSTOMER_KEYSTORE_PASSWORD }}
-          CUSTOMER_KEY_ALIAS: ${{ secrets.CUSTOMER_KEY_ALIAS }}
-          CUSTOMER_KEY_PASSWORD: ${{ secrets.CUSTOMER_KEY_PASSWORD }}
-        working-directory: android
-        run: |
-          echo "$CUSTOMER_KEYSTORE_BASE64" | base64 -d > app/waykel-customer.jks
-          ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file=waykel-customer.jks \
-            -Pandroid.injected.signing.store.password="$CUSTOMER_KEYSTORE_PASSWORD" \
-            -Pandroid.injected.signing.key.alias="$CUSTOMER_KEY_ALIAS" \
-            -Pandroid.injected.signing.key.password="$CUSTOMER_KEY_PASSWORD"
-
-      - name: Upload Release APK
-        if: env.CUSTOMER_KEYSTORE_BASE64 != ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: waykel-customer-release
-          path: android/app/build/outputs/apk/release/app-release.apk
-          retention-days: 30
-
   build-driver:
     name: Build Driver App (Android)
     runs-on: ubuntu-latest
-    if: github.event.inputs.app != 'customer'
+    if: ${{ github.event.inputs.app == '' || github.event.inputs.app == 'driver' || github.event.inputs.app == 'both' }}
     
     steps:
       - name: Checkout repository
@@ -149,27 +125,3 @@ jobs:
           name: waykel-driver-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
-
-      - name: Build Release APK (if secrets available)
-        if: env.DRIVER_KEYSTORE_BASE64 != ''
-        env:
-          DRIVER_KEYSTORE_BASE64: ${{ secrets.DRIVER_KEYSTORE_BASE64 }}
-          DRIVER_KEYSTORE_PASSWORD: ${{ secrets.DRIVER_KEYSTORE_PASSWORD }}
-          DRIVER_KEY_ALIAS: ${{ secrets.DRIVER_KEY_ALIAS }}
-          DRIVER_KEY_PASSWORD: ${{ secrets.DRIVER_KEY_PASSWORD }}
-        working-directory: android
-        run: |
-          echo "$DRIVER_KEYSTORE_BASE64" | base64 -d > app/waykel-driver.jks
-          ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file=waykel-driver.jks \
-            -Pandroid.injected.signing.store.password="$DRIVER_KEYSTORE_PASSWORD" \
-            -Pandroid.injected.signing.key.alias="$DRIVER_KEY_ALIAS" \
-            -Pandroid.injected.signing.key.password="$DRIVER_KEY_PASSWORD"
-
-      - name: Upload Release APK
-        if: env.DRIVER_KEYSTORE_BASE64 != ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: waykel-driver-release
-          path: android/app/build/outputs/apk/release/app-release.apk
-          retention-days: 30
