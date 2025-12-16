@@ -9,33 +9,32 @@ echo ""
 
 cd "$(dirname "$0")/.."
 
-echo "Step 1: Installing dependencies..."
-npm install
+# Environment validation
+command -v node >/dev/null 2>&1 || { echo "❌ Node.js not found. Please install Node.js first."; exit 1; }
+command -v npx >/dev/null 2>&1 || { echo "❌ npx not found. Please install Node.js/npm first."; exit 1; }
+
+# Platform existence check
+if [ ! -d "android-driver" ] && [ ! -d "ios-driver" ]; then
+  echo "❌ Mobile platforms not found."
+  echo "   Run ./scripts/init-mobile-platforms.sh first to set up platforms."
+  exit 1
+fi
+
+echo "Step 1: Installing dependencies (deterministic)..."
+npm ci
 
 echo ""
 echo "Step 2: Building web assets..."
 npx vite build --config vite.driver.config.ts
 
 echo ""
-echo "Step 3: Renaming entry file..."
-mv dist/driver/driver.html dist/driver/index.html 2>/dev/null || true
-
-echo ""
-echo "Step 4: Adding Android platform (if not exists)..."
-if [ ! -d "android-driver" ]; then
-  npx cap add android --config capacitor.driver.config.ts
-  mv android android-driver 2>/dev/null || true
+echo "Step 3: Renaming output to index.html..."
+if [ -f "dist/driver/driver.html" ]; then
+  mv dist/driver/driver.html dist/driver/index.html
 fi
 
 echo ""
-echo "Step 5: Adding iOS platform (if not exists)..."
-if [ ! -d "ios-driver" ] && [[ "$OSTYPE" == "darwin"* ]]; then
-  npx cap add ios --config capacitor.driver.config.ts
-  mv ios ios-driver 2>/dev/null || true
-fi
-
-echo ""
-echo "Step 6: Syncing with native platforms..."
+echo "Step 4: Syncing with native platforms..."
 npx cap sync --config capacitor.driver.config.ts
 
 echo ""
