@@ -1798,7 +1798,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         entityType,
         type,
         entityId,
-        expiryDate
+        expiryDate,
+        replaceDocumentId
       } = req.body;
 
       if (!fileData || !fileName || !contentType || !entityType || !type || !entityId) {
@@ -1818,22 +1819,51 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         transporterId = entityId;
       }
 
-      // Check for duplicate document of same type for this entity (excluding rejected)
-      let existingDocs: any[] = [];
-      if (entityType === "driver" && userId) {
-        existingDocs = await storage.getUserDocuments(userId);
-      } else if (entityType === "vehicle" && vehicleId) {
-        existingDocs = await storage.getVehicleDocuments(vehicleId);
-      } else if (entityType === "transporter" && transporterId) {
-        existingDocs = await storage.getTransporterDocuments(transporterId);
-      }
-      
-      const duplicateDoc = existingDocs.find(d => d.type === type && d.status !== "rejected" && d.status !== "replaced");
-      if (duplicateDoc) {
-        const statusMessage = duplicateDoc.status === "pending" 
-          ? "This document type is under review. Cannot upload duplicate."
-          : "This document type is already verified.";
-        return res.status(400).json({ error: statusMessage });
+      // Check for duplicate document of same type for this entity (excluding rejected/replaced)
+      // Skip this check if we're replacing a document
+      if (!replaceDocumentId) {
+        let existingDocs: any[] = [];
+        if (entityType === "driver" && userId) {
+          existingDocs = await storage.getUserDocuments(userId);
+        } else if (entityType === "vehicle" && vehicleId) {
+          existingDocs = await storage.getVehicleDocuments(vehicleId);
+        } else if (entityType === "transporter" && transporterId) {
+          existingDocs = await storage.getTransporterDocuments(transporterId);
+        }
+        
+        const duplicateDoc = existingDocs.find(d => d.type === type && d.status !== "rejected" && d.status !== "replaced");
+        if (duplicateDoc) {
+          const statusMessage = duplicateDoc.status === "pending" 
+            ? "This document type is under review. Cannot upload duplicate."
+            : "This document type is already verified.";
+          return res.status(400).json({ error: statusMessage });
+        }
+      } else {
+        // Validate replaceDocumentId - ensure it exists and belongs to the same entity
+        const existingDoc = await storage.getDocumentById(replaceDocumentId);
+        if (!existingDoc) {
+          return res.status(404).json({ error: "Document to replace not found" });
+        }
+        
+        // Verify ownership based on entity type
+        const ownsDocument = 
+          (entityType === "driver" && existingDoc.userId === userId) ||
+          (entityType === "vehicle" && existingDoc.vehicleId === vehicleId) ||
+          (entityType === "transporter" && existingDoc.transporterId === transporterId);
+        
+        if (!ownsDocument) {
+          return res.status(403).json({ error: "Not authorized to replace this document" });
+        }
+        
+        // Verify the document is rejected (can only replace rejected documents)
+        if (existingDoc.status !== "rejected") {
+          return res.status(400).json({ error: "Can only replace rejected documents" });
+        }
+        
+        // Verify the document type matches
+        if (existingDoc.type !== type) {
+          return res.status(400).json({ error: "Document type mismatch" });
+        }
       }
 
       // Upload file to storage
@@ -1887,6 +1917,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(503).json({ error: "No storage configured" });
       }
 
+      // If replacing, mark the old document as "replaced"
+      if (replaceDocumentId) {
+        await storage.updateDocumentStatus(replaceDocumentId, "replaced" as any, null);
+      }
+
       // Create document record
       const docLabel = type.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
       const document = await storage.createDocument({
@@ -1911,8 +1946,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // PATCH /api/documents/:id/status - Admin only (to verify/reject documents)
   app.patch("/api/documents/:id/status", protectedLimiter, requireAdmin, async (req, res) => {
     try {
-      const { status } = req.body;
-      await storage.updateDocumentStatus(req.params.id, status);
+      const { status, rejectionReason } = req.body;
+      
+      if (status === "rejected" && !rejectionReason) {
+        return res.status(400).json({ error: "Rejection reason is required" });
+      }
+      
+      // Clear rejection reason when approving
+      const reason = status === "verified" ? null : rejectionReason;
+      await storage.updateDocumentStatus(req.params.id, status, reason);
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ error: "Failed to update document status" });
