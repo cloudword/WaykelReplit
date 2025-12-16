@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
@@ -17,27 +17,44 @@ import ActiveRide from "@/pages/active-ride";
 import BookRide from "@/pages/book-ride";
 import DriverAddVehicle from "@/pages/driver-add-vehicle";
 import Notifications from "@/pages/notifications";
+import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
+
+const driverNavItems = [
+  { href: "/driver", icon: "home" as const, label: "Home" },
+  { href: "/driver/rides", icon: "truck" as const, label: "Rides" },
+  { href: "/driver/earnings", icon: "wallet" as const, label: "Earnings" },
+  { href: "/driver/notifications", icon: "bell" as const, label: "Alerts" },
+  { href: "/driver/profile", icon: "user" as const, label: "Profile" },
+];
 
 function DriverRouter() {
+  const [location] = useLocation();
+  const hideNavPaths = ["/auth", "/driver/active-ride"];
+  const showNav = !hideNavPaths.some(path => location.startsWith(path));
+
   return (
-    <Switch>
-      <Route path="/">
-        <Redirect to="/driver" />
-      </Route>
-      <Route path="/auth" component={AuthPage} />
-      <Route path="/auth/login" component={AuthPage} />
+    <div className="min-h-screen bg-gray-50 pb-16">
+      <Switch>
+        <Route path="/">
+          <Redirect to="/driver" />
+        </Route>
+        <Route path="/auth" component={AuthPage} />
+        <Route path="/auth/login" component={AuthPage} />
+        
+        <Route path="/driver" component={DriverDashboard} />
+        <Route path="/driver/rides" component={DriverRides} />
+        <Route path="/driver/earnings" component={DriverEarnings} />
+        <Route path="/driver/profile" component={DriverProfile} />
+        <Route path="/driver/active-ride/:id" component={ActiveRide} />
+        <Route path="/driver/book-ride" component={BookRide} />
+        <Route path="/driver/add-vehicle" component={DriverAddVehicle} />
+        <Route path="/driver/notifications" component={Notifications} />
+        
+        <Route component={NotFound} />
+      </Switch>
       
-      <Route path="/driver" component={DriverDashboard} />
-      <Route path="/driver/rides" component={DriverRides} />
-      <Route path="/driver/earnings" component={DriverEarnings} />
-      <Route path="/driver/profile" component={DriverProfile} />
-      <Route path="/driver/active-ride/:id" component={ActiveRide} />
-      <Route path="/driver/book-ride" component={BookRide} />
-      <Route path="/driver/add-vehicle" component={DriverAddVehicle} />
-      <Route path="/driver/notifications" component={Notifications} />
-      
-      <Route component={NotFound} />
-    </Switch>
+      {showNav && <MobileBottomNav variant="driver" items={driverNavItems} />}
+    </div>
   );
 }
 

@@ -2967,6 +2967,148 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json(VEHICLE_TYPES);
   });
 
+  // ============== ADMIN STORAGE MANAGEMENT ==============
+
+  // List all files in Spaces storage (super admin only)
+  app.get("/api/admin/storage", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser.isSuperAdmin) {
+        return res.status(403).json({ error: "Super admin access required" });
+      }
+
+      const spacesStorage = getSpacesStorage();
+      if (!spacesStorage) {
+        return res.status(400).json({ error: "Storage not configured" });
+      }
+
+      const { prefix = "", maxKeys = "100" } = req.query;
+      const keys = await spacesStorage.listObjects(prefix as string, parseInt(maxKeys as string, 10));
+      
+      // Get file details for each key
+      const files = await Promise.all(
+        keys.map(async (key) => {
+          try {
+            const { contentType, contentLength } = await spacesStorage.getObject(key);
+            return {
+              key,
+              contentType,
+              size: contentLength,
+              isImage: contentType?.startsWith("image/") || false,
+            };
+          } catch {
+            return { key, contentType: "unknown", size: 0, isImage: false };
+          }
+        })
+      );
+
+      res.json({ files, prefix, total: files.length });
+    } catch (error) {
+      console.error("Failed to list storage files:", error);
+      res.status(500).json({ error: "Failed to list storage files" });
+    }
+  });
+
+  // Get file details and signed URL (super admin only)
+  app.get("/api/admin/storage/file", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser.isSuperAdmin) {
+        return res.status(403).json({ error: "Super admin access required" });
+      }
+
+      const spacesStorage = getSpacesStorage();
+      if (!spacesStorage) {
+        return res.status(400).json({ error: "Storage not configured" });
+      }
+
+      const { key } = req.query;
+      if (!key || typeof key !== "string") {
+        return res.status(400).json({ error: "File key is required" });
+      }
+
+      const exists = await spacesStorage.objectExists(key);
+      if (!exists) {
+        return res.status(404).json({ error: "File not found" });
+      }
+
+      const { contentType, contentLength } = await spacesStorage.getObject(key);
+      const signedUrl = await spacesStorage.getSignedUrl(key, 3600);
+
+      res.json({
+        key,
+        contentType,
+        size: contentLength,
+        signedUrl,
+        isImage: contentType?.startsWith("image/") || false,
+      });
+    } catch (error) {
+      console.error("Failed to get file details:", error);
+      res.status(500).json({ error: "Failed to get file details" });
+    }
+  });
+
+  // Delete a file from Spaces storage (super admin only)
+  app.delete("/api/admin/storage/file", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser.isSuperAdmin) {
+        return res.status(403).json({ error: "Super admin access required" });
+      }
+
+      const spacesStorage = getSpacesStorage();
+      if (!spacesStorage) {
+        return res.status(400).json({ error: "Storage not configured" });
+      }
+
+      const { key } = req.query;
+      if (!key || typeof key !== "string") {
+        return res.status(400).json({ error: "File key is required" });
+      }
+
+      await spacesStorage.deleteObject(key);
+
+      res.json({ success: true, message: "File deleted successfully" });
+    } catch (error) {
+      console.error("Failed to delete file:", error);
+      res.status(500).json({ error: "Failed to delete file" });
+    }
+  });
+
+  // Get storage directories/prefixes (super admin only)
+  app.get("/api/admin/storage/directories", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser.isSuperAdmin) {
+        return res.status(403).json({ error: "Super admin access required" });
+      }
+
+      const spacesStorage = getSpacesStorage();
+      if (!spacesStorage) {
+        return res.status(400).json({ error: "Storage not configured" });
+      }
+
+      // List top-level directories
+      const allKeys = await spacesStorage.listObjects("", 1000);
+      const directories = new Set<string>();
+      
+      allKeys.forEach((key) => {
+        const parts = key.split("/");
+        if (parts.length > 1) {
+          directories.add(parts[0]);
+        }
+      });
+
+      res.json({
+        directories: Array.from(directories).sort(),
+        totalFiles: allKeys.length,
+      });
+    } catch (error) {
+      console.error("Failed to list directories:", error);
+      res.status(500).json({ error: "Failed to list directories" });
+    }
+  });
+
   // ============== TRANSPORTER TRIP POSTING ==============
 
   // Create a trip with self-assign option
