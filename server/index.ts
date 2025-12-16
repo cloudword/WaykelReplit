@@ -85,11 +85,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Trust proxy when running behind a reverse proxy (Replit, Heroku, etc.)
-// This is required for secure cookies to work correctly
-if (process.env.REPL_ID || process.env.NODE_ENV === "production") {
-  app.set("trust proxy", 1);
-}
+// Trust proxy when running behind a reverse proxy (DigitalOcean, Cloudflare, Replit, etc.)
+// This MUST be set for secure cookies to work correctly
+app.set("trust proxy", 1);
 
 // Determine if we need cross-origin cookie settings
 // Only enable secure cookies for production deployments, not development previews
@@ -167,15 +165,19 @@ const createSessionStore = () => {
 
 app.use(
   session({
+    name: "connect.sid",
     secret: sessionSecret || require("crypto").randomBytes(32).toString("hex"),
     resave: false,
     saveUninitialized: false,
+    proxy: true,
     store: createSessionStore(),
     cookie: {
       secure: isProduction, // Only require HTTPS in production
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000,
       sameSite: needsCrossOriginCookies ? "none" : "lax",
+      // Share cookie across waykel.com subdomains in production
+      domain: isProduction ? ".waykel.com" : undefined,
     },
   })
 );

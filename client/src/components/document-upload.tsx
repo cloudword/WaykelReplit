@@ -414,6 +414,22 @@ export function DocumentUpload({
     }
   }, [open]);
 
+  // Clear selected docType if it becomes disabled (e.g., documents loaded after dialog opened)
+  useEffect(() => {
+    if (docType && !replacingDoc && isDocTypeDisabled(docType)) {
+      const docLabel = docTypes.find(d => d.value === docType)?.label || docType;
+      const existing = getExistingDoc(docType);
+      const statusMessage = existing?.status === "pending" 
+        ? "under review" 
+        : "already verified";
+      setFiles(prev => prev.map(f => ({
+        ...f,
+        status: "error" as const,
+        error: `${docLabel} is ${statusMessage}. Cannot upload duplicate.`
+      })));
+    }
+  }, [existingDocuments, docType, replacingDoc]);
+
   const availableDocTypes = docTypes.filter(type => !isDocTypeDisabled(type.value));
   const disabledDocTypes = docTypes.filter(type => isDocTypeDisabled(type.value));
 
