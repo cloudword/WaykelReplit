@@ -60,11 +60,14 @@ jobs:
           npx vite build --config vite.customer.config.ts
           mv dist/customer/customer.html dist/customer/index.html || true
 
+      - name: Prepare Capacitor config
+        run: cp capacitor.customer.config.ts capacitor.config.ts
+
       - name: Add Android platform
-        run: npx cap add android --config capacitor.customer.config.ts
+        run: npx cap add android
 
       - name: Sync Capacitor
-        run: npx cap sync android --config capacitor.customer.config.ts
+        run: npx cap sync android
 
       - name: Build Debug APK
         working-directory: android
@@ -109,11 +112,14 @@ jobs:
           npx vite build --config vite.driver.config.ts
           mv dist/driver/driver.html dist/driver/index.html || true
 
+      - name: Prepare Capacitor config
+        run: cp capacitor.driver.config.ts capacitor.config.ts
+
       - name: Add Android platform
-        run: npx cap add android --config capacitor.driver.config.ts
+        run: npx cap add android
 
       - name: Sync Capacitor
-        run: npx cap sync android --config capacitor.driver.config.ts
+        run: npx cap sync android
 
       - name: Build Debug APK
         working-directory: android

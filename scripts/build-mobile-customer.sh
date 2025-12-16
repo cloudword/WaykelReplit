@@ -34,8 +34,12 @@ if [ -f "dist/customer/customer.html" ]; then
 fi
 
 echo ""
-echo "Step 4: Syncing with native platforms..."
-npx cap sync --config capacitor.customer.config.ts
+echo "Step 4: Preparing Capacitor config..."
+cp capacitor.customer.config.ts capacitor.config.ts
+
+echo ""
+echo "Step 5: Syncing with native platforms..."
+npx cap sync
 
 echo ""
 echo "========================================"
@@ -43,11 +47,11 @@ echo "  Build Complete!"
 echo "========================================"
 echo ""
 echo "To open in Android Studio:"
-echo "  npx cap open android --config capacitor.customer.config.ts"
+echo "  npx cap open android"
 echo ""
 if [[ "$OSTYPE" == "darwin"* ]]; then
   echo "To open in Xcode:"
-  echo "  npx cap open ios --config capacitor.customer.config.ts"
+  echo "  npx cap open ios"
   echo ""
 fi
 echo "App ID: com.waykel.customer"

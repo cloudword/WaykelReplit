@@ -50,11 +50,14 @@ jobs:
           npx vite build --config vite.customer.config.ts
           mv dist/customer/customer.html dist/customer/index.html || true
 
+      - name: Prepare Capacitor config
+        run: cp capacitor.customer.config.ts capacitor.config.ts
+
       - name: Add iOS platform
-        run: npx cap add ios --config capacitor.customer.config.ts
+        run: npx cap add ios
 
       - name: Sync Capacitor
-        run: npx cap sync ios --config capacitor.customer.config.ts
+        run: npx cap sync ios
 
       - name: Install CocoaPods dependencies
         working-directory: ios/App
@@ -100,11 +103,14 @@ jobs:
           npx vite build --config vite.driver.config.ts
           mv dist/driver/driver.html dist/driver/index.html || true
 
+      - name: Prepare Capacitor config
+        run: cp capacitor.driver.config.ts capacitor.config.ts
+
       - name: Add iOS platform
-        run: npx cap add ios --config capacitor.driver.config.ts
+        run: npx cap add ios
 
       - name: Sync Capacitor
-        run: npx cap sync ios --config capacitor.driver.config.ts
+        run: npx cap sync ios
 
       - name: Install CocoaPods dependencies
         working-directory: ios/App

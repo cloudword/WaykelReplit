@@ -49,11 +49,16 @@ if [ -f "dist/customer/customer.html" ]; then
   mv dist/customer/customer.html dist/customer/index.html
 fi
 
+# Use Customer config
+echo ""
+echo "Preparing Customer Capacitor config..."
+cp capacitor.customer.config.ts capacitor.config.ts
+
 # Add Android platform for Customer
 if [ ! -d "android-customer" ]; then
   echo ""
   echo "Adding Android platform for Customer app..."
-  npx cap add android --config capacitor.customer.config.ts
+  npx cap add android
   if [ -d "android" ]; then
     mv android android-customer
     echo "✅ Android platform created at android-customer/"
@@ -67,7 +72,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
   if [ ! -d "ios-customer" ]; then
     echo ""
     echo "Adding iOS platform for Customer app..."
-    npx cap add ios --config capacitor.customer.config.ts
+    npx cap add ios
     if [ -d "ios" ]; then
       mv ios ios-customer
       echo "✅ iOS platform created at ios-customer/"
@@ -80,7 +85,7 @@ fi
 # Sync Customer platforms
 echo ""
 echo "Syncing Customer platforms..."
-npx cap sync --config capacitor.customer.config.ts
+npx cap sync
 
 echo ""
 echo "========================================"
@@ -95,11 +100,16 @@ if [ -f "dist/driver/driver.html" ]; then
   mv dist/driver/driver.html dist/driver/index.html
 fi
 
+# Use Driver config
+echo ""
+echo "Preparing Driver Capacitor config..."
+cp capacitor.driver.config.ts capacitor.config.ts
+
 # Add Android platform for Driver
 if [ ! -d "android-driver" ]; then
   echo ""
   echo "Adding Android platform for Driver app..."
-  npx cap add android --config capacitor.driver.config.ts
+  npx cap add android
   if [ -d "android" ]; then
     mv android android-driver
     echo "✅ Android platform created at android-driver/"
@@ -113,7 +123,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
   if [ ! -d "ios-driver" ]; then
     echo ""
     echo "Adding iOS platform for Driver app..."
-    npx cap add ios --config capacitor.driver.config.ts
+    npx cap add ios
     if [ -d "ios" ]; then
       mv ios ios-driver
       echo "✅ iOS platform created at ios-driver/"
@@ -126,7 +136,7 @@ fi
 # Sync Driver platforms
 echo ""
 echo "Syncing Driver platforms..."
-npx cap sync --config capacitor.driver.config.ts
+npx cap sync
 
 echo ""
 echo "========================================"
@@ -154,6 +164,6 @@ echo "    ./scripts/build-mobile-customer.sh"
 echo "    ./scripts/build-mobile-driver.sh"
 echo ""
 echo "  To open in IDE:"
-echo "    npx cap open android --config capacitor.customer.config.ts"
-echo "    npx cap open android --config capacitor.driver.config.ts"
+echo "    npx cap open android"
+echo "    npx cap open ios"
 echo ""
