@@ -56,6 +56,9 @@ if (!sessionSecret) {
 const customerPortalUrls = (process.env.CUSTOMER_PORTAL_URL || '').split(',').map(u => u.trim()).filter(Boolean);
 const ALLOWED_ORIGINS = [
   ...customerPortalUrls,
+  'https://admin.waykel.com',
+  'https://www.admin.waykel.com',
+  'https://api.waykel.com',
   'https://www.waykel.com',
   'https://waykel.com',
   'https://dev.waykel.com',
