@@ -67,6 +67,8 @@ const ALLOWED_ORIGINS = [
   // Customer portal
   'https://dev.waykel.com',
   'https://www.dev.waykel.com',
+  // Customer portal on DigitalOcean (direct URL)
+  'https://waykelcustomerfacing-smswi.ondigitalocean.app',
   // Driver app
   'https://driver.waykel.com',
   'https://www.driver.waykel.com',
