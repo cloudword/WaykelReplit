@@ -8,6 +8,7 @@ import { ScrollText, Search, RefreshCw, Clock, Globe, AlertCircle, Activity, Fil
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { API_BASE } from "@/lib/api";
 
 interface ApiLog {
   id: string;
@@ -54,8 +55,8 @@ export default function AdminApiLogs() {
     try {
       setLoading(true);
       const [logsRes, statsRes] = await Promise.all([
-        fetch("/api/admin/logs?limit=200", { credentials: "include" }),
-        fetch("/api/admin/logs/stats", { credentials: "include" }),
+        fetch(`${API_BASE}/admin/logs?limit=200`, { credentials: "include" }),
+        fetch(`${API_BASE}/admin/logs/stats`, { credentials: "include" }),
       ]);
       
       if (logsRes.ok) {

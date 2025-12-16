@@ -4,8 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Upload, Loader2, X, File, CheckCircle, AlertCircle, Clock, Info } from "lucide-react";
-import { api } from "@/lib/api";
+import { FileText, Upload, Loader2, X, File, CheckCircle, AlertCircle, Clock, Info, Eye, RefreshCw } from "lucide-react";
+import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +54,7 @@ interface ExistingDocument {
   url?: string;
   expiryDate?: string;
   createdAt?: string;
+  rejectionReason?: string;
 }
 
 interface DocumentUploadProps {
@@ -79,6 +80,8 @@ export function DocumentUpload({
   const [expiryDate, setExpiryDate] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [replacingDoc, setReplacingDoc] = useState<ExistingDocument | null>(null);
+  const [viewingDoc, setViewingDoc] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const docTypes = entityType === "driver" 
@@ -104,7 +107,50 @@ export function DocumentUpload({
     return existing.status;
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleViewDocument = async (doc: ExistingDocument) => {
+    if (!doc.url) {
+      toast.error("Document URL not available");
+      return;
+    }
+    
+    setViewingDoc(true);
+    try {
+      // For Spaces storage (private/ prefix), use signed URL
+      if (doc.url.startsWith("private/")) {
+        const response = await fetch(`${API_BASE}/spaces/signed-url`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ key: doc.url }),
+        });
+        
+        if (response.ok) {
+          const { signedUrl } = await response.json();
+          window.open(signedUrl, "_blank");
+        } else {
+          toast.error("Failed to get document access");
+        }
+      } else {
+        // For Replit Object Storage, use the download endpoint
+        window.open(`/objects/${doc.url}`, "_blank");
+      }
+    } catch (error) {
+      toast.error("Failed to view document");
+    } finally {
+      setViewingDoc(false);
+    }
+  };
+
+  const handleReplaceDocument = (doc: ExistingDocument) => {
+    // Set up replacement context
+    setReplacingDoc(doc);
+    setDocType(doc.type);
+    // Clear any existing files and open file picker
+    setFiles([]);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       // Replace existing file (single file per document type)
@@ -144,7 +190,7 @@ export function DocumentUpload({
       
       setFiles(prev => prev.map((f, i) => i === index ? { ...f, progress: 30 } : f));
 
-      const spacesResponse = await fetch("/api/spaces/upload", {
+      const spacesResponse = await fetch(`${API_BASE}/spaces/upload`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -173,7 +219,7 @@ export function DocumentUpload({
       if (spacesResponse.status === 503) {
         setFiles(prev => prev.map((f, i) => i === index ? { ...f, progress: 40 } : f));
 
-        const uploadResponse = await fetch("/api/objects/upload", {
+        const uploadResponse = await fetch(`${API_BASE}/objects/upload`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -202,7 +248,7 @@ export function DocumentUpload({
 
         setFiles(prev => prev.map((f, i) => i === index ? { ...f, progress: 70 } : f));
 
-        const confirmResponse = await fetch("/api/objects/confirm", {
+        const confirmResponse = await fetch(`${API_BASE}/objects/confirm`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -255,7 +301,8 @@ export function DocumentUpload({
       return;
     }
 
-    if (isDocTypeDisabled(docType)) {
+    // Skip the disabled check when replacing a rejected document
+    if (!replacingDoc && isDocTypeDisabled(docType)) {
       const status = getDocTypeStatus(docType);
       const docLabel = docTypes.find(d => d.value === docType)?.label || docType;
       toast.error(
@@ -282,7 +329,8 @@ export function DocumentUpload({
       setFiles(prev => prev.map((f, i) => i === 0 ? { ...f, progress: 30 } : f));
 
       // 2️⃣ SINGLE API CALL - Backend handles everything atomically
-      const response = await fetch("/api/documents/upload", {
+      // Include replaceDocumentId if we're replacing a rejected document
+      const response = await fetch(`${API_BASE}/documents/upload`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -294,6 +342,7 @@ export function DocumentUpload({
           type: docType,
           entityId,
           expiryDate: expiryDate || undefined,
+          replaceDocumentId: replacingDoc?.id,
         }),
       });
 
@@ -308,7 +357,10 @@ export function DocumentUpload({
       setFiles(prev => prev.map((f, i) => i === 0 ? { ...f, status: "success", progress: 100 } : f));
 
       // 3️⃣ SUCCESS — single toast after atomic operation
-      toast.success("Document uploaded successfully");
+      toast.success(replacingDoc ? "Document replaced successfully" : "Document uploaded successfully");
+      
+      // Clear replacing state before closing
+      setReplacingDoc(null);
       
       // Refresh list and close modal
       onSuccess?.();
@@ -358,6 +410,7 @@ export function DocumentUpload({
       setFiles([]);
       setDocType("");
       setExpiryDate("");
+      setReplacingDoc(null);
     }
   }, [open]);
 
@@ -435,31 +488,61 @@ export function DocumentUpload({
                   return (
                     <div 
                       key={doc.id} 
-                      className={`flex items-center gap-3 p-3 rounded-lg border ${styles.container}`}
+                      className={`p-3 rounded-lg border ${styles.container}`}
                       data-testid={`existing-doc-${doc.id}`}
                     >
-                      {styles.icon}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-gray-900">
-                          {doc.documentName || doc.type}
-                        </p>
-                        {fileName && (
-                          <p className="text-xs text-gray-500 truncate">
-                            File: {decodeURIComponent(fileName)}
+                      <div className="flex items-center gap-3">
+                        {styles.icon}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm text-gray-900">
+                            {doc.documentName || doc.type}
                           </p>
-                        )}
-                        {doc.expiryDate && (
-                          <p className="text-xs text-gray-500">
-                            Expires: {doc.expiryDate}
-                          </p>
-                        )}
+                          {fileName && (
+                            <p className="text-xs text-gray-500 truncate">
+                              File: {decodeURIComponent(fileName)}
+                            </p>
+                          )}
+                          {doc.expiryDate && (
+                            <p className="text-xs text-gray-500">
+                              Expires: {doc.expiryDate}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge 
+                            variant="outline"
+                            className={styles.badge}
+                          >
+                            {styles.label}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleViewDocument(doc)}
+                            disabled={viewingDoc}
+                            data-testid={`view-doc-${doc.id}`}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          {doc.status === "rejected" && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-blue-600 hover:text-blue-700"
+                              onClick={() => handleReplaceDocument(doc)}
+                              data-testid={`replace-doc-${doc.id}`}
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                      <Badge 
-                        variant="outline"
-                        className={styles.badge}
-                      >
-                        {styles.label}
-                      </Badge>
+                      {doc.status === "rejected" && doc.rejectionReason && (
+                        <div className="mt-2 p-2 bg-red-100 rounded text-xs text-red-700">
+                          <span className="font-medium">Reason:</span> {doc.rejectionReason}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

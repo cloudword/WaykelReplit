@@ -1783,11 +1783,178 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // POST /api/documents/upload - Combined file upload + document creation (atomic)
+  app.post("/api/documents/upload", uploadLimiter, async (req, res) => {
+    const sessionUser = getCurrentUser(req);
+    if (!sessionUser?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const { 
+        fileData, 
+        fileName, 
+        contentType,
+        entityType,
+        type,
+        entityId,
+        expiryDate,
+        replaceDocumentId
+      } = req.body;
+
+      if (!fileData || !fileName || !contentType || !entityType || !type || !entityId) {
+        return res.status(400).json({ error: "fileData, fileName, contentType, entityType, type, and entityId are required" });
+      }
+
+      // Determine IDs based on entityType
+      let userId: string | undefined;
+      let vehicleId: string | undefined;
+      let transporterId = sessionUser.transporterId;
+
+      if (entityType === "driver") {
+        userId = entityId;
+      } else if (entityType === "vehicle") {
+        vehicleId = entityId;
+      } else if (entityType === "transporter") {
+        transporterId = entityId;
+      }
+
+      // Check for duplicate document of same type for this entity (excluding rejected/replaced)
+      // Skip this check if we're replacing a document
+      if (!replaceDocumentId) {
+        let existingDocs: any[] = [];
+        if (entityType === "driver" && userId) {
+          existingDocs = await storage.getUserDocuments(userId);
+        } else if (entityType === "vehicle" && vehicleId) {
+          existingDocs = await storage.getVehicleDocuments(vehicleId);
+        } else if (entityType === "transporter" && transporterId) {
+          existingDocs = await storage.getTransporterDocuments(transporterId);
+        }
+        
+        const duplicateDoc = existingDocs.find(d => d.type === type && d.status !== "rejected" && d.status !== "replaced");
+        if (duplicateDoc) {
+          const statusMessage = duplicateDoc.status === "pending" 
+            ? "This document type is under review. Cannot upload duplicate."
+            : "This document type is already verified.";
+          return res.status(400).json({ error: statusMessage });
+        }
+      } else {
+        // Validate replaceDocumentId - ensure it exists and belongs to the same entity
+        const existingDoc = await storage.getDocumentById(replaceDocumentId);
+        if (!existingDoc) {
+          return res.status(404).json({ error: "Document to replace not found" });
+        }
+        
+        // Verify ownership based on entity type
+        const ownsDocument = 
+          (entityType === "driver" && existingDoc.userId === userId) ||
+          (entityType === "vehicle" && existingDoc.vehicleId === vehicleId) ||
+          (entityType === "transporter" && existingDoc.transporterId === transporterId);
+        
+        if (!ownsDocument) {
+          return res.status(403).json({ error: "Not authorized to replace this document" });
+        }
+        
+        // Verify the document is rejected (can only replace rejected documents)
+        if (existingDoc.status !== "rejected") {
+          return res.status(400).json({ error: "Can only replace rejected documents" });
+        }
+        
+        // Verify the document type matches
+        if (existingDoc.type !== type) {
+          return res.status(400).json({ error: "Document type mismatch" });
+        }
+      }
+
+      // Upload file to storage
+      const spacesStorage = getSpacesStorage();
+      const isReplit = process.env.REPL_ID !== undefined;
+      let fileUrl: string;
+      
+      if (spacesStorage) {
+        // Use DigitalOcean Spaces
+        const storagePath = getDocumentStoragePath({
+          entityType,
+          transporterId,
+          vehicleId,
+          userId: userId || sessionUser.id,
+        });
+
+        const buffer = Buffer.from(fileData, "base64");
+        const { key } = await spacesStorage.uploadPrivateFile(
+          buffer,
+          fileName,
+          contentType,
+          storagePath
+        );
+        fileUrl = key;
+      } else if (isReplit) {
+        // Use Replit Object Storage
+        const objectStorageService = new ObjectStorageService();
+        const { uploadURL, objectPath } = await objectStorageService.getObjectEntityUploadURL(fileName);
+        
+        // Upload file directly
+        const buffer = Buffer.from(fileData, "base64");
+        const uploadResponse = await fetch(uploadURL, {
+          method: "PUT",
+          body: buffer,
+          headers: { "Content-Type": contentType },
+        });
+        
+        if (!uploadResponse.ok) {
+          throw new Error("Failed to upload file to storage");
+        }
+
+        // Set ACL
+        const ownerId = transporterId || sessionUser.id;
+        await objectStorageService.trySetObjectEntityAclPolicy(objectPath, {
+          owner: ownerId,
+          visibility: "private",
+        });
+        
+        fileUrl = objectPath;
+      } else {
+        return res.status(503).json({ error: "No storage configured" });
+      }
+
+      // If replacing, mark the old document as "replaced"
+      if (replaceDocumentId) {
+        await storage.updateDocumentStatus(replaceDocumentId, "replaced" as any, null);
+      }
+
+      // Create document record
+      const docLabel = type.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      const document = await storage.createDocument({
+        type,
+        url: fileUrl,
+        entityType,
+        userId: userId || sessionUser.id,
+        vehicleId,
+        transporterId,
+        expiryDate: expiryDate || undefined,
+        documentName: docLabel,
+        status: "pending",
+      });
+
+      res.status(201).json(document);
+    } catch (error) {
+      console.error("Document upload error:", error);
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to upload document" });
+    }
+  });
+
   // PATCH /api/documents/:id/status - Admin only (to verify/reject documents)
   app.patch("/api/documents/:id/status", protectedLimiter, requireAdmin, async (req, res) => {
     try {
-      const { status } = req.body;
-      await storage.updateDocumentStatus(req.params.id, status);
+      const { status, rejectionReason } = req.body;
+      
+      if (status === "rejected" && !rejectionReason) {
+        return res.status(400).json({ error: "Rejection reason is required" });
+      }
+      
+      // Clear rejection reason when approving
+      const reason = status === "verified" ? null : rejectionReason;
+      await storage.updateDocumentStatus(req.params.id, status, reason);
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ error: "Failed to update document status" });

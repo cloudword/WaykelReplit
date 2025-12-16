@@ -10,6 +10,7 @@ import { Search, MoreHorizontal, Download, Plus, Loader2, Users, Phone, Mail, Ey
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { API_BASE } from "@/lib/api";
 import { format } from "date-fns";
 
 interface Customer {
@@ -56,8 +57,8 @@ export default function AdminCustomers() {
     try {
       setLoading(true);
       const [customersRes, ridesRes] = await Promise.all([
-        fetch("/api/customers", { credentials: "include" }),
-        fetch("/api/rides", { credentials: "include" }),
+        fetch(`${API_BASE}/customers`, { credentials: "include" }),
+        fetch(`${API_BASE}/rides`, { credentials: "include" }),
       ]);
       
       if (customersRes.ok) {
@@ -98,7 +99,7 @@ export default function AdminCustomers() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/auth/register", {
+      const response = await fetch(`${API_BASE}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

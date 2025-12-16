@@ -7,9 +7,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { 
   Bell, Building2, Truck, Users, FileText, TrendingUp, 
   Plus, Settings, IndianRupee, MapPin, Package, CheckCircle, X, 
-  BarChart3, Route, Clock, ArrowRight
+  BarChart3, Route, Clock, ArrowRight, Zap
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 
@@ -41,7 +41,7 @@ export default function TransporterDashboard() {
 
   const loadNotifications = async () => {
     try {
-      const response = await fetch("/api/notifications", { credentials: "include" });
+      const response = await fetch(`${API_BASE}/notifications`, { credentials: "include" });
       if (response.ok) {
         const data = await response.json();
         setNotifications(data);
@@ -54,7 +54,7 @@ export default function TransporterDashboard() {
 
   const markNotificationRead = async (id: string) => {
     try {
-      await fetch(`/api/notifications/${id}/read`, { 
+      await fetch(`${API_BASE}/notifications/${id}/read`, { 
         method: "PATCH",
         credentials: "include" 
       });

@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
 import { Link } from "wouter";
+import { API_BASE } from "@/lib/api";
 
 interface AdminStats {
   totalDrivers: number;
@@ -31,7 +32,7 @@ export default function AdminDashboard() {
   const { data: stats, isLoading } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/stats", { credentials: "include" });
+      const res = await fetch(`${API_BASE}/admin/stats`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch stats");
       return res.json();
     },

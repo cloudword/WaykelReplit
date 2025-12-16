@@ -4,28 +4,51 @@ import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from "@shared/schema";
 
-// Standard PostgreSQL connection for DigitalOcean Managed Database
+// Standard PostgreSQL connection - supports both Replit and DigitalOcean
 
-if (!process.env.DATABASE_URL) {
+// Detect Replit's Neon database (PGHOST contains neon.tech)
+const isReplitNeonDb = process.env.PGHOST?.includes('neon.tech');
+
+// In development, prefer Replit's Neon database if available
+// In production (on DigitalOcean), use DATABASE_URL which points to DO managed DB
+let connectionString: string;
+
+if (process.env.NODE_ENV === 'development' && isReplitNeonDb && process.env.PGUSER && process.env.PGPASSWORD && process.env.PGDATABASE) {
+  // Construct connection string from Replit's PG variables
+  const port = process.env.PGPORT || '5432';
+  connectionString = `postgresql://${process.env.PGUSER}:${process.env.PGPASSWORD}@${process.env.PGHOST}:${port}/${process.env.PGDATABASE}?sslmode=require`;
+  console.log('[db] Using Replit Neon database for development');
+} else if (process.env.DATABASE_URL) {
+  connectionString = process.env.DATABASE_URL;
+} else {
   throw new Error(
     "DATABASE_URL must be set. Did you forget to provision a database?",
   );
 }
 
-// SSL configuration for DigitalOcean Managed Database
-// Priority: NODE_EXTRA_CA_CERTS > DIGITALOCEAN_CA_PATH > fallback
+// Detect if using Replit's local or Neon database
+const isReplitDb = connectionString.includes('neon.tech') ||
+                   connectionString.includes('localhost') || 
+                   connectionString.includes('@127.0.0.1');
+
+// SSL configuration
+// - Replit database: No SSL needed
+// - DigitalOcean: Requires SSL with CA certificate
 let sslConfig: { ca?: string; rejectUnauthorized: boolean } | boolean = false;
 
-// In development, skip SSL for local databases
-if (process.env.NODE_ENV === 'development' && process.env.DATABASE_URL.includes('localhost')) {
+if (isReplitDb && connectionString.includes('neon.tech')) {
+  // Neon requires SSL but handles it automatically with sslmode=require in connection string
+  sslConfig = { rejectUnauthorized: true };
+  console.log('[db] Using Replit Neon database with SSL');
+} else if (isReplitDb) {
   sslConfig = false;
-  console.log('[db] Using non-SSL connection for local development');
+  console.log('[db] Using local database (no SSL)');
 } else if (process.env.NODE_EXTRA_CA_CERTS) {
   // Node.js automatically loads the CA from NODE_EXTRA_CA_CERTS
   sslConfig = { rejectUnauthorized: true };
   console.log('[db] Using NODE_EXTRA_CA_CERTS for SSL verification');
 } else {
-  // Fallback: manually load CA certificate
+  // Fallback: manually load CA certificate for DigitalOcean
   const DEFAULT_CA_PATH = './certs/digitalocean-ca.crt';
   const caPath = path.resolve(process.cwd(), process.env.DIGITALOCEAN_CA_PATH || DEFAULT_CA_PATH);
   
@@ -46,7 +69,7 @@ if (process.env.NODE_ENV === 'development' && process.env.DATABASE_URL.includes(
 
 // Database pool configuration with safety limits
 export const pool = new Pool({ 
-  connectionString: process.env.DATABASE_URL,
+  connectionString,
   ssl: sslConfig,
   max: 5, // Reduced to prevent pool exhaustion
   min: 1, // Keep at least 1 connection alive

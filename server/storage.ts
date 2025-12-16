@@ -92,12 +92,13 @@ export interface IStorage {
   updateBidStatus(id: string, status: "pending" | "accepted" | "rejected"): Promise<void>;
   
   // Documents
+  getDocumentById(id: string): Promise<Document | undefined>;
   getUserDocuments(userId: string): Promise<Document[]>;
   getTransporterDocuments(transporterId: string): Promise<Document[]>;
   getVehicleDocuments(vehicleId: string): Promise<Document[]>;
   getAllDocuments(): Promise<Document[]>;
   createDocument(document: InsertDocument): Promise<Document>;
-  updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected"): Promise<void>;
+  updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced", rejectionReason?: string | null): Promise<void>;
   
   // Notifications
   createNotification(notification: InsertNotification): Promise<Notification>;
@@ -361,6 +362,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Documents
+  async getDocumentById(id: string): Promise<Document | undefined> {
+    const [document] = await db.select().from(documents).where(eq(documents.id, id));
+    return document;
+  }
+
   async getUserDocuments(userId: string): Promise<Document[]> {
     return await db.select().from(documents).where(eq(documents.userId, userId)).orderBy(desc(documents.createdAt));
   }
@@ -382,8 +388,11 @@ export class DatabaseStorage implements IStorage {
     return document;
   }
 
-  async updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected"): Promise<void> {
-    await db.update(documents).set({ status }).where(eq(documents.id, id));
+  async updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced", rejectionReason?: string | null): Promise<void> {
+    await db.update(documents).set({ 
+      status,
+      rejectionReason: rejectionReason ?? null
+    }).where(eq(documents.id, id));
   }
 
   // Notifications
