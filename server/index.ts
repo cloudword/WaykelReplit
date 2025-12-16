@@ -51,23 +51,33 @@ if (!sessionSecret) {
   console.warn("WARNING: SESSION_SECRET not set. Using a randomly generated secret for development.");
 }
 
-// CORS middleware for customer portal
+// CORS middleware for customer portal and other Waykel apps
 // CUSTOMER_PORTAL_URL can be comma-separated for multiple origins
 const customerPortalUrls = (process.env.CUSTOMER_PORTAL_URL || '').split(',').map(u => u.trim()).filter(Boolean);
 const ALLOWED_ORIGINS = [
   ...customerPortalUrls,
+  // Admin dashboard
   'https://admin.waykel.com',
   'https://www.admin.waykel.com',
+  // API backend
   'https://api.waykel.com',
+  // Main website
   'https://www.waykel.com',
   'https://waykel.com',
+  // Customer portal
   'https://dev.waykel.com',
   'https://www.dev.waykel.com',
-  'http://www.waykel.com',
-  'http://waykel.com',
-  'http://dev.waykel.com',
+  // Driver app
+  'https://driver.waykel.com',
+  'https://www.driver.waykel.com',
+  // Mobile apps (Capacitor)
+  'capacitor://localhost',
+  'ionic://localhost',
+  'http://localhost',
+  // Development
   'http://localhost:3000',
   'http://localhost:5173',
+  'http://localhost:5000',
 ].filter(Boolean);
 
 app.use((req, res, next) => {
@@ -75,8 +85,9 @@ app.use((req, res, next) => {
   if (origin && ALLOWED_ORIGINS.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
+    res.setHeader('Access-Control-Max-Age', '86400'); // Cache preflight for 24 hours
   }
   
   if (req.method === 'OPTIONS') {
