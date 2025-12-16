@@ -5,11 +5,38 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, FileText, Upload, Users, Truck, RefreshCw, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { Building2, FileText, Upload, Users, Truck, RefreshCw, Loader2, CheckCircle, AlertCircle, Eye, Download } from "lucide-react";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 import { DocumentUpload } from "@/components/document-upload";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
+
+const handleViewDocument = async (doc: any) => {
+  if (!doc.url) {
+    toast.error("Document not available");
+    return;
+  }
+  try {
+    if (doc.url.startsWith("private/")) {
+      const response = await fetch(`${API_BASE}/spaces/signed-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ key: doc.url }),
+      });
+      if (response.ok) {
+        const { signedUrl } = await response.json();
+        window.open(signedUrl, "_blank");
+      } else {
+        toast.error("Failed to get document access");
+      }
+    } else {
+      window.open(`/objects/${doc.url}`, "_blank");
+    }
+  } catch (error) {
+    toast.error("Failed to view document");
+  }
+};
 
 export default function TransporterDocuments() {
   const [_, setLocation] = useLocation();
@@ -293,6 +320,17 @@ export default function TransporterDocuments() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        {doc.url && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleViewDocument(doc)}
+                            data-testid={`button-view-${doc.id}`}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            View
+                          </Button>
+                        )}
                         {doc.status === "rejected" && (
                           <Button 
                             variant="outline" 
@@ -347,6 +385,17 @@ export default function TransporterDocuments() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        {doc.url && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleViewDocument(doc)}
+                            data-testid={`button-view-${doc.id}`}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            View
+                          </Button>
+                        )}
                         {doc.status === "rejected" && (
                           <Button 
                             variant="outline" 
@@ -400,6 +449,17 @@ export default function TransporterDocuments() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        {doc.url && (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleViewDocument(doc)}
+                            data-testid={`button-view-${doc.id}`}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            View
+                          </Button>
+                        )}
                         {doc.status === "rejected" && (
                           <Button 
                             variant="outline" 
