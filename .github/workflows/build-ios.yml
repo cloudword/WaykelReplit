@@ -1,0 +1,164 @@
+name: Build iOS Apps
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client/**'
+      - 'shared/**'
+      - 'capacitor.*.config.ts'
+      - 'vite.*.config.ts'
+      - '.github/workflows/build-ios.yml'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      app:
+        description: 'Which app to build'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - customer
+          - driver
+          - both
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  build-customer:
+    name: Build Customer App (iOS)
+    runs-on: macos-latest
+    if: github.event.inputs.app != 'driver'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode_15.2.app
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: |
+          npx vite build --config vite.customer.config.ts
+          mv dist/customer/customer.html dist/customer/index.html || true
+
+      - name: Add iOS platform
+        run: npx cap add ios --config capacitor.customer.config.ts
+
+      - name: Sync Capacitor
+        run: npx cap sync ios --config capacitor.customer.config.ts
+
+      - name: Install CocoaPods dependencies
+        working-directory: ios/App
+        run: pod install
+
+      - name: Build iOS app (Simulator)
+        working-directory: ios/App
+        run: |
+          xcodebuild build \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Archive build output
+        run: |
+          cd ios/App/build/Build/Products/Debug-iphonesimulator
+          zip -r waykel-customer-simulator.zip App.app || true
+
+      - name: Upload Simulator Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: waykel-customer-ios-simulator
+          path: ios/App/build/Build/Products/Debug-iphonesimulator/
+          retention-days: 14
+
+  build-driver:
+    name: Build Driver App (iOS)
+    runs-on: macos-latest
+    if: github.event.inputs.app != 'customer'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Select Xcode version
+        run: sudo xcode-select -s /Applications/Xcode_15.2.app
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: |
+          npx vite build --config vite.driver.config.ts
+          mv dist/driver/driver.html dist/driver/index.html || true
+
+      - name: Add iOS platform
+        run: npx cap add ios --config capacitor.driver.config.ts
+
+      - name: Sync Capacitor
+        run: npx cap sync ios --config capacitor.driver.config.ts
+
+      - name: Install CocoaPods dependencies
+        working-directory: ios/App
+        run: pod install
+
+      - name: Build iOS app (Simulator)
+        working-directory: ios/App
+        run: |
+          xcodebuild build \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload Simulator Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: waykel-driver-ios-simulator
+          path: ios/App/build/Build/Products/Debug-iphonesimulator/
+          retention-days: 14
+
+  # Production iOS builds require Apple Developer certificates
+  # This job shows the structure but requires additional setup:
+  # - Apple Developer account
+  # - Distribution certificate and provisioning profiles
+  # - match or fastlane for certificate management
+  #
+  # build-customer-release:
+  #   name: Build Customer App (iOS - Release)
+  #   runs-on: macos-latest
+  #   if: github.ref == 'refs/heads/main'
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     # ... setup steps ...
+  #     - name: Install certificates
+  #       env:
+  #         DISTRIBUTION_CERTIFICATE: ${{ secrets.APPLE_DISTRIBUTION_CERTIFICATE }}
+  #         PROVISIONING_PROFILE: ${{ secrets.CUSTOMER_PROVISIONING_PROFILE }}
+  #       run: |
+  #         # Import certificate and provisioning profile
+  #         # See: https://docs.github.com/en/actions/deployment/deploying-xcode-applications
+  #     - name: Archive and export IPA
+  #       run: |
+  #         xcodebuild archive -workspace App.xcworkspace -scheme App ...
+  #         xcodebuild -exportArchive ...

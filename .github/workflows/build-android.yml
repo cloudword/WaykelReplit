@@ -1,0 +1,175 @@
+name: Build Android Apps
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client/**'
+      - 'shared/**'
+      - 'capacitor.*.config.ts'
+      - 'vite.*.config.ts'
+      - '.github/workflows/build-android.yml'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      app:
+        description: 'Which app to build'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - customer
+          - driver
+          - both
+
+env:
+  NODE_VERSION: '20'
+  JAVA_VERSION: '17'
+
+jobs:
+  build-customer:
+    name: Build Customer App (Android)
+    runs-on: ubuntu-latest
+    if: github.event.inputs.app != 'driver'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: |
+          npx vite build --config vite.customer.config.ts
+          mv dist/customer/customer.html dist/customer/index.html || true
+
+      - name: Add Android platform
+        run: npx cap add android --config capacitor.customer.config.ts
+
+      - name: Sync Capacitor
+        run: npx cap sync android --config capacitor.customer.config.ts
+
+      - name: Build Debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: waykel-customer-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
+      - name: Build Release APK (if secrets available)
+        if: env.CUSTOMER_KEYSTORE_BASE64 != ''
+        env:
+          CUSTOMER_KEYSTORE_BASE64: ${{ secrets.CUSTOMER_KEYSTORE_BASE64 }}
+          CUSTOMER_KEYSTORE_PASSWORD: ${{ secrets.CUSTOMER_KEYSTORE_PASSWORD }}
+          CUSTOMER_KEY_ALIAS: ${{ secrets.CUSTOMER_KEY_ALIAS }}
+          CUSTOMER_KEY_PASSWORD: ${{ secrets.CUSTOMER_KEY_PASSWORD }}
+        working-directory: android
+        run: |
+          echo "$CUSTOMER_KEYSTORE_BASE64" | base64 -d > app/waykel-customer.jks
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=waykel-customer.jks \
+            -Pandroid.injected.signing.store.password="$CUSTOMER_KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$CUSTOMER_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$CUSTOMER_KEY_PASSWORD"
+
+      - name: Upload Release APK
+        if: env.CUSTOMER_KEYSTORE_BASE64 != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: waykel-customer-release
+          path: android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30
+
+  build-driver:
+    name: Build Driver App (Android)
+    runs-on: ubuntu-latest
+    if: github.event.inputs.app != 'customer'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: |
+          npx vite build --config vite.driver.config.ts
+          mv dist/driver/driver.html dist/driver/index.html || true
+
+      - name: Add Android platform
+        run: npx cap add android --config capacitor.driver.config.ts
+
+      - name: Sync Capacitor
+        run: npx cap sync android --config capacitor.driver.config.ts
+
+      - name: Build Debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: waykel-driver-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
+      - name: Build Release APK (if secrets available)
+        if: env.DRIVER_KEYSTORE_BASE64 != ''
+        env:
+          DRIVER_KEYSTORE_BASE64: ${{ secrets.DRIVER_KEYSTORE_BASE64 }}
+          DRIVER_KEYSTORE_PASSWORD: ${{ secrets.DRIVER_KEYSTORE_PASSWORD }}
+          DRIVER_KEY_ALIAS: ${{ secrets.DRIVER_KEY_ALIAS }}
+          DRIVER_KEY_PASSWORD: ${{ secrets.DRIVER_KEY_PASSWORD }}
+        working-directory: android
+        run: |
+          echo "$DRIVER_KEYSTORE_BASE64" | base64 -d > app/waykel-driver.jks
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=waykel-driver.jks \
+            -Pandroid.injected.signing.store.password="$DRIVER_KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$DRIVER_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$DRIVER_KEY_PASSWORD"
+
+      - name: Upload Release APK
+        if: env.DRIVER_KEYSTORE_BASE64 != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: waykel-driver-release
+          path: android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30
