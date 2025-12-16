@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileText, Upload, Loader2, X, File, CheckCircle, AlertCircle, Clock, Info, Eye, RefreshCw } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -117,7 +117,7 @@ export function DocumentUpload({
     try {
       // For Spaces storage (private/ prefix), use signed URL
       if (doc.url.startsWith("private/")) {
-        const response = await fetch("/api/spaces/signed-url", {
+        const response = await fetch(`${API_BASE}/spaces/signed-url`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -190,7 +190,7 @@ export function DocumentUpload({
       
       setFiles(prev => prev.map((f, i) => i === index ? { ...f, progress: 30 } : f));
 
-      const spacesResponse = await fetch("/api/spaces/upload", {
+      const spacesResponse = await fetch(`${API_BASE}/spaces/upload`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -219,7 +219,7 @@ export function DocumentUpload({
       if (spacesResponse.status === 503) {
         setFiles(prev => prev.map((f, i) => i === index ? { ...f, progress: 40 } : f));
 
-        const uploadResponse = await fetch("/api/objects/upload", {
+        const uploadResponse = await fetch(`${API_BASE}/objects/upload`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -248,7 +248,7 @@ export function DocumentUpload({
 
         setFiles(prev => prev.map((f, i) => i === index ? { ...f, progress: 70 } : f));
 
-        const confirmResponse = await fetch("/api/objects/confirm", {
+        const confirmResponse = await fetch(`${API_BASE}/objects/confirm`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -330,7 +330,7 @@ export function DocumentUpload({
 
       // 2️⃣ SINGLE API CALL - Backend handles everything atomically
       // Include replaceDocumentId if we're replacing a rejected document
-      const response = await fetch("/api/documents/upload", {
+      const response = await fetch(`${API_BASE}/documents/upload`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

@@ -14,6 +14,7 @@ import {
   LineChart, Line, PieChart as RechartsPieChart, Pie, Cell, Legend 
 } from "recharts";
 import { toast } from "sonner";
+import { API_BASE } from "@/lib/api";
 
 interface AnalyticsData {
   summary: {
@@ -83,7 +84,7 @@ export default function TransporterAnalytics() {
 
   const loadAnalytics = async () => {
     try {
-      const res = await fetch("/api/transporter/analytics", { credentials: "include" });
+      const res = await fetch(`${API_BASE}/transporter/analytics`, { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setAnalytics(data);

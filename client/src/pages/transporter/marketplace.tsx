@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { RefreshCw, MapPin, Clock, Package, Truck, IndianRupee, Calendar, User, Phone, Star, Sparkles, Filter, AlertCircle, FileText } from "lucide-react";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 import { VehicleSelector } from "@/components/vehicle-selector";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -45,7 +45,7 @@ export default function TransporterMarketplace() {
   const loadRides = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/transporter/marketplace", {
+      const response = await fetch(`${API_BASE}/transporter/marketplace`, {
         credentials: "include",
       });
       if (response.ok) {

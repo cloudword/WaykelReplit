@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapPin, Package, Truck, Calendar, Clock, Bell, User, Hash, Scale, Zap } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 
 export default function CustomerDashboard() {
@@ -62,7 +62,7 @@ export default function CustomerDashboard() {
       
       // Trigger matching and notification after ride creation
       try {
-        await fetch(`/api/rides/${ride.id}/notify-transporters`, {
+        await fetch(`${API_BASE}/rides/${ride.id}/notify-transporters`, {
           method: "POST",
           credentials: "include",
         });

@@ -1,4 +1,6 @@
-const API_BASE = "/api";
+// In production (DigitalOcean), use VITE_API_BASE_URL env variable
+// In development (Replit), use relative /api path
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 
 export const api = {
   auth: {

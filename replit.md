@@ -94,10 +94,15 @@ The Waykel platform is built with a mobile-first, role-based approach, ensuring 
 
 **DigitalOcean Deployment:**
 -   Full deployment guide: `docs/DIGITALOCEAN_DEPLOYMENT.md`
--   **Required Environment Variables**: `DATABASE_URL`, `SESSION_SECRET`, `JWT_SECRET`, `NODE_ENV`
+-   **Recommended Architecture**: Separate frontend and backend services to avoid SPA routing conflicts
+    -   Frontend: `admin.waykel.com` → Static site serving React app
+    -   Backend: `api.waykel.com` → Web service running Express
+-   **Frontend Environment Variable**: `VITE_API_BASE_URL=https://api.waykel.com/api` (set during build)
+-   **Required Backend Variables**: `DATABASE_URL`, `SESSION_SECRET`, `JWT_SECRET`, `NODE_ENV`
 -   **Spaces Variables**: `DO_SPACES_ENDPOINT`, `DO_SPACES_KEY`, `DO_SPACES_SECRET`, `DO_SPACES_BUCKET`
--   **Build Command**: `npm install && npm run build`
--   **Run Command**: `npm start`
+-   **Frontend Build Command**: `npm install && npm run build` (in client directory)
+-   **Backend Build Command**: `npm install && npm run build`
+-   **Backend Run Command**: `npm start`
 
 **Replit-Specific Integrations:**
 -   Includes development plugins like `@replit/vite-plugin-runtime-error-modal` and `@replit/vite-plugin-cartographer`, which are enabled only when running on Replit.

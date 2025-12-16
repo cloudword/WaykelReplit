@@ -11,7 +11,7 @@ import { Search, MoreHorizontal, Building2, Download, Plus, CheckCircle, XCircle
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useState, useEffect } from "react";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 
 interface Transporter {
@@ -186,20 +186,20 @@ export default function AdminTransporters() {
       // Fetch all documents in parallel using Promise.all
       const [transporterDocsData, ...allEntityDocs] = await Promise.all([
         // Transporter documents
-        fetch(`/api/documents?transporterId=${transporterId}&entityType=transporter`, {
+        fetch(`${API_BASE}/documents?transporterId=${transporterId}&entityType=transporter`, {
           credentials: "include",
         }).then(r => r.ok ? r.json() : []).catch(() => []),
         
         // Driver documents (one request per driver)
         ...transporterDrivers.map(driver =>
-          fetch(`/api/documents?userId=${driver.id}`, {
+          fetch(`${API_BASE}/documents?userId=${driver.id}`, {
             credentials: "include",
           }).then(r => r.ok ? r.json() : []).catch(() => [])
         ),
         
         // Vehicle documents (one request per vehicle)
         ...transporterVehicles.map(vehicle =>
-          fetch(`/api/documents?vehicleId=${vehicle.id}`, {
+          fetch(`${API_BASE}/documents?vehicleId=${vehicle.id}`, {
             credentials: "include",
           }).then(r => r.ok ? r.json() : []).catch(() => [])
         ),
@@ -236,7 +236,7 @@ export default function AdminTransporters() {
 
   const handleApproveDocument = async (docId: string) => {
     try {
-      const response = await fetch(`/api/documents/${docId}/status`, {
+      const response = await fetch(`${API_BASE}/documents/${docId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -261,7 +261,7 @@ export default function AdminTransporters() {
       return;
     }
     try {
-      const response = await fetch(`/api/documents/${docId}/status`, {
+      const response = await fetch(`${API_BASE}/documents/${docId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -289,7 +289,7 @@ export default function AdminTransporters() {
     }
     try {
       if (doc.url.startsWith("private/")) {
-        const response = await fetch("/api/spaces/signed-url", {
+        const response = await fetch(`${API_BASE}/spaces/signed-url`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
