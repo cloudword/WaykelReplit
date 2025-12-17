@@ -71,14 +71,24 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
+      - name: Force Java 17 in Gradle config
+        run: |
+          # Fix compileOptions and kotlinOptions in app/build.gradle
+          sed -i 's/JavaVersion.VERSION_21/JavaVersion.VERSION_17/g' android/app/build.gradle || true
+          sed -i 's/jvmTarget = "21"/jvmTarget = "17"/g' android/app/build.gradle || true
+          
+          # Add gradle.properties settings to disable Java auto-detection
+          echo "" >> android/gradle.properties
+          echo "# Force Java 17 for Android builds" >> android/gradle.properties
+          echo "org.gradle.java.installations.auto-download=false" >> android/gradle.properties
+          echo "org.gradle.java.installations.auto-detect=false" >> android/gradle.properties
+
       - name: Sync Capacitor
         run: npx cap sync android
 
       - name: Build Debug APK
         working-directory: android
         run: ./gradlew assembleDebug
-        env:
-          JAVA_HOME: ${{ env.JAVA_HOME }}
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -130,14 +140,24 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
+      - name: Force Java 17 in Gradle config
+        run: |
+          # Fix compileOptions and kotlinOptions in app/build.gradle
+          sed -i 's/JavaVersion.VERSION_21/JavaVersion.VERSION_17/g' android/app/build.gradle || true
+          sed -i 's/jvmTarget = "21"/jvmTarget = "17"/g' android/app/build.gradle || true
+          
+          # Add gradle.properties settings to disable Java auto-detection
+          echo "" >> android/gradle.properties
+          echo "# Force Java 17 for Android builds" >> android/gradle.properties
+          echo "org.gradle.java.installations.auto-download=false" >> android/gradle.properties
+          echo "org.gradle.java.installations.auto-detect=false" >> android/gradle.properties
+
       - name: Sync Capacitor
         run: npx cap sync android
 
       - name: Build Debug APK
         working-directory: android
         run: ./gradlew assembleDebug
-        env:
-          JAVA_HOME: ${{ env.JAVA_HOME }}
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
