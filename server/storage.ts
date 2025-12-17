@@ -137,6 +137,7 @@ export interface IStorage {
   // Saved Addresses
   getSavedAddress(id: string): Promise<SavedAddress | undefined>;
   getTransporterSavedAddresses(transporterId: string): Promise<SavedAddress[]>;
+  getUserSavedAddresses(userId: string): Promise<SavedAddress[]>;
   createSavedAddress(address: InsertSavedAddress): Promise<SavedAddress>;
   updateSavedAddress(id: string, updates: Partial<InsertSavedAddress>): Promise<SavedAddress | undefined>;
   deleteSavedAddress(id: string): Promise<void>;
@@ -675,6 +676,10 @@ export class DatabaseStorage implements IStorage {
 
   async getTransporterSavedAddresses(transporterId: string): Promise<SavedAddress[]> {
     return db.select().from(savedAddresses).where(eq(savedAddresses.transporterId, transporterId)).orderBy(desc(savedAddresses.createdAt));
+  }
+
+  async getUserSavedAddresses(userId: string): Promise<SavedAddress[]> {
+    return db.select().from(savedAddresses).where(eq(savedAddresses.userId, userId)).orderBy(desc(savedAddresses.createdAt));
   }
 
   async createSavedAddress(address: InsertSavedAddress): Promise<SavedAddress> {
