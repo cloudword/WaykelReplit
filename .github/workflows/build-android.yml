@@ -71,17 +71,41 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
-      - name: Force Java 17 in Gradle config
+      - name: Force Java 17 for ALL Gradle subprojects
         run: |
-          # Fix compileOptions and kotlinOptions in app/build.gradle
+          # Fix app/build.gradle
           sed -i 's/JavaVersion.VERSION_21/JavaVersion.VERSION_17/g' android/app/build.gradle || true
           sed -i 's/jvmTarget = "21"/jvmTarget = "17"/g' android/app/build.gradle || true
           
-          # Add gradle.properties settings to disable Java auto-detection
-          echo "" >> android/gradle.properties
-          echo "# Force Java 17 for Android builds" >> android/gradle.properties
-          echo "org.gradle.java.installations.auto-download=false" >> android/gradle.properties
-          echo "org.gradle.java.installations.auto-detect=false" >> android/gradle.properties
+          # Add global Java 17 override to root build.gradle
+          cat >> android/build.gradle << 'EOF'
+
+          // Force Java 17 for ALL subprojects (including Capacitor plugins)
+          allprojects {
+              tasks.withType(JavaCompile).configureEach {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+          }
+
+          subprojects {
+              tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+                  kotlinOptions {
+                      jvmTarget = "17"
+                  }
+              }
+          }
+          EOF
+          
+          # Force gradle.properties to disable Java 21 auto-detection
+          cat >> android/gradle.properties << 'EOF'
+
+          # Force Java 17 for Android builds
+          org.gradle.java.installations.auto-detect=false
+          org.gradle.java.installations.auto-download=false
+          org.gradle.java.toolchains.auto-detect=false
+          org.gradle.jvmargs=-Xmx4096m
+          EOF
 
       - name: Sync Capacitor
         run: npx cap sync android
@@ -140,17 +164,41 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
-      - name: Force Java 17 in Gradle config
+      - name: Force Java 17 for ALL Gradle subprojects
         run: |
-          # Fix compileOptions and kotlinOptions in app/build.gradle
+          # Fix app/build.gradle
           sed -i 's/JavaVersion.VERSION_21/JavaVersion.VERSION_17/g' android/app/build.gradle || true
           sed -i 's/jvmTarget = "21"/jvmTarget = "17"/g' android/app/build.gradle || true
           
-          # Add gradle.properties settings to disable Java auto-detection
-          echo "" >> android/gradle.properties
-          echo "# Force Java 17 for Android builds" >> android/gradle.properties
-          echo "org.gradle.java.installations.auto-download=false" >> android/gradle.properties
-          echo "org.gradle.java.installations.auto-detect=false" >> android/gradle.properties
+          # Add global Java 17 override to root build.gradle
+          cat >> android/build.gradle << 'EOF'
+
+          // Force Java 17 for ALL subprojects (including Capacitor plugins)
+          allprojects {
+              tasks.withType(JavaCompile).configureEach {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+          }
+
+          subprojects {
+              tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+                  kotlinOptions {
+                      jvmTarget = "17"
+                  }
+              }
+          }
+          EOF
+          
+          # Force gradle.properties to disable Java 21 auto-detection
+          cat >> android/gradle.properties << 'EOF'
+
+          # Force Java 17 for Android builds
+          org.gradle.java.installations.auto-detect=false
+          org.gradle.java.installations.auto-download=false
+          org.gradle.java.toolchains.auto-detect=false
+          org.gradle.jvmargs=-Xmx4096m
+          EOF
 
       - name: Sync Capacitor
         run: npx cap sync android
