@@ -283,6 +283,14 @@ app.use((req, res, next) => {
     throw err;
   });
 
+  // Return JSON 404 for undefined API routes (before HTML catch-all)
+  app.use("/api/*", (_req: Request, res: Response) => {
+    res.status(404).json({ 
+      error: "Not Found", 
+      message: "The requested API endpoint does not exist" 
+    });
+  });
+
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
