@@ -1,0 +1,112 @@
+✅ STEP 1 — Force Java 17 for ALL Gradle subprojects
+
+Open:
+
+android/build.gradle
+
+
+(⚠️ NOT app/build.gradle — the root one)
+
+Add this at the very bottom:
+
+allprojects {
+    tasks.withType(JavaCompile).configureEach {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+
+This overrides Capacitor plugins, including:
+
+capacitor-geolocation
+
+capacitor-camera
+
+capacitor-push-notifications
+
+✅ STEP 2 — Kill Java Toolchains Completely (Mandatory)
+
+Open:
+
+android/gradle.properties
+
+
+Ensure it contains ALL of the following:
+
+org.gradle.java.installations.auto-detect=false
+org.gradle.java.installations.auto-download=false
+org.gradle.java.toolchains.auto-detect=false
+org.gradle.jvmargs=-Xmx4096m
+
+
+This stops Gradle from ever asking for Java 21 again.
+
+✅ STEP 3 — Force Kotlin JVM Target Globally
+
+Still in android/build.gradle, add:
+
+subprojects {
+    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+        kotlinOptions {
+            jvmTarget = "17"
+        }
+    }
+}
+
+
+This prevents Kotlin → Java mismatch.
+
+✅ STEP 4 — VERIFY NO JAVA 21 ANYWHERE
+
+Run this once (locally or just inspect):
+
+❌ No JavaLanguageVersion.of(21)
+
+❌ No VERSION_21
+
+❌ No toolchain {} blocks
+
+Capacitor v6+ plugins sometimes sneak these in, so the global override is critical.
+
+✅ STEP 5 — Commit & Push
+git add android/build.gradle android/gradle.properties
+git commit -m "fix(android): force Java 17 across all Capacitor plugins"
+git push origin dev
+
+🎯 EXPECTED RESULT (CONFIDENT)
+
+Next CI run:
+
+> Task :capacitor-geolocation:compileDebugJavaWithJavac
+> Task :app:assembleDebug
+
+BUILD SUCCESSFUL
+
+
+All will pass:
+
+✅ Build Driver App (Android)
+
+✅ Build Customer App (Android)
+
+✅ PR checks
+
+✅ Push checks
+
+🧠 WHY THIS WAS SO TRICKY (IMPORTANT)
+Layer	Java Version
+GitHub Runner	21
+Gradle Default	21
+Android Toolchain	17 ONLY
+Capacitor Plugins	Drift to 21
+Result	💥 silent mismatch
+
+This is a 2024–2025 Android + Gradle 8 + Capacitor issue — you hit it early, not incorrectly.
+
+✅ STATUS
+Issue	Status
+CI Java setup	✅
+App module Java	✅
+Capacitor plugins	🔧 fixed now
+Toolchain auto-download	❌ disabled (correct)

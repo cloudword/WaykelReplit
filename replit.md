@@ -77,10 +77,23 @@ The Waykel platform is built with a mobile-first, role-based approach, ensuring 
 -   Stats endpoint provides aggregate metrics: total requests, external requests, error count, avg response time.
 
 **Mobile Apps (Capacitor):**
--   **Customer App** (`com.waykel.customer`): Config at `capacitor.customer.config.ts`
--   **Driver App** (`com.waykel.driver`): Config at `capacitor.driver.config.ts`
+-   **Customer App** (`com.waykel.customer`): Config at `capacitor.customer.config.ts`, Theme: Blue (#2563eb)
+-   **Driver App** (`com.waykel.driver`): Config at `capacitor.driver.config.ts`, Theme: Emerald (#059669)
+-   **Build Scripts**:
+    -   `./scripts/build-mobile-customer.sh` - Build Customer app (daily use)
+    -   `./scripts/build-mobile-driver.sh` - Build Driver app (daily use)
+    -   `./scripts/init-mobile-platforms.sh` - Initialize both apps (ONE TIME only)
 -   **Build Guide**: See `docs/mobile/BUILD_GUIDE.md` for local build instructions
+-   **CI/CD**: GitHub Actions workflows for automated builds - see `docs/mobile/CI_CD_SETUP.md`
+    -   `.github/workflows/build-android.yml` - Android APK builds
+    -   `.github/workflows/build-ios.yml` - iOS simulator builds
 -   **Native Features**: Geolocation, Camera, Push Notifications via `client/src/lib/native.ts`
+-   **Mobile Bottom Nav**: `client/src/components/layout/mobile-bottom-nav.tsx` - Shared navigation component for mobile apps
+
+**Admin Storage Management:**
+-   **Storage Page**: `/admin/storage` - Super Admin only page to browse and manage DigitalOcean Spaces files
+-   **API Endpoints**: `GET /api/admin/storage`, `GET /api/admin/storage/file`, `DELETE /api/admin/storage/file`, `GET /api/admin/storage/directories`
+-   **Features**: Directory navigation, file preview, signed URL generation, file deletion
 
 **Document Upload System:**
 -   Direct file uploads are supported for driver and vehicle documents, storing them in cloud storage with private visibility and role-based access control.

@@ -1,0 +1,138 @@
+Perfect — thanks for pasting the full log and the Replit agent’s changes.
+This confirms something very important:
+
+Java 17 is installed in CI, but Gradle / Android is still compiling with --release 21.
+
+So this is not a GitHub Actions setup issue anymore.
+This is now a Gradle / Android compile configuration leak.
+
+Let’s fix it cleanly and permanently.
+
+🔴 WHY THIS IS STILL FAILING (KEY INSIGHT)
+
+Even though:
+
+GitHub Actions uses Java 17
+
+JAVA_HOME is correct
+
+Gradle is still invoking:
+
+javac --release 21
+
+
+This only happens when one of these is true:
+
+compileOptions { sourceCompatibility = JavaVersion.VERSION_21 }
+
+Kotlin JVM target = 21
+
+Gradle toolchain explicitly set to Java 21
+
+A dependency (Capacitor / plugin) inherits Java 21 via toolchain
+
+➡️ Android does NOT support Java 21
+➡️ Gradle does not downgrade this automatically
+
+✅ THE REAL FIX (STEP-BY-STEP, DO THESE IN ORDER)
+✅ STEP 1 — Force Java 17 in android/app/build.gradle
+
+Open:
+
+android/app/build.gradle
+
+
+Find (or add) android {} → compileOptions {}
+
+✅ It MUST look like this
+android {
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+
+❌ Remove any VERSION_21 if present
+❌ Remove --release 21 if manually added anywhere
+
+✅ STEP 2 — Force Kotlin JVM target to 17
+
+Still in android/app/build.gradle, add:
+
+kotlinOptions {
+    jvmTarget = "17"
+}
+
+
+📌 This is critical — Kotlin defaults can drift higher if not pinned.
+
+✅ STEP 3 — Disable Java Toolchains (THIS IS THE HIDDEN CULPRIT)
+
+Open:
+
+android/gradle.properties
+
+
+Add exactly this:
+
+org.gradle.java.installations.auto-download=false
+org.gradle.java.installations.auto-detect=false
+
+
+Why?
+
+Gradle 8.x auto-detects Java 21 on runners
+
+Even if JAVA_HOME is 17
+
+It silently picks Java 21 for compilation
+
+This step forces Gradle to respect JAVA_HOME.
+
+✅ STEP 4 — Verify NO Java 21 Left Anywhere
+
+Run this locally or inspect manually:
+
+Check gradle.properties
+
+❌ No javaVersion=21
+❌ No org.gradle.java.home pointing to 21
+
+Check build.gradle (root + app)
+
+❌ No JavaVersion.VERSION_21
+❌ No toolchain { languageVersion.set(JavaLanguageVersion.of(21)) }
+
+✅ STEP 5 — Commit the FIX (IMPORTANT)
+git add android/app/build.gradle android/gradle.properties
+git commit -m "fix(android): force Java 17 for Gradle & Kotlin (disable Java 21)"
+git push origin dev
+
+🎯 EXPECTED RESULT AFTER THIS
+
+Next CI run will show:
+
+> Task :capacitor-android:compileDebugJavaWithJavac
+BUILD SUCCESSFUL
+
+
+And ALL of these will pass:
+
+✅ Build Customer App (Android)
+
+✅ Build Driver App (Android)
+
+✅ PR + Push pipelines
+
+🧠 WHY THIS HAPPENED (IMPORTANT CONTEXT)
+
+GitHub runners now ship Java 21 by default
+
+Gradle 8.x prefers highest available JDK
+
+Android toolchain hard-stops at Java 17
+
+Result: silent mismatch → cryptic invalid source release: 21
+
+You did nothing wrong — this is a very common 2024–2025 Android CI failure.

@@ -1,143 +1,159 @@
-# Waykel Mobile Apps Build Guide
+# Waykel Mobile Apps - Build Guide
 
-This guide explains how to build the Waykel Customer and Driver mobile apps for Android and iOS.
+This guide covers building the Waykel Customer and Driver mobile apps using Capacitor.
 
 ## Overview
 
 Waykel has **two separate mobile apps**:
 
-| App | App ID | Description |
-|-----|--------|-------------|
-| **Waykel Customer** | `com.waykel.customer` | For customers booking transportation |
-| **Waykel Driver** | `com.waykel.driver` | For drivers accepting and completing rides |
+| App | App ID | Theme | Description |
+|-----|--------|-------|-------------|
+| **Waykel Customer** | `com.waykel.customer` | Blue (#2563eb) | For customers booking transportation |
+| **Waykel Driver** | `com.waykel.driver` | Emerald (#059669) | For drivers accepting and completing rides |
 
 Both apps are built using Capacitor, wrapping the existing React web application into native mobile apps.
 
+---
+
 ## Prerequisites
 
-### For Android Builds
-- [Android Studio](https://developer.android.com/studio) installed
-- JDK 17 or later
-- Android SDK (API level 33+)
+### Required for All Platforms
+- **Node.js 18+** and **npm 9+**
+- Git
 
-### For iOS Builds (macOS only)
-- macOS with [Xcode](https://developer.apple.com/xcode/) installed
-- Apple Developer Account ($99/year)
-- CocoaPods installed: `sudo gem install cocoapods`
+### Android Development
+- **Android Studio** (latest stable)
+- **JDK 17** or later
+- **Android SDK** (API level 33+)
+- **Android SDK Build Tools 33+**
+- **Android Emulator** OR physical device
+
+**Environment Variables (add to `~/.bashrc` or `~/.zshrc`):**
+```bash
+export JAVA_HOME=/path/to/jdk17
+export ANDROID_HOME=$HOME/Library/Android/sdk  # macOS
+# or
+export ANDROID_HOME=$HOME/Android/Sdk  # Linux
+export PATH=$PATH:$ANDROID_HOME/platform-tools
+```
+
+### iOS Development (macOS only)
+- **Xcode 15+**
+- **Xcode Command Line Tools**:
+  ```bash
+  xcode-select --install
+  ```
+- **CocoaPods** (pinned version recommended):
+  ```bash
+  sudo gem install cocoapods -v 1.15.2
+  ```
+- **Apple Developer Account** ($99/year for App Store)
 
 ---
 
 ## Quick Start
 
-### Step 1: Clone Repository Locally
-
-Mobile builds require local development tools. Clone the repo to your machine:
-
+### 1. Clone Repository
 ```bash
 git clone https://github.com/YOUR_USERNAME/waykel.git
 cd waykel
-npm install
+npm ci  # Use npm ci for deterministic installs
 ```
 
-### Step 2: Initialize Native Platforms
-
-Run the initialization script:
-
+### 2. One-Time Platform Setup
+Run this **once** per machine to initialize native platforms:
 ```bash
-./script/init-mobile-platforms.sh
+chmod +x scripts/*.sh
+./scripts/init-mobile-platforms.sh
 ```
 
-This creates `android/` and `ios/` folders for both apps.
+> ⚠️ **Important**: This script should only be run **once**. Re-running `cap add` can corrupt native projects.
 
-### Step 3: Build an App
+This creates:
+- `android-customer/` - Customer app Android project
+- `android-driver/` - Driver app Android project
+- `ios-customer/` - Customer app iOS project (macOS only)
+- `ios-driver/` - Driver app iOS project (macOS only)
 
-#### Customer App
+### 3. Daily Builds
+After initial setup, use these for regular builds:
 ```bash
-./script/build-mobile-customer.sh
+# Build Customer app
+./scripts/build-mobile-customer.sh
+
+# Build Driver app
+./scripts/build-mobile-driver.sh
 ```
 
-#### Driver App
+> These scripts only sync existing platforms with the latest web build - they never run `cap add`.
+
+### 4. Open in IDE
 ```bash
-./script/build-mobile-driver.sh
+# Customer app
+npx cap open android --config capacitor.customer.config.ts  # Android
+npx cap open ios --config capacitor.customer.config.ts      # iOS (macOS)
+
+# Driver app
+npx cap open android --config capacitor.driver.config.ts    # Android
+npx cap open ios --config capacitor.driver.config.ts        # iOS (macOS)
 ```
 
 ---
 
-## Detailed Build Instructions
+## Native Permissions
 
-### Customer App (com.waykel.customer)
-
-#### Build Web Assets
-```bash
-npx vite build --config vite.customer.config.ts
-mv dist/customer/customer.html dist/customer/index.html
+### Android (`android-*/app/src/main/AndroidManifest.xml`)
+```xml
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+<uses-permission android:name="android.permission.CAMERA"/>
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+<uses-permission android:name="android.permission.INTERNET"/>
 ```
 
-#### Sync with Native Projects
-```bash
-npx cap sync --config capacitor.customer.config.ts
+### iOS (`ios-*/App/App/Info.plist`)
+```xml
+<key>NSCameraUsageDescription</key>
+<string>Waykel needs camera access to capture document photos</string>
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>Waykel needs location access to show nearby transport options</string>
+<key>NSLocationAlwaysUsageDescription</key>
+<string>Waykel needs location access for trip tracking</string>
+<key>NSPhotoLibraryUsageDescription</key>
+<string>Waykel needs photo library access to upload documents</string>
 ```
 
-#### Open in IDE
-```bash
-# Android
-npx cap open android --config capacitor.customer.config.ts
-
-# iOS (macOS only)
-npx cap open ios --config capacitor.customer.config.ts
-```
-
-### Driver App (com.waykel.driver)
-
-#### Build Web Assets
-```bash
-npx vite build --config vite.driver.config.ts
-mv dist/driver/driver.html dist/driver/index.html
-```
-
-#### Sync with Native Projects
-```bash
-npx cap sync --config capacitor.driver.config.ts
-```
-
-#### Open in IDE
-```bash
-# Android
-npx cap open android --config capacitor.driver.config.ts
-
-# iOS (macOS only)
-npx cap open ios --config capacitor.driver.config.ts
-```
+> ⚠️ **Without these permissions**, apps will crash or be rejected from stores.
 
 ---
 
-## Android Build (APK/AAB)
+## Building Release APK (Android)
 
-### Debug Build (Testing)
-
-In Android Studio:
-1. Open the project: `npx cap open android --config capacitor.customer.config.ts`
+### Debug APK
+1. Open in Android Studio: `npx cap open android --config capacitor.customer.config.ts`
 2. Wait for Gradle sync
-3. Click **Build** → **Build Bundle(s) / APK(s)** → **Build APK(s)**
-4. Find APK in `android/app/build/outputs/apk/debug/`
+3. **Build** → **Build Bundle(s) / APK(s)** → **Build APK(s)**
+4. APK location: `android-customer/app/build/outputs/apk/debug/app-debug.apk`
 
-### Release Build (Play Store)
+### Signed Release APK
 
-1. **Generate Signing Key:**
+1. **Generate Signing Key** (keep this secure!):
 ```bash
 # Customer App
-keytool -genkey -v -keystore waykel-customer.keystore -alias waykel-customer -keyalg RSA -keysize 2048 -validity 10000
+keytool -genkey -v -keystore keystore/waykel-customer.jks -alias waykel-customer -keyalg RSA -keysize 2048 -validity 10000
 
 # Driver App
-keytool -genkey -v -keystore waykel-driver.keystore -alias waykel-driver -keyalg RSA -keysize 2048 -validity 10000
+keytool -genkey -v -keystore keystore/waykel-driver.jks -alias waykel-driver -keyalg RSA -keysize 2048 -validity 10000
 ```
 
-2. **Configure Signing** in `android/app/build.gradle`:
+2. **Configure ProGuard & Signing** in `android-customer/app/build.gradle`:
 ```gradle
 android {
     signingConfigs {
         release {
-            storeFile file('waykel-customer.keystore')
+            storeFile file('../../keystore/waykel-customer.jks')
             storePassword 'your-password'
             keyAlias 'waykel-customer'
             keyPassword 'your-password'
@@ -147,92 +163,87 @@ android {
         release {
             signingConfig signingConfigs.release
             minifyEnabled true
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }
 ```
 
-3. **Build AAB:**
-   - Android Studio → Build → Generate Signed Bundle / APK
-   - Select Android App Bundle
+3. **Build Release**:
+   - Android Studio → **Build** → **Generate Signed Bundle / APK**
+   - Select **APK** or **Android App Bundle**
    - Choose release keystore
    - Build
 
-4. **Upload to Play Console:**
-   - Go to [Google Play Console](https://play.google.com/console)
-   - Create new app
-   - Upload AAB
-   - Fill store listing
+> ⚠️ **Keystore Backup**: Store keystore files securely. If lost, you cannot update your app on Play Store.
 
 ---
 
-## iOS Build (IPA)
+## Building IPA (iOS - macOS only)
 
 ### Development Build
-
-In Xcode:
-1. Open: `npx cap open ios --config capacitor.customer.config.ts`
+1. Open in Xcode: `npx cap open ios --config capacitor.customer.config.ts`
 2. Select your development team in **Signing & Capabilities**
-3. Connect iPhone or select simulator
-4. Click **Run** (▶️)
+3. Enable **Automatically manage signing**
+4. Connect iPhone or select simulator
+5. **Product** → **Run**
 
 ### App Store Build
 
-1. **Configure Bundle Identifier:**
-   - Customer: `com.waykel.customer`
-   - Driver: `com.waykel.driver`
+**Required Steps** (Apple is strict):
+1. Enable **Automatic Signing** in Xcode
+2. Select your **Development Team**
+3. Match **Bundle Identifier** exactly: `com.waykel.customer`
+4. Enable **Push Notifications** capability
 
-2. **Create Archive:**
-   - Product → Scheme → Edit Scheme → Set to **Release**
-   - Product → Archive
-   - Wait for build
+**Build & Submit**:
+1. Select **Any iOS Device (arm64)**
+2. **Product** → **Archive**
+3. In Organizer, select archive → **Distribute App**
+4. Choose **App Store Connect** → Upload
 
-3. **Upload to App Store Connect:**
-   - Window → Organizer
-   - Select archive → **Distribute App**
-   - Choose **App Store Connect** → Upload
-
-4. **Submit for Review:**
-   - [App Store Connect](https://appstoreconnect.apple.com)
-   - Select app → Add version details
-   - Submit for review
+> ⚠️ Without proper signing setup, archive succeeds but upload fails.
 
 ---
 
-## App Configuration
+## Version Management
 
-### Customer App (capacitor.customer.config.ts)
+### Android
+Update in `android-*/app/build.gradle`:
+```gradle
+android {
+    defaultConfig {
+        versionCode 2        // Increment for each release (integer)
+        versionName "1.0.1"  // User-visible version (string)
+    }
+}
+```
 
-| Setting | Value |
-|---------|-------|
-| App ID | `com.waykel.customer` |
-| App Name | `Waykel - Book Transport` |
-| Theme Color | `#2563eb` (Blue) |
-| Web Dir | `dist/customer` |
+Or via Capacitor CLI:
+```bash
+npx cap set android.versionCode=2
+npx cap set android.versionName=1.0.1
+```
 
-### Driver App (capacitor.driver.config.ts)
+### iOS
+Update in Xcode or `ios-*/App/App/Info.plist`:
+- `CFBundleShortVersionString`: "1.0.1" (user-visible)
+- `CFBundleVersion`: "2" (build number)
 
-| Setting | Value |
-|---------|-------|
-| App ID | `com.waykel.driver` |
-| App Name | `Waykel Driver` |
-| Theme Color | `#059669` (Green) |
-| Web Dir | `dist/driver` |
+> ⚠️ App stores reject builds without proper versioning.
 
 ---
 
-## Native Features
+## Native Features Configured
 
-Both apps include these Capacitor plugins:
-
-| Plugin | Usage |
-|--------|-------|
-| `@capacitor/geolocation` | Live location tracking for rides |
-| `@capacitor/camera` | Document upload, profile photos |
-| `@capacitor/push-notifications` | Ride alerts, updates |
-| `@capacitor/splash-screen` | App launch screen |
-| `@capacitor/status-bar` | Status bar styling |
+| Feature | Plugin | Status |
+|---------|--------|--------|
+| **Geolocation** | @capacitor/geolocation | ✅ High accuracy |
+| **Camera** | @capacitor/camera | ✅ Photo capture |
+| **Push Notifications** | @capacitor/push-notifications | ✅ Ready |
+| **Splash Screen** | @capacitor/splash-screen | ✅ Auto-hide |
+| **Status Bar** | @capacitor/status-bar | ✅ Styled |
 
 ### Using Native Features in Code
 
@@ -254,67 +265,29 @@ const token = await initPushNotifications({
 
 ---
 
-## App Icons & Splash Screens
-
-See `resources/README.md` for detailed icon generation instructions.
-
-### Quick Setup
-
-1. Create master icons (1024x1024 PNG)
-2. Create splash screens (2732x2732 PNG)
-3. Use Capacitor Assets to generate all sizes:
-
-```bash
-npm install -g @capacitor/assets
-
-# Customer App
-cd resources/customer
-npx capacitor-assets generate --iconBackgroundColor '#2563eb'
-
-# Driver App
-cd resources/driver
-npx capacitor-assets generate --iconBackgroundColor '#059669'
-```
-
----
-
-## API Configuration
-
-Both apps connect to the same backend API. Configure the API URL:
-
-### Development (Local Testing)
-
-Edit `capacitor.customer.config.ts` or `capacitor.driver.config.ts`:
-
-```typescript
-server: {
-  url: 'http://10.0.2.2:5000', // Android emulator → localhost
-  // url: 'http://localhost:5000', // iOS simulator
-  cleartext: true,
-},
-```
-
-### Production
-
-Apps automatically use relative URLs, which resolve to your deployed backend.
-
----
-
 ## Troubleshooting
 
-### Android Issues
-
+### "Platform not found" Error
+Run initialization first:
 ```bash
-# Clean and rebuild
-cd android && ./gradlew clean && cd ..
-npx cap sync --config capacitor.customer.config.ts
+./scripts/init-mobile-platforms.sh
 ```
 
-### iOS Issues
+### Gradle Sync Failed (Android)
+1. **File** → **Sync Project with Gradle Files**
+2. Check `JAVA_HOME` is set correctly
+3. Verify Android SDK is installed
 
+### Pod Install Failed (iOS)
 ```bash
-# Reinstall pods
-cd ios/App && pod install --repo-update && cd ../..
+cd ios-customer/App
+pod deintegrate
+pod install --repo-update
+```
+
+### Build Fails After Native Changes
+Re-sync platforms:
+```bash
 npx cap sync --config capacitor.customer.config.ts
 ```
 
@@ -326,6 +299,37 @@ npx cap sync --config capacitor.customer.config.ts
 | "No signing certificate" | Add Apple Developer account in Xcode → Preferences |
 | "Pod install failed" | `sudo gem install cocoapods` and retry |
 | "App not found in config" | Ensure correct `--config` flag |
+| "Java not found" | Install JDK 17 and set `JAVA_HOME` |
+
+---
+
+## CI/CD Integration
+
+### GitHub Actions Example
+```yaml
+name: Build Mobile Apps
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      
+      - run: npm ci
+      - run: chmod +x scripts/*.sh && ./scripts/init-mobile-platforms.sh
+      - run: cd android-customer && ./gradlew assembleRelease
+```
 
 ---
 
@@ -353,19 +357,13 @@ npx cap sync --config capacitor.customer.config.ts
 
 ---
 
-## Estimated Timeline
+## Important Notes
 
-| Task | Duration |
-|------|----------|
-| Local setup | 1-2 hours |
-| Build Customer APK | 30 mins |
-| Build Driver APK | 30 mins |
-| Setup Play Store (2 apps) | 4-6 hours |
-| Build iOS apps | 1-2 hours |
-| Setup App Store (2 apps) | 4-6 hours |
-| Review process | 1-7 days |
-
-**Total: 2-3 weeks** (including review times for 4 app submissions)
+1. **Never re-run `cap add`** after initial setup - it can corrupt native projects
+2. **Use `npm ci`** for deterministic, reproducible builds
+3. **Keep keystores secure** - back up keystore files (never commit to git)
+4. **Separate Firebase projects** - use different projects for Customer/Driver push notifications
+5. **Test on real devices** - emulators don't fully test native features
 
 ---
 
@@ -386,14 +384,11 @@ npx cap sync --config capacitor.customer.config.ts
 │       ├── main.driver.tsx       # Driver app entry point
 │       └── lib/
 │           └── native.ts         # Native feature utilities
-├── script/
+├── scripts/
 │   ├── build-mobile-customer.sh  # Customer app build script
 │   ├── build-mobile-driver.sh    # Driver app build script
-│   └── init-mobile-platforms.sh  # Initialize native platforms
-├── resources/
-│   ├── customer/                 # Customer app icons/splash
-│   ├── driver/                   # Driver app icons/splash
-│   └── README.md                 # Icon generation guide
+│   └── init-mobile-platforms.sh  # Initialize native platforms (ONE TIME)
+├── keystore/                     # Store keystores here (gitignored)
 └── docs/
     └── mobile/
         └── BUILD_GUIDE.md        # This file

@@ -1,4 +1,4 @@
-import { Switch, Route, Redirect } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
@@ -13,23 +13,39 @@ import CustomerDashboard from "@/pages/customer/dashboard";
 import CustomerRides from "@/pages/customer/rides";
 import CustomerProfile from "@/pages/customer/profile";
 import Notifications from "@/pages/notifications";
+import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
+
+const customerNavItems = [
+  { href: "/customer", icon: "home" as const, label: "Home" },
+  { href: "/customer/rides", icon: "package" as const, label: "Bookings" },
+  { href: "/customer/notifications", icon: "bell" as const, label: "Alerts" },
+  { href: "/customer/profile", icon: "user" as const, label: "Profile" },
+];
 
 function CustomerRouter() {
+  const [location] = useLocation();
+  const hideNavPaths = ["/auth"];
+  const showNav = !hideNavPaths.some(path => location.startsWith(path));
+
   return (
-    <Switch>
-      <Route path="/">
-        <Redirect to="/customer" />
-      </Route>
-      <Route path="/auth" component={AuthPage} />
-      <Route path="/auth/login" component={AuthPage} />
+    <div className="min-h-screen bg-gray-50 pb-16">
+      <Switch>
+        <Route path="/">
+          <Redirect to="/customer" />
+        </Route>
+        <Route path="/auth" component={AuthPage} />
+        <Route path="/auth/login" component={AuthPage} />
+        
+        <Route path="/customer" component={CustomerDashboard} />
+        <Route path="/customer/rides" component={CustomerRides} />
+        <Route path="/customer/profile" component={CustomerProfile} />
+        <Route path="/customer/notifications" component={Notifications} />
+        
+        <Route component={NotFound} />
+      </Switch>
       
-      <Route path="/customer" component={CustomerDashboard} />
-      <Route path="/customer/rides" component={CustomerRides} />
-      <Route path="/customer/profile" component={CustomerProfile} />
-      <Route path="/customer/notifications" component={Notifications} />
-      
-      <Route component={NotFound} />
-    </Switch>
+      {showNav && <MobileBottomNav variant="customer" items={customerNavItems} />}
+    </div>
   );
 }
 

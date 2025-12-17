@@ -4,3 +4,17 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Mobile app native platforms (generated)
+android/
+ios/
+android-customer/
+android-driver/
+ios-customer/
+ios-driver/
+
+# Keystore files (NEVER commit)
+keystore/*.jks
+keystore/*.keystore
+*.jks
+*.keystore
