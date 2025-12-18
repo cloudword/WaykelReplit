@@ -43,7 +43,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Set up Java 17
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -71,41 +71,50 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
-      - name: Force Java 17 for ALL Gradle subprojects
+      - name: Force Java 17 in Gradle config
         run: |
-          # Fix app/build.gradle
+          # Fix app/build.gradle - replace Java 21 with 17
           sed -i 's/JavaVersion.VERSION_21/JavaVersion.VERSION_17/g' android/app/build.gradle || true
           sed -i 's/jvmTarget = "21"/jvmTarget = "17"/g' android/app/build.gradle || true
           
-          # Add global Java 17 override to root build.gradle
-          cat >> android/build.gradle << 'EOF'
+          # Add allprojects block to root build.gradle for Java 17
+          cat >> android/build.gradle << 'GRADLE_EOF'
 
-          // Force Java 17 for ALL subprojects (including Capacitor plugins)
-          allprojects {
-              tasks.withType(JavaCompile).configureEach {
-                  sourceCompatibility = JavaVersion.VERSION_17
-                  targetCompatibility = JavaVersion.VERSION_17
-              }
-          }
+// Force Java 17 for ALL subprojects (including Capacitor plugins)
+allprojects {
+    tasks.withType(JavaCompile).configureEach {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
 
-          subprojects {
-              tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-                  kotlinOptions {
-                      jvmTarget = "17"
-                  }
-              }
-          }
-          EOF
+subprojects {
+    afterEvaluate {
+        if (project.hasProperty('android')) {
+            android {
+                compileOptions {
+                    sourceCompatibility JavaVersion.VERSION_17
+                    targetCompatibility JavaVersion.VERSION_17
+                }
+            }
+        }
+        tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+            kotlinOptions {
+                jvmTarget = "17"
+            }
+        }
+    }
+}
+GRADLE_EOF
           
-          # Force gradle.properties to disable Java 21 auto-detection
-          cat >> android/gradle.properties << 'EOF'
+          # Fix gradle.properties - no leading spaces
+          cat >> android/gradle.properties << 'PROPS_EOF'
 
-          # Force Java 17 for Android builds
-          org.gradle.java.installations.auto-detect=false
-          org.gradle.java.installations.auto-download=false
-          org.gradle.java.toolchains.auto-detect=false
-          org.gradle.jvmargs=-Xmx4096m
-          EOF
+# Force Java 17 for Android builds
+org.gradle.java.installations.auto-detect=false
+org.gradle.java.installations.auto-download=false
+org.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8
+PROPS_EOF
 
       - name: Sync Capacitor
         run: npx cap sync android
@@ -136,7 +145,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      - name: Set up Java 17
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -164,41 +173,50 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
-      - name: Force Java 17 for ALL Gradle subprojects
+      - name: Force Java 17 in Gradle config
         run: |
-          # Fix app/build.gradle
+          # Fix app/build.gradle - replace Java 21 with 17
           sed -i 's/JavaVersion.VERSION_21/JavaVersion.VERSION_17/g' android/app/build.gradle || true
           sed -i 's/jvmTarget = "21"/jvmTarget = "17"/g' android/app/build.gradle || true
           
-          # Add global Java 17 override to root build.gradle
-          cat >> android/build.gradle << 'EOF'
+          # Add allprojects block to root build.gradle for Java 17
+          cat >> android/build.gradle << 'GRADLE_EOF'
 
-          // Force Java 17 for ALL subprojects (including Capacitor plugins)
-          allprojects {
-              tasks.withType(JavaCompile).configureEach {
-                  sourceCompatibility = JavaVersion.VERSION_17
-                  targetCompatibility = JavaVersion.VERSION_17
-              }
-          }
+// Force Java 17 for ALL subprojects (including Capacitor plugins)
+allprojects {
+    tasks.withType(JavaCompile).configureEach {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
 
-          subprojects {
-              tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-                  kotlinOptions {
-                      jvmTarget = "17"
-                  }
-              }
-          }
-          EOF
+subprojects {
+    afterEvaluate {
+        if (project.hasProperty('android')) {
+            android {
+                compileOptions {
+                    sourceCompatibility JavaVersion.VERSION_17
+                    targetCompatibility JavaVersion.VERSION_17
+                }
+            }
+        }
+        tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+            kotlinOptions {
+                jvmTarget = "17"
+            }
+        }
+    }
+}
+GRADLE_EOF
           
-          # Force gradle.properties to disable Java 21 auto-detection
-          cat >> android/gradle.properties << 'EOF'
+          # Fix gradle.properties - no leading spaces
+          cat >> android/gradle.properties << 'PROPS_EOF'
 
-          # Force Java 17 for Android builds
-          org.gradle.java.installations.auto-detect=false
-          org.gradle.java.installations.auto-download=false
-          org.gradle.java.toolchains.auto-detect=false
-          org.gradle.jvmargs=-Xmx4096m
-          EOF
+# Force Java 17 for Android builds
+org.gradle.java.installations.auto-detect=false
+org.gradle.java.installations.auto-download=false
+org.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8
+PROPS_EOF
 
       - name: Sync Capacitor
         run: npx cap sync android

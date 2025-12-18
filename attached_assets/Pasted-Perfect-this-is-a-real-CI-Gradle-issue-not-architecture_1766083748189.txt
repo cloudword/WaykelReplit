@@ -1,0 +1,152 @@
+Perfect, this is a real CI/Gradle issue, not architecture, not Replit, not Capacitor-in-general.
+Now that I know your full setup, I can tell you exactly what’s broken and how to fix it permanently.
+
+🔴 CI FAILURE — ROOT CAUSE (CLEAR)
+Error
+Could not get unknown property 'org' for project ':app'
+
+Location
+android/build.gradle line: 40
+
+Meaning (very important)
+
+Gradle is trying to read something like:
+
+org.gradle.jvmargs
+org.gradle.java.home
+org.gradle.javaVersion
+
+
+from the wrong place.
+
+In Gradle, properties like org.gradle.*:
+
+❌ CANNOT be referenced inside build.gradle
+✅ MUST live in gradle.properties
+
+Your CI runner (GitHub Actions) is stricter than local Android Studio, so CI fails while local may pass.
+
+🧠 WHY THIS HAPPENS IN YOUR PROJECT
+
+From earlier fixes, you (or the agent) tried to force Java 17 and likely added something like this inside android/build.gradle:
+
+compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+    org.gradle.jvmargs = "-Xmx2048m"
+}
+
+
+or:
+
+def javaVersion = org.gradle.javaVersion
+
+
+🚨 This is invalid Gradle syntax
+
+✅ THE CORRECT, PRODUCTION-SAFE FIX
+
+We will:
+
+Remove all org.gradle.* references from build.gradle
+
+Put them in gradle.properties
+
+Make CI + local builds consistent
+
+🛠 STEP 1: FIX android/build.gradle
+
+Open:
+
+android/build.gradle
+
+
+Go to line ~40 (as mentioned in error).
+
+❌ REMOVE anything like:
+org.gradle.jvmargs = ...
+org.gradle.java.home = ...
+org.gradle.javaVersion = ...
+def x = org.gradle.something
+
+✅ Your build.gradle should ONLY contain Gradle DSL, like:
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+
+📌 org.gradle.* NEVER belongs here
+
+🛠 STEP 2: ADD / FIX gradle.properties (THIS IS KEY)
+
+Open:
+
+android/gradle.properties
+
+
+If it does not exist → create it.
+
+Add exactly this:
+
+# JVM memory
+org.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8
+
+# Force Java 17 everywhere
+org.gradle.java.home=/usr/lib/jvm/java-17-openjdk
+
+
+👉 In CI, this path will be overridden automatically by setup-java, so it’s safe.
+
+🛠 STEP 3: FIX JAVA VERSION IN GITHUB ACTION (MANDATORY)
+
+In your Android CI workflow (.github/workflows/build-android*.yml):
+
+Make sure this exists before Gradle runs:
+
+- name: Set up JDK 17
+  uses: actions/setup-java@v4
+  with:
+    distribution: 'temurin'
+    java-version: '17'
+
+
+🚨 If Java 21 is picked accidentally → Gradle + AGP explodes.
+
+🛠 STEP 4: ENSURE AGP COMPATIBILITY (IMPORTANT)
+
+In:
+
+android/build.gradle
+
+
+Ensure Android Gradle Plugin is compatible with Gradle 8.11:
+
+classpath "com.android.tools.build:gradle:8.2.2"
+
+
+✅ AGP 8.2.x
+❌ Not older than 8.0
+❌ Not preview versions
+
+🧪 WHY THIS FAILS ONLY IN CI
+Environment	Behavior
+Android Studio	Lenient, cached
+GitHub Actions	Strict, clean
+Replit	Not used for Android
+
+CI exposes real Gradle contract violations.
+
+✅ EXPECTED RESULT AFTER FIX
+
+After pushing these fixes:
+
+./gradlew assembleDebug
+
+
+✔ No org property error
+✔ Java 17 enforced
+✔ Android build passes
+✔ Merge request unblocked
