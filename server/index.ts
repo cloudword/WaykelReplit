@@ -284,10 +284,10 @@ app.use((req, res, next) => {
   });
 
   // Return JSON 404 for undefined API routes (before HTML catch-all)
-  app.use("/api/*", (_req: Request, res: Response) => {
+  app.use("/api/*", (req: Request, res: Response) => {
     res.status(404).json({ 
-      error: "Not Found", 
-      message: "The requested API endpoint does not exist" 
+      error: "API endpoint not found", 
+      path: req.originalUrl,
     });
   });
 
