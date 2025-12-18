@@ -35,6 +35,7 @@ declare module "express-session" {
       id: string;
       role: string;
       isSuperAdmin?: boolean;
+      isSelfDriver?: boolean;
       transporterId?: string;
     };
   }
