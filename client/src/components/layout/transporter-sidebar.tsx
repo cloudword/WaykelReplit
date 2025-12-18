@@ -2,6 +2,7 @@ import { Link, useLocation } from "wouter";
 import { LayoutDashboard, Truck, Users, FileText, MapPin, Package, Gavel, BarChart3, LogOut, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 export function TransporterSidebar() {
   const [location] = useLocation();
@@ -26,9 +27,12 @@ export function TransporterSidebar() {
   return (
     <div className="w-64 bg-slate-900 text-white min-h-screen flex flex-col fixed left-0 top-0 bottom-0 z-50">
       <div className="p-6">
-        <h1 className="text-2xl font-black tracking-tighter">
-          WAY<span className="text-blue-500">KEL</span>
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-black tracking-tighter">
+            WAY<span className="text-blue-500">KEL</span>
+          </h1>
+          <NotificationBell />
+        </div>
         <div className="flex items-center gap-2 mt-2">
           <Building2 className="h-4 w-4 text-emerald-500" />
           <p className="text-xs text-emerald-500 font-semibold">Transporter Portal</p>
