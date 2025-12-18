@@ -43,6 +43,14 @@ The Waykel platform is built with a mobile-first, role-based approach, ensuring 
 -   **Global APIs**: The `/api/documents` routes are INTERNAL ONLY for driver/vehicle/transporter verification during onboarding.
 -   **API Contract**: See `docs/API_CONTRACT_CANONICAL.md` for the canonical document API contract.
 
+**Notifications:**
+-   **Backend Triggers**: Notifications are created on: trip created (admin + matching transporters), bid placed (customer), bid accepted (transporter), transporter approved/rejected, document approved/rejected.
+-   **Frontend Component**: `NotificationBell` component (`client/src/components/notifications/NotificationBell.tsx`) with polling (30s interval).
+-   **API Endpoints**: `GET /api/notifications`, `GET /api/notifications/unread-count`, `PATCH /api/notifications/:id/read`, `PATCH /api/notifications/mark-all-read`.
+-   **Deep Linking**: Click on notification navigates to relevant page based on type and role.
+-   **Retention Policy**: Keep notifications for 90 days. Older notifications to be auto-archived via backend cron (future implementation).
+-   **Future Enhancement**: WebSockets for real-time push (current polling is sufficient for MVP).
+
 **Real-time Features**:
 -   The architecture includes provisions for WebSockets to support future real-time functionalities like driver location tracking, live ride status updates, and notifications.
 

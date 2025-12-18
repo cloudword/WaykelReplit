@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
 import {
   getNotifications,
   getUnreadCount,
@@ -8,6 +9,7 @@ import {
 import { Bell } from "lucide-react";
 
 export default function NotificationBell() {
+  const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -39,12 +41,73 @@ export default function NotificationBell() {
     }
   }
 
-  async function handleRead(id: string) {
-    await markAsRead(id);
-    setNotifications(n =>
-      n.map(x => x.id === id ? { ...x, isRead: true } : x)
-    );
-    fetchUnread();
+  function getNotificationDestination(notification: any): string | null {
+    const { type, rideId, bidId } = notification;
+    
+    const user = JSON.parse(localStorage.getItem("currentUser") || "{}");
+    const role = user?.role || "customer";
+    const isAdmin = user?.isSuperAdmin;
+    
+    switch (type) {
+      case "new_booking":
+        if (rideId) {
+          if (isAdmin) return `/admin/trips`;
+          if (role === "transporter") return `/transporter/marketplace`;
+          if (role === "driver") return `/driver/rides`;
+        }
+        return null;
+        
+      case "bid_placed":
+        if (rideId) {
+          if (isAdmin) return `/admin/rides`;
+          return `/customer/trips/${rideId}`;
+        }
+        return null;
+        
+      case "bid_accepted":
+      case "ride_assigned":
+        if (rideId) {
+          if (isAdmin) return `/admin/trips`;
+          if (role === "transporter") return `/transporter/trips`;
+          if (role === "driver") return `/driver/rides`;
+          return `/customer/trips/${rideId}`;
+        }
+        return null;
+        
+      case "system":
+        if (notification.title?.includes("Document")) {
+          if (rideId) {
+            if (role === "transporter") return `/transporter/trips`;
+            if (role === "driver") return `/driver/profile`;
+          }
+          if (role === "transporter") return `/transporter/documents`;
+          return null;
+        }
+        if (notification.title?.includes("Account Approved") || notification.title?.includes("Account Verification")) {
+          if (role === "transporter") return `/transporter`;
+          return null;
+        }
+        return null;
+        
+      default:
+        return null;
+    }
+  }
+
+  async function handleNotificationClick(notification: any) {
+    if (!notification.isRead) {
+      await markAsRead(notification.id);
+      setNotifications(n =>
+        n.map(x => x.id === notification.id ? { ...x, isRead: true } : x)
+      );
+      fetchUnread();
+    }
+    
+    const destination = getNotificationDestination(notification);
+    if (destination) {
+      setOpen(false);
+      setLocation(destination);
+    }
   }
 
   async function handleMarkAllRead() {
@@ -98,7 +161,7 @@ export default function NotificationBell() {
           {notifications.map(n => (
             <div
               key={n.id}
-              onClick={() => !n.isRead && handleRead(n.id)}
+              onClick={() => handleNotificationClick(n)}
               className={`p-3 border-b cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${
                 n.isRead ? "opacity-60" : "bg-blue-50 dark:bg-blue-900/20"
               }`}
