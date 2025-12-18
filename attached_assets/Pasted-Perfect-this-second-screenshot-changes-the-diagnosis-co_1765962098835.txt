@@ -1,0 +1,191 @@
+Perfect — this second screenshot changes the diagnosis completely 👍
+You’ve fixed CORS, but now you’re hitting a backend response-format bug.
+
+What’s happening now (clear diagnosis)
+Key clues from your screenshot
+
+✅ login API returns 200
+
+✅ Request completes (no CORS / network block)
+
+❌ Frontend error:
+
+Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+
+This error means ONE thing only 👇
+
+👉 Your frontend expects JSON
+👉 Your backend is returning HTML (an error page / redirect / index.html)
+
+The < comes from:
+
+<!DOCTYPE html>
+
+Why this is happening (most common causes)
+1️⃣ Backend is returning an HTML error page on failure
+
+Very common scenarios:
+
+Invalid credentials
+
+User not found
+
+Validation error
+
+Unhandled exception
+
+Instead of returning JSON like:
+
+{ "success": false, "message": "Invalid credentials" }
+
+
+Your backend is returning:
+
+<!DOCTYPE html>
+<html>
+  <head>...</head>
+  <body>Unauthorized</body>
+</html>
+
+2️⃣ API route is falling through to frontend (index.html)
+
+This happens when:
+
+API route is misconfigured
+
+Reverse proxy (NGINX / DO App Platform) sends index.html
+
+Express route not matched
+
+So /api/customer/login → frontend app HTML
+
+3️⃣ Redirect to login / error page (302 → 200)
+
+If backend does something like:
+
+res.redirect('/login')
+
+
+Browser follows redirect and returns HTML → fetch tries to parse JSON → 💥
+
+How to confirm in 30 seconds
+Open Network → login → Response tab
+
+You will see:
+
+<!DOCTYPE html>
+<html>...
+
+
+That confirms it 100%.
+
+The REAL fix (Backend must ALWAYS return JSON)
+✅ Correct backend response contract
+On success:
+{
+  "success": true,
+  "token": "jwt_here",
+  "user": { ... }
+}
+
+On failure:
+{
+  "success": false,
+  "message": "Invalid phone or password"
+}
+
+
+❌ Never return HTML
+❌ Never redirect
+❌ Never send index.html
+
+Fix examples (by backend type)
+🟢 Node.js / Express (most likely)
+app.post("/api/customer/login", async (req, res) => {
+  try {
+    const { phone, password } = req.body;
+
+    const user = await User.findOne({ phone });
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid credentials"
+      });
+    }
+
+    // password check...
+
+    return res.json({
+      success: true,
+      token,
+      user
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+
+
+⚠️ Important
+Make sure you DON’T have this above API routes:
+
+app.use("*", serveFrontend);
+
+
+If yes → move API routes above it.
+
+🟢 If using NGINX / DigitalOcean App Platform
+
+Ensure API paths are excluded from SPA routing:
+
+location /api/ {
+  proxy_pass http://backend;
+}
+
+
+Otherwise DO will serve index.html.
+
+Frontend defensive fix (recommended)
+
+Even with backend fixes, protect your frontend:
+
+const res = await fetch(url);
+const contentType = res.headers.get("content-type");
+
+if (!contentType?.includes("application/json")) {
+  throw new Error("Server returned non-JSON response");
+}
+
+const data = await res.json();
+
+
+This prevents silent crashes.
+
+Why status is 200 but still wrong ❗
+
+Because:
+
+HTTP succeeded
+
+Response content is wrong
+
+JSON parser crashes
+
+HTTP status ≠ correct data format
+
+Summary (TL;DR)
+
+✅ CORS fixed
+✅ API reachable
+❌ Backend returning HTML instead of JSON
+
+You need to:
+
+Fix backend login route to always return JSON
+
+Remove redirects / HTML error pages
+
+Ensure /api/* never serves frontend

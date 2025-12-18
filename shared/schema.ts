@@ -279,10 +279,10 @@ export const PERMISSIONS = [
 ] as const;
 export type Permission = typeof PERMISSIONS[number];
 
-// Saved addresses for transporters
+// Saved addresses for transporters and customers
 export const savedAddresses = pgTable("saved_addresses", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  transporterId: varchar("transporter_id").references(() => transporters.id).notNull(),
+  transporterId: varchar("transporter_id").references(() => transporters.id),
   userId: varchar("user_id").references(() => users.id),
   label: text("label").notNull(),
   address: text("address").notNull(),

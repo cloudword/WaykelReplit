@@ -190,32 +190,140 @@ VALUES (
 4. Follow DNS configuration instructions
 5. DigitalOcean will auto-provision SSL certificate
 
-## Deployment Architecture
+## Deployment Architecture (Recommended: Separate Frontend & Backend)
+
+The recommended architecture separates the frontend and backend into different App Platform components:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    DigitalOcean Cloud                        │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  ┌──────────────────┐    ┌──────────────────────────────┐  │
-│  │   App Platform   │    │   Managed PostgreSQL         │  │
-│  │                  │◄──►│   - User data                │  │
-│  │  - Node.js API   │    │   - Sessions                 │  │
-│  │  - Static files  │    │   - Rides, Bids, etc.        │  │
-│  │  - Auto-scaling  │    │                              │  │
-│  └──────────────────┘    └──────────────────────────────┘  │
-│           │                                                  │
-│           ▼                                                  │
-│  ┌──────────────────┐                                       │
-│  │   Spaces (S3)    │                                       │
-│  │                  │                                       │
-│  │  - Documents     │                                       │
-│  │  - Vehicle photos│                                       │
-│  │  - Profile pics  │                                       │
-│  └──────────────────┘                                       │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                       DigitalOcean Cloud                             │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌─────────────────────┐      ┌─────────────────────────────────┐  │
+│  │ Static Site         │      │  Web Service (Backend)           │  │
+│  │ admin.waykel.com    │─────►│  api.waykel.com                  │  │
+│  │                     │      │                                   │  │
+│  │ - React SPA         │      │  - Node.js/Express API           │  │
+│  │ - Admin Dashboard   │      │  - Session management            │  │
+│  └─────────────────────┘      │  - JWT authentication            │  │
+│                               └─────────────────────────────────┘  │
+│  ┌─────────────────────┐                    │                       │
+│  │ Static Site         │                    │                       │
+│  │ www.waykel.com      │────────────────────┘                       │
+│  │                     │                    │                       │
+│  │ - Customer Portal   │                    ▼                       │
+│  │ - waykelconnect     │      ┌─────────────────────────────────┐  │
+│  └─────────────────────┘      │  Managed PostgreSQL              │  │
+│                               │  - User data, Sessions           │  │
+│                               │  - Rides, Bids, etc.             │  │
+│                               └─────────────────────────────────┘  │
+│                                             │                       │
+│                                             ▼                       │
+│                               ┌─────────────────────────────────┐  │
+│                               │  Spaces (S3)                     │  │
+│                               │  - Documents, Vehicle photos     │  │
+│                               └─────────────────────────────────┘  │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
 ```
+
+### Why Separate Frontend & Backend?
+
+1. **Independent Scaling** - Frontend can use CDN caching, backend can scale instances
+2. **Faster Deployments** - Update frontend without touching backend
+3. **CORS/Security** - Cleaner separation of concerns
+4. **Cost Effective** - Static sites are cheaper than web services
+
+### Configuring the Static Site (admin.waykel.com)
+
+**CRITICAL: SPA Routing Configuration**
+
+Static sites need a **catchall document** to handle client-side routing. Without this, direct navigation to routes like `/admin/customers` returns 404.
+
+**Via DigitalOcean Dashboard:**
+1. Go to **Apps** → select your app
+2. Click on the **static site component** (e.g., "admin")
+3. Go to **Settings** → **Component Settings**
+4. Set **Catchall Document** to: `index.html`
+5. Save and redeploy
+
+**Via App Spec (app.yaml):**
+```yaml
+static_sites:
+  - name: admin
+    github:
+      repo: your-org/waykel-dev
+      branch: main
+      deploy_on_push: true
+    build_command: cd client && npm install && npm run build
+    output_dir: client/dist/public
+    catchall_document: index.html
+    routes:
+      - path: /
+    envs:
+      - key: VITE_API_BASE_URL
+        scope: BUILD_TIME
+        value: "https://api.waykel.com/api"
+```
+
+### Configuring the Backend Service (api.waykel.com)
+
+```yaml
+services:
+  - name: api
+    github:
+      repo: your-org/waykel-dev
+      branch: main
+      deploy_on_push: true
+    build_command: npm install && npm run build
+    run_command: ./start.sh
+    http_port: 5000
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    routes:
+      - path: /
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        type: SECRET
+        value: "your-connection-string"
+      - key: SESSION_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: "random-32-char-string"
+      - key: JWT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: "random-32-char-string"
+      - key: NODE_ENV
+        scope: RUN_TIME
+        value: "production"
+```
+
+### Important Environment Variables
+
+| Component | Variable | Value | When |
+|-----------|----------|-------|------|
+| Static Site | `VITE_API_BASE_URL` | `https://api.waykel.com/api` | Build time |
+| Backend | `DATABASE_URL` | Connection string | Runtime |
+| Backend | `SESSION_SECRET` | Random string | Runtime |
+| Backend | `JWT_SECRET` | Random string | Runtime |
+| Backend | `NODE_ENV` | `production` | Runtime |
+| Backend | `CUSTOMER_PORTAL_URL` | `https://www.waykel.com` | Runtime |
+
+### Troubleshooting SPA Routing
+
+**Problem: 404 on page refresh or direct navigation**
+- **Cause**: Static site not configured with catchall document
+- **Fix**: Add `catchall_document: index.html` to static site config
+
+**Problem: API calls going to wrong domain**
+- **Cause**: `VITE_API_BASE_URL` not set during build
+- **Fix**: Set build-time environment variable and rebuild
+
+**Problem: CORS errors**
+- **Cause**: Frontend domain not in backend CORS whitelist
+- **Fix**: Add domain to `ALLOWED_ORIGINS` in `server/index.ts`
 
 ## Monitoring & Logs
 

@@ -601,6 +601,304 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // ============== CUSTOMER PORTAL ENDPOINTS ==============
+  // These endpoints are specifically for the customer-facing portal (waykelconnect)
+  // They use JWT Bearer token authentication for cross-domain compatibility
+
+  // Customer registration
+  app.post("/api/customer/register", authLimiter, async (req, res) => {
+    try {
+      const { name, phone, email, password } = req.body;
+      
+      if (!name || !phone || !password) {
+        return res.status(400).json({ error: "Name, phone, and password are required" });
+      }
+
+      const normalizedPhone = normalizePhone(phone);
+      
+      // Check if phone already exists
+      const existingUser = await storage.getUserByPhone(normalizedPhone);
+      if (existingUser) {
+        return res.status(400).json({ error: "Phone number already registered" });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const user = await storage.createUser({
+        name,
+        phone: normalizedPhone,
+        email: email || null,
+        password: hashedPassword,
+        role: "customer",
+        isSuperAdmin: false,
+      });
+
+      const { password: _, ...userWithoutPassword } = user;
+
+      // Generate JWT token for cross-domain auth
+      const tokenPayload = {
+        id: user.id,
+        role: user.role,
+        isSuperAdmin: false,
+      };
+      const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+      res.status(201).json({
+        success: true,
+        token,
+        tokenType: "Bearer",
+        expiresIn: JWT_EXPIRES_IN,
+        user: userWithoutPassword,
+      });
+    } catch (error) {
+      console.error("Customer registration error:", error);
+      res.status(500).json({ error: "Registration failed" });
+    }
+  });
+
+  // Customer login
+  app.post("/api/customer/login", authLimiter, async (req, res) => {
+    try {
+      const { phone, password } = req.body;
+      
+      if (!phone || !password) {
+        return res.status(400).json({ error: "Phone and password are required" });
+      }
+
+      const normalizedPhone = normalizePhone(phone);
+      const user = await storage.getUserByPhone(normalizedPhone);
+      
+      if (!user || !(await bcrypt.compare(password, user.password))) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      // Only allow customers to login through this endpoint
+      if (user.role !== "customer") {
+        return res.status(403).json({ error: "Please use the appropriate portal for your account type" });
+      }
+
+      const { password: _, ...userWithoutPassword } = user;
+
+      const tokenPayload = {
+        id: user.id,
+        role: user.role,
+        isSuperAdmin: user.isSuperAdmin || false,
+      };
+      const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+      res.json({
+        success: true,
+        token,
+        tokenType: "Bearer",
+        expiresIn: JWT_EXPIRES_IN,
+        user: userWithoutPassword,
+      });
+    } catch (error) {
+      console.error("Customer login error:", error);
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // Customer logout
+  app.post("/api/customer/logout", (req, res) => {
+    // For JWT-based auth, logout is handled client-side by removing the token
+    res.json({ success: true, message: "Logged out successfully" });
+  });
+
+  // Customer session check
+  app.get("/api/customer/session", async (req, res) => {
+    const user = getCurrentUser(req);
+    if (user?.id) {
+      const fullUser = await storage.getUser(user.id);
+      if (fullUser) {
+        const { password: _, ...userWithoutPassword } = fullUser;
+        return res.json({ authenticated: true, user: userWithoutPassword });
+      }
+    }
+    res.json({ authenticated: false });
+  });
+
+  // Customer rides - get customer's own rides
+  app.get("/api/customer/rides", async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      const rides = await storage.getCustomerRides(user.id);
+      res.json(rides);
+    } catch (error) {
+      console.error("Failed to get customer rides:", error);
+      res.status(500).json({ error: "Failed to get rides" });
+    }
+  });
+
+  // Customer create ride
+  app.post("/api/customer/rides", async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      const rideData = {
+        ...req.body,
+        createdById: user.id,
+        status: "pending",
+      };
+      const ride = await storage.createRide(rideData);
+      res.status(201).json(ride);
+    } catch (error) {
+      console.error("Failed to create ride:", error);
+      res.status(500).json({ error: "Failed to create ride" });
+    }
+  });
+
+  // Get bids for a customer's ride
+  app.get("/api/customer/rides/:rideId/bids", async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      const { rideId } = req.params;
+      
+      // Verify the ride belongs to this customer
+      const ride = await storage.getRide(rideId);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      if (ride.createdById !== user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const bids = await storage.getRideBids(rideId);
+      res.json(bids);
+    } catch (error) {
+      console.error("Failed to get ride bids:", error);
+      res.status(500).json({ error: "Failed to get bids" });
+    }
+  });
+
+  // Accept a bid
+  app.patch("/api/customer/bids/:bidId/accept", async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      const { bidId } = req.params;
+      
+      const bid = await storage.getBid(bidId);
+      if (!bid) {
+        return res.status(404).json({ error: "Bid not found" });
+      }
+
+      // Verify the ride belongs to this customer
+      const ride = await storage.getRide(bid.rideId);
+      if (!ride || ride.createdById !== user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Update bid status
+      const updatedBid = await storage.updateBidStatus(bidId, "accepted");
+      
+      // Update ride with assigned driver/transporter
+      await storage.updateRideStatus(bid.rideId, "confirmed");
+      
+      res.json(updatedBid);
+    } catch (error) {
+      console.error("Failed to accept bid:", error);
+      res.status(500).json({ error: "Failed to accept bid" });
+    }
+  });
+
+  // Customer addresses
+  app.get("/api/customer/addresses", async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      const addresses = await storage.getUserSavedAddresses(user.id);
+      res.json(addresses);
+    } catch (error) {
+      console.error("Failed to get addresses:", error);
+      res.status(500).json({ error: "Failed to get addresses" });
+    }
+  });
+
+  app.post("/api/customer/addresses", async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      const address = await storage.createSavedAddress({
+        ...req.body,
+        userId: user.id,
+      });
+      res.status(201).json(address);
+    } catch (error) {
+      console.error("Failed to create address:", error);
+      res.status(500).json({ error: "Failed to create address" });
+    }
+  });
+
+  app.patch("/api/customer/addresses/:id", async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      const { id } = req.params;
+      const address = await storage.getSavedAddress(id);
+      
+      if (!address) {
+        return res.status(404).json({ error: "Address not found" });
+      }
+      if (address.userId !== user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const updated = await storage.updateSavedAddress(id, req.body);
+      res.json(updated);
+    } catch (error) {
+      console.error("Failed to update address:", error);
+      res.status(500).json({ error: "Failed to update address" });
+    }
+  });
+
+  app.delete("/api/customer/addresses/:id", async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      const { id } = req.params;
+      const address = await storage.getSavedAddress(id);
+      
+      if (!address) {
+        return res.status(404).json({ error: "Address not found" });
+      }
+      if (address.userId !== user.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      await storage.deleteSavedAddress(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to delete address:", error);
+      res.status(500).json({ error: "Failed to delete address" });
+    }
+  });
+
   // Ride routes - with role-based access control
   app.get("/api/rides", async (req, res) => {
     const { status, driverId, transporterId, createdById } = req.query;
