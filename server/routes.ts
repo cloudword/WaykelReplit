@@ -1838,7 +1838,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/users", requireAuth, async (req, res) => {
     try {
       const { transporterId, role } = req.query;
-      const user = req.session.user!;
+      const user = getCurrentUser(req)!;
       const isAdmin = user.isSuperAdmin || user.role === "admin";
       
       let users;
@@ -1979,7 +1979,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Update user details (admin only)
   app.patch("/api/users/:id", async (req, res) => {
     try {
-      if (!req.session.user?.isSuperAdmin) {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser?.isSuperAdmin) {
         return res.status(403).json({ error: "Only Super Admin can update user details" });
       }
       
@@ -2036,7 +2037,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // PATCH /api/users/:id/online-status - Owner or admin
   app.patch("/api/users/:id/online-status", requireAuth, async (req, res) => {
     try {
-      const user = req.session.user!;
+      const user = getCurrentUser(req)!;
       const isAdmin = user.isSuperAdmin || user.role === "admin";
       
       if (!isAdmin && req.params.id !== user.id) {
@@ -2351,10 +2352,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Serve uploaded files (authenticated users with ACL access)
   // Note: This route only works on Replit. For DigitalOcean, use /api/spaces/download/:key instead
-  app.get("/objects/:objectPath(*)", async (req, res) => {
-    if (!req.session?.user?.id) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
+  app.get("/objects/:objectPath(*)", requireAuth, async (req, res) => {
+    const user = getCurrentUser(req)!;
     
     // Check if running on Replit - ObjectStorageService only works there
     const isReplit = process.env.REPL_ID !== undefined;
@@ -2370,12 +2369,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
       
       // Super admins can access all documents
-      if (req.session.user.isSuperAdmin || req.session.user.role === "admin") {
+      if (user.isSuperAdmin || user.role === "admin") {
         return objectStorageService.downloadObject(objectFile, res);
       }
       
       // Check if user has permission to access this file
-      const userId = req.session.user.transporterId || req.session.user.id;
+      const userId = user.transporterId || user.id;
       const canAccess = await objectStorageService.canAccessObjectEntity({
         objectFile,
         userId,
@@ -2398,10 +2397,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Confirm file upload and set ACL (requires authentication)
   // Note: This route only works on Replit. For DigitalOcean, Spaces uploads don't need confirmation
-  app.post("/api/objects/confirm", async (req, res) => {
-    if (!req.session?.user?.id) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
+  app.post("/api/objects/confirm", requireAuth, async (req, res) => {
+    const user = getCurrentUser(req)!;
     
     // Check if running on Replit - ObjectStorageService only works there
     const isReplit = process.env.REPL_ID !== undefined;
@@ -2420,7 +2417,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       // Use session user's transporterId if available, otherwise their userId
-      const ownerId = req.session.user.transporterId || req.session.user.id;
+      const ownerId = user.transporterId || user.id;
       
       const objectStorageService = new ObjectStorageService();
       const normalizedPath = await objectStorageService.trySetObjectEntityAclPolicy(
