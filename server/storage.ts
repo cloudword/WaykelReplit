@@ -57,7 +57,9 @@ export interface IStorage {
   getAllTransporters(): Promise<Transporter[]>;
   getPendingTransporters(): Promise<Transporter[]>;
   createTransporter(transporter: InsertTransporter): Promise<Transporter>;
-  updateTransporterStatus(id: string, status: "active" | "pending_approval" | "suspended"): Promise<void>;
+  updateTransporterStatus(id: string, status: "active" | "pending_approval" | "suspended" | "pending_verification" | "rejected"): Promise<void>;
+  rejectTransporter(id: string, rejectedById: string, reason: string): Promise<void>;
+  approveTransporter(id: string, approvedById: string): Promise<void>;
   
   // Vehicles
   getVehicle(id: string): Promise<Vehicle | undefined>;
@@ -239,8 +241,33 @@ export class DatabaseStorage implements IStorage {
     return transporter;
   }
 
-  async updateTransporterStatus(id: string, status: "active" | "pending_approval" | "suspended"): Promise<void> {
+  async updateTransporterStatus(id: string, status: "active" | "pending_approval" | "suspended" | "pending_verification" | "rejected"): Promise<void> {
     await db.update(transporters).set({ status }).where(eq(transporters.id, id));
+  }
+
+  async rejectTransporter(id: string, rejectedById: string, reason: string): Promise<void> {
+    await db.update(transporters).set({
+      status: "rejected",
+      rejectionReason: reason,
+      isVerified: false,
+      verifiedAt: new Date(),
+      verifiedBy: rejectedById,
+    }).where(eq(transporters.id, id));
+  }
+
+  async approveTransporter(id: string, approvedById: string): Promise<void> {
+    await db.update(transporters).set({
+      status: "active",
+      isVerified: true,
+      rejectionReason: null,
+      verifiedAt: new Date(),
+      verifiedBy: approvedById,
+    }).where(eq(transporters.id, id));
+    
+    // Update associated users' profile completion status
+    await db.update(users).set({
+      profileComplete: true
+    }).where(eq(users.transporterId, id));
   }
 
   // Vehicles

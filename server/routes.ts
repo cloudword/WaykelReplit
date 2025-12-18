@@ -1833,6 +1833,67 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // POST /api/transporters/:id/approve - Admin only (explicit transporter approval)
+  app.post("/api/transporters/:id/approve", requireAdmin, async (req, res) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const transporter = await storage.getTransporter(req.params.id);
+      if (!transporter) {
+        return res.status(404).json({ error: "Transporter not found" });
+      }
+      
+      await storage.approveTransporter(req.params.id, sessionUser.id);
+      
+      const updatedTransporter = await storage.getTransporter(req.params.id);
+      
+      res.json({ 
+        success: true, 
+        message: "Transporter approved successfully",
+        transporter: updatedTransporter
+      });
+    } catch (error) {
+      console.error("Failed to approve transporter:", error);
+      res.status(400).json({ error: "Failed to approve transporter" });
+    }
+  });
+
+  // POST /api/transporters/:id/reject - Admin only (reject transporter with reason)
+  app.post("/api/transporters/:id/reject", requireAdmin, async (req, res) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const { reason } = req.body;
+      if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+        return res.status(400).json({ error: "Rejection reason is required" });
+      }
+      
+      const transporter = await storage.getTransporter(req.params.id);
+      if (!transporter) {
+        return res.status(404).json({ error: "Transporter not found" });
+      }
+      
+      await storage.rejectTransporter(req.params.id, sessionUser.id, reason.trim());
+      
+      const updatedTransporter = await storage.getTransporter(req.params.id);
+      
+      res.json({ 
+        success: true, 
+        message: "Transporter rejected",
+        transporter: updatedTransporter
+      });
+    } catch (error) {
+      console.error("Failed to reject transporter:", error);
+      res.status(400).json({ error: "Failed to reject transporter" });
+    }
+  });
+
   // User routes
   // GET /api/users - Admin only (or transporter can see their own users)
   app.get("/api/users", requireAuth, async (req, res) => {
