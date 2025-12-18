@@ -2,6 +2,7 @@ import { Link, useLocation } from "wouter";
 import { LayoutDashboard, Users, Truck, Wallet, Settings, LogOut, Building2, Gavel, Calendar, Shield, UserCheck, Code, ScrollText, ShieldCheck, HardDrive } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 export function AdminSidebar() {
   const [location] = useLocation();
@@ -30,9 +31,12 @@ export function AdminSidebar() {
   return (
     <div className="w-64 bg-slate-900 text-white min-h-screen flex flex-col fixed left-0 top-0 bottom-0">
       <div className="p-6">
-        <h1 className="text-2xl font-black tracking-tighter">
-          WAY<span className="text-blue-500">KEL</span>
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-black tracking-tighter">
+            WAY<span className="text-blue-500">KEL</span>
+          </h1>
+          <NotificationBell />
+        </div>
         <div className="flex items-center gap-2 mt-2">
           <Shield className="h-4 w-4 text-yellow-500" />
           <p className="text-xs text-yellow-500 font-semibold">Super Admin Panel</p>

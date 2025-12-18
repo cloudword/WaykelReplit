@@ -5,9 +5,10 @@ import { RideCard } from "@/components/ride-card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Bell, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { VehicleSelector } from "@/components/vehicle-selector";
 import { api } from "@/lib/api";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 export default function DriverDashboard() {
   const [_, setLocation] = useLocation();
@@ -95,14 +96,7 @@ export default function DriverDashboard() {
               className="scale-75 data-[state=checked]:bg-green-500"
             />
           </div>
-          <Button 
-            size="icon" 
-            variant="ghost" 
-            className="rounded-full h-8 w-8"
-            onClick={() => setLocation("/driver/notifications")}
-          >
-            <Bell className="h-5 w-5 text-gray-600" />
-          </Button>
+          <NotificationBell />
         </div>
       </header>
 
