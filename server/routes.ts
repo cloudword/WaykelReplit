@@ -1147,6 +1147,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         console.error("Failed to notify matching transporters:", matchError);
       }
       
+      // Notify super admins about new trip
+      try {
+        const superAdmins = await storage.getSuperAdmins();
+        for (const admin of superAdmins) {
+          await storage.createNotification({
+            recipientId: admin.id,
+            type: "new_booking",
+            title: "New Trip Created",
+            message: `New trip from ${ride.pickupLocation} to ${ride.dropLocation} - ₹${ride.price}`,
+            rideId: ride.id,
+          });
+        }
+      } catch (adminNotifyError) {
+        console.error("Failed to notify admins:", adminNotifyError);
+      }
+      
       res.status(201).json(ride);
     } catch (error: any) {
       console.error("Ride creation error:", error);
@@ -1606,6 +1622,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // Update ride status to bid_placed
       await storage.updateRideStatus(data.rideId, "bid_placed");
       
+      // Notify the customer that a bid was placed on their trip
+      try {
+        if (ride.createdById) {
+          const transporter = sessionUser.transporterId ? await storage.getTransporter(sessionUser.transporterId) : null;
+          const transporterName = transporter?.companyName || sessionUser.name || "A transporter";
+          await storage.createNotification({
+            recipientId: ride.createdById,
+            type: "bid_placed",
+            title: "New Bid Received",
+            message: `${transporterName} placed a bid of ₹${data.amount} on your trip from ${ride.pickupLocation} to ${ride.dropLocation}`,
+            rideId: ride.id,
+            bidId: bid.id,
+          });
+        }
+      } catch (notifyError) {
+        console.error("Failed to notify customer about new bid:", notifyError);
+      }
+      
       res.status(201).json(bid);
     } catch (error) {
       res.status(400).json({ error: "Invalid bid data" });
@@ -1906,6 +1940,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       
       const updatedTransporter = await storage.getTransporter(req.params.id);
       
+      // Notify all users under this transporter about approval
+      try {
+        const transporterUsers = await storage.getUsersByTransporter(req.params.id);
+        for (const user of transporterUsers) {
+          await storage.createNotification({
+            recipientId: user.id,
+            recipientTransporterId: req.params.id,
+            type: "system",
+            title: "Account Approved!",
+            message: `Congratulations! Your transporter account "${transporter.companyName}" has been approved. You can now place bids on available trips.`,
+          });
+        }
+      } catch (notifyError) {
+        console.error("Failed to notify transporter users about approval:", notifyError);
+      }
+      
       res.json({ 
         success: true, 
         message: "Transporter approved successfully",
@@ -1968,6 +2018,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       await storage.rejectTransporter(req.params.id, sessionUser.id, reason.trim());
       
       const updatedTransporter = await storage.getTransporter(req.params.id);
+      
+      // Notify all users under this transporter about rejection
+      try {
+        const transporterUsers = await storage.getUsersByTransporter(req.params.id);
+        for (const user of transporterUsers) {
+          await storage.createNotification({
+            recipientId: user.id,
+            recipientTransporterId: req.params.id,
+            type: "system",
+            title: "Account Verification Rejected",
+            message: `Your transporter account "${transporter.companyName}" verification was rejected. Reason: ${reason.trim()}. Please update your documents and resubmit.`,
+          });
+        }
+      } catch (notifyError) {
+        console.error("Failed to notify transporter users about rejection:", notifyError);
+      }
       
       res.json({ 
         success: true, 
@@ -2466,9 +2532,39 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ error: "Rejection reason is required" });
       }
       
+      // Get document before updating to notify the uploader
+      const document = await storage.getDocumentById(req.params.id);
+      
       // Clear rejection reason when approving
       const reason = status === "verified" ? null : rejectionReason;
       await storage.updateDocumentStatus(req.params.id, status, adminUser.id, reason);
+      
+      // Notify the document uploader about status change
+      if (document?.userId && (status === "verified" || status === "rejected")) {
+        try {
+          const docName = document.documentName || document.type || "Document";
+          if (status === "verified") {
+            await storage.createNotification({
+              recipientId: document.userId,
+              recipientTransporterId: document.transporterId || undefined,
+              type: "system",
+              title: "Document Approved",
+              message: `Your ${docName} has been verified and approved.`,
+            });
+          } else if (status === "rejected") {
+            await storage.createNotification({
+              recipientId: document.userId,
+              recipientTransporterId: document.transporterId || undefined,
+              type: "system",
+              title: "Document Rejected",
+              message: `Your ${docName} was rejected. Reason: ${rejectionReason}. Please re-upload.`,
+            });
+          }
+        } catch (notifyError) {
+          console.error("Failed to notify user about document status:", notifyError);
+        }
+      }
+      
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ error: "Failed to update document status" });
@@ -2721,6 +2817,35 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       const reason = status === "verified" ? null : rejectionReason;
       await storage.updateDocumentStatus(documentId, status, adminUser.id, reason);
+
+      // Notify the document uploader about status change
+      if (document.userId && (status === "verified" || status === "rejected")) {
+        try {
+          const docName = document.documentName || document.type || "Trip Document";
+          const tripInfo = `${ride.pickupLocation} to ${ride.dropLocation}`;
+          if (status === "verified") {
+            await storage.createNotification({
+              recipientId: document.userId,
+              recipientTransporterId: document.transporterId || undefined,
+              type: "system",
+              title: "Trip Document Approved",
+              message: `Your ${docName} for trip (${tripInfo}) has been verified.`,
+              rideId: tripId,
+            });
+          } else if (status === "rejected") {
+            await storage.createNotification({
+              recipientId: document.userId,
+              recipientTransporterId: document.transporterId || undefined,
+              type: "system",
+              title: "Trip Document Rejected",
+              message: `Your ${docName} for trip (${tripInfo}) was rejected. Reason: ${rejectionReason}`,
+              rideId: tripId,
+            });
+          }
+        } catch (notifyError) {
+          console.error("Failed to notify user about trip document status:", notifyError);
+        }
+      }
 
       res.json({ success: true });
     } catch (error) {

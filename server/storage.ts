@@ -43,6 +43,7 @@ export interface IStorage {
   getUserByPhone(phone: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
+  getSuperAdmins(): Promise<User[]>;
   getCustomers(): Promise<User[]>;
   getDrivers(): Promise<User[]>;
   getUsersByTransporter(transporterId: string): Promise<User[]>;
@@ -220,6 +221,10 @@ export class DatabaseStorage implements IStorage {
 
   async getAllUsers(): Promise<User[]> {
     return await db.select().from(users);
+  }
+
+  async getSuperAdmins(): Promise<User[]> {
+    return await db.select().from(users).where(eq(users.isSuperAdmin, true));
   }
 
   async getCustomers(): Promise<User[]> {
