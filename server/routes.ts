@@ -617,41 +617,85 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const normalizedPhone = normalizePhone(phone);
       
       // Check if phone already exists
-      const existingUser = await storage.getUserByPhone(normalizedPhone);
-      if (existingUser) {
+      const existingUserByPhone = await storage.getUserByPhone(normalizedPhone);
+      if (existingUserByPhone) {
         return res.status(400).json({ error: "Phone number already registered" });
       }
 
+      // Check if email already exists (if provided)
+      if (email) {
+        const existingUserByEmail = await storage.getUserByEmail(email);
+        if (existingUserByEmail) {
+          return res.status(400).json({ error: "Email already registered" });
+        }
+      }
+
       const hashedPassword = await bcrypt.hash(password, 10);
-      const user = await storage.createUser({
-        name,
-        phone: normalizedPhone,
-        email: email || null,
-        password: hashedPassword,
-        role: "customer",
-        isSuperAdmin: false,
-      });
+      
+      let user;
+      try {
+        user = await storage.createUser({
+          name,
+          phone: normalizedPhone,
+          email: email || null,
+          password: hashedPassword,
+          role: "customer",
+          isSuperAdmin: false,
+        });
+      } catch (createError: any) {
+        console.error("Customer createUser error:", createError?.message, createError?.code);
+        if (createError?.code === '23505') {
+          if (createError?.constraint?.includes('email')) {
+            return res.status(400).json({ error: "Email already registered" });
+          }
+          if (createError?.constraint?.includes('phone')) {
+            return res.status(400).json({ error: "Phone number already registered" });
+          }
+        }
+        throw createError;
+      }
+
+      if (!user || !user.id) {
+        console.error("Customer registration: user object invalid after creation");
+        return res.status(500).json({ error: "Registration failed - invalid user data" });
+      }
 
       const { password: _, ...userWithoutPassword } = user;
 
       // Generate JWT token for cross-domain auth
-      const tokenPayload = {
-        id: user.id,
-        role: user.role,
-        isSuperAdmin: false,
-      };
-      const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+      let token;
+      try {
+        const tokenPayload = {
+          id: user.id,
+          role: user.role,
+          isSuperAdmin: false,
+        };
+        token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+      } catch (jwtError: any) {
+        console.error("Customer registration JWT error:", jwtError?.message);
+        return res.status(500).json({ error: "Registration succeeded but token generation failed. Please login." });
+      }
 
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         token,
         tokenType: "Bearer",
         expiresIn: JWT_EXPIRES_IN,
         user: userWithoutPassword,
       });
-    } catch (error) {
-      console.error("Customer registration error:", error);
-      res.status(500).json({ error: "Registration failed" });
+    } catch (error: any) {
+      console.error("Customer registration error:", error?.message, error?.stack);
+      // Handle database constraint violations with specific messages
+      if (error?.code === '23505') {
+        if (error?.constraint?.includes('email')) {
+          return res.status(400).json({ error: "Email already registered" });
+        }
+        if (error?.constraint?.includes('phone')) {
+          return res.status(400).json({ error: "Phone number already registered" });
+        }
+        return res.status(400).json({ error: "Account with this information already exists" });
+      }
+      return res.status(500).json({ error: "Registration failed. Please try again." });
     }
   });
 
