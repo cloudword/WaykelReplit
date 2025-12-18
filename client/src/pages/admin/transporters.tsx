@@ -69,14 +69,36 @@ export default function AdminTransporters() {
         api.vehicles.list(),
         api.rides.list(),
       ]);
-      if (Array.isArray(transportersData)) {
+      
+      // Check for auth errors in responses
+      if (transportersData?.error) {
+        toast.error(`Transporters: ${transportersData.error}`);
+        console.error("Transporters fetch error:", transportersData.error);
+      } else if (Array.isArray(transportersData)) {
         setTransporters(transportersData);
       }
-      setDrivers(Array.isArray(usersData) ? usersData.filter((u: any) => u.role === "driver") : []);
-      setVehicles(Array.isArray(vehiclesData) ? vehiclesData : []);
-      setRides(Array.isArray(ridesData) ? ridesData : []);
+      
+      if (usersData?.error) {
+        toast.error(`Users: ${usersData.error}`);
+        console.error("Users fetch error:", usersData.error);
+      } else {
+        setDrivers(Array.isArray(usersData) ? usersData.filter((u: any) => u.role === "driver") : []);
+      }
+      
+      if (vehiclesData?.error) {
+        console.error("Vehicles fetch error:", vehiclesData.error);
+      } else {
+        setVehicles(Array.isArray(vehiclesData) ? vehiclesData : []);
+      }
+      
+      if (ridesData?.error) {
+        console.error("Rides fetch error:", ridesData.error);
+      } else {
+        setRides(Array.isArray(ridesData) ? ridesData : []);
+      }
     } catch (error) {
       toast.error("Failed to fetch data");
+      console.error("Fetch data error:", error);
     } finally {
       setLoading(false);
     }
