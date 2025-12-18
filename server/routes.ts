@@ -368,6 +368,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           id: user.id,
           role: user.role,
           isSuperAdmin: user.isSuperAdmin || false,
+          isSelfDriver: user.isSelfDriver || false,
           transporterId: user.transporterId || undefined,
         };
         // Use role-based expiry
@@ -389,6 +390,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         id: user.id,
         role: user.role,
         isSuperAdmin: user.isSuperAdmin || false,
+        isSelfDriver: user.isSelfDriver || false,
         transporterId: transporterId || user.transporterId || undefined,
       };
 
@@ -443,6 +445,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         id: user.id,
         role: user.role,
         isSuperAdmin: user.isSuperAdmin || false,
+        isSelfDriver: user.isSelfDriver || false,
         transporterId: user.transporterId || undefined,
       };
 
@@ -495,6 +498,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         id: user.id,
         role: user.role,
         isSuperAdmin: user.isSuperAdmin || false,
+        isSelfDriver: user.isSelfDriver || false,
         transporterId: user.transporterId || undefined,
       };
 
@@ -534,6 +538,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         id: freshUser.id,
         role: freshUser.role,
         isSuperAdmin: freshUser.isSuperAdmin || false,
+        isSelfDriver: freshUser.isSelfDriver || false,
         transporterId: freshUser.transporterId || undefined,
       };
 
