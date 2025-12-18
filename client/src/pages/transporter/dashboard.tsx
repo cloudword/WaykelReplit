@@ -196,6 +196,28 @@ export default function TransporterDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {transporter && transporter.status === "pending_verification" && (
+          <Card className="mb-6 border-amber-200 bg-amber-50" data-testid="pending-verification-banner">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-4">
+                <div className="h-10 w-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <FileText className="h-5 w-5 text-amber-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-amber-800">Document Verification Required</h3>
+                  <p className="text-sm text-amber-700 mt-1">
+                    Please upload your required business documents to complete registration. Once submitted, our team will review them within 24-48 hours.
+                  </p>
+                  <Button size="sm" className="mt-3" onClick={() => setLocation("/transporter/documents")} data-testid="button-upload-documents">
+                    <FileText className="h-4 w-4 mr-2" />
+                    Upload Documents
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {transporter && transporter.status === "pending_approval" && (
           <Card className="mb-6 border-blue-200 bg-blue-50" data-testid="pending-approval-banner">
             <CardContent className="p-4">
@@ -204,10 +226,37 @@ export default function TransporterDashboard() {
                   <Clock className="h-5 w-5 text-blue-600" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-blue-800">Account Under Review</h3>
+                  <h3 className="font-semibold text-blue-800">Documents Under Review</h3>
                   <p className="text-sm text-blue-700 mt-1">
-                    Your transporter account is pending approval from our team. This usually takes 24-48 hours.
-                    You can still set up your account while you wait.
+                    Your documents have been submitted and are being reviewed by our team. This usually takes 24-48 hours.
+                    We'll notify you once your account is approved.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {transporter && transporter.status === "suspended" && (
+          <Card className="mb-6 border-orange-300 bg-orange-50" data-testid="suspended-banner">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-4">
+                <div className="h-10 w-10 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <X className="h-5 w-5 text-orange-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-orange-800">Account Suspended</h3>
+                  <p className="text-sm text-orange-700 mt-1">
+                    Your transporter account has been temporarily suspended. You cannot accept new trips until this is resolved.
+                  </p>
+                  {transporter.rejectionReason && (
+                    <div className="mt-2 p-3 bg-orange-100 rounded border border-orange-200">
+                      <p className="text-sm font-medium text-orange-800">Reason:</p>
+                      <p className="text-sm text-orange-700">{transporter.rejectionReason}</p>
+                    </div>
+                  )}
+                  <p className="text-sm text-orange-700 mt-3">
+                    Please contact support to resolve this issue and restore your account.
                   </p>
                 </div>
               </div>
