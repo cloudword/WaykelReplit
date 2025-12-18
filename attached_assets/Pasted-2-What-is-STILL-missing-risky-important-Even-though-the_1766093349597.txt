@@ -1,0 +1,121 @@
+2️⃣ What is STILL missing / risky (important)
+
+Even though the flow is mostly correct, 3 things still need attention.
+
+🔴 A. “Document approved” ≠ “Transporter approved” (needs to be enforced everywhere)
+
+You’ve implemented the concept correctly, but now ensure this invariant holds everywhere:
+
+A transporter is NOT active just because all documents are approved.
+
+Checklist to verify:
+
+✔️ Admin must explicitly click Approve Transporter
+
+✔️ Transporter status changes only via admin action
+
+✔️ Documents alone never flip transporter to active
+
+✔️ No cron/job auto-approves transporters
+
+If any auto-approval exists, kill it.
+
+🔴 B. Missing audit completeness (small but important)
+
+You added:
+
+reviewedBy
+
+reviewedAt
+
+Good.
+
+Make sure you also have:
+
+transporter.verifiedBy
+
+transporter.verifiedAt
+
+transporter.rejectionReason
+
+And that:
+
+Document review ≠ transporter verification
+
+Both are logged separately
+
+This matters later for:
+
+Disputes
+
+Compliance
+
+Support tickets
+
+🔴 C. Status naming consistency (VERY IMPORTANT)
+
+Make sure exact same enum values are used in:
+
+DB
+
+Backend logic
+
+Frontend UI
+
+Error payloads
+
+Example (lock this in):
+
+type TransporterStatus =
+  | 'pending_verification'
+  | 'pending_approval'
+  | 'active'
+  | 'rejected'
+  | 'suspended'
+
+
+⚠️ Do NOT mix:
+
+approved vs active
+
+verified vs approved
+
+Pick one language and freeze it.
+
+3️⃣ The FINAL verification state machine (lock this)
+
+This is what you should now treat as canonical.
+
+🧠 Transporter lifecycle
+registered
+   ↓
+pending_verification  (documents incomplete)
+   ↓
+pending_approval      (documents uploaded, admin review)
+   ↓
+active                (admin explicitly approves)
+   ↓
+suspended             (policy / violation)
+   ↓
+rejected               (permanent or appealable)
+
+❌ Forbidden transitions
+
+pending_verification → active ❌
+
+rejected → active ❌ (without explicit confirm)
+
+suspended → active ❌ (without admin action)
+
+4️⃣ UX is now aligned with backend (good)
+
+Your banners now correctly map to backend states:
+
+Status	UX
+pending_verification	Upload documents CTA
+pending_approval	“Under review (24–48 hrs)”
+rejected	Red banner + reason
+suspended	Warning + support
+active	Normal operations
+
+This is exactly how Indian logistics platforms behave (Delhivery, BlackBuck, Porter).
