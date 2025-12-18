@@ -2003,6 +2003,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const completedRides = rides.filter(r => r.status === "completed");
       const activeRides = rides.filter(r => r.status === "active" || r.status === "assigned");
       const pendingRides = rides.filter(r => r.status === "pending");
+      
+      // Transporter verification counts
+      const pendingVerifications = transporters.filter(t => t.status === "pending_verification").length;
+      const pendingApprovals = transporters.filter(t => t.status === "pending_approval").length;
 
       const totalRevenue = completedRides.reduce((sum, ride) => {
         return sum + parseFloat(ride.price || "0");
@@ -2024,6 +2028,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         pendingRides: pendingRides.length,
         totalBids: bids.length,
         totalRevenue,
+        pendingVerifications,
+        pendingApprovals,
         recentRides: recentRides.map(r => ({
           id: r.id,
           pickupLocation: r.pickupLocation,

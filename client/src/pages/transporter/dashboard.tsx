@@ -215,7 +215,39 @@ export default function TransporterDashboard() {
           </Card>
         )}
 
-        {transporter && !transporter.isVerified && (
+        {transporter && transporter.status === "rejected" && (
+          <Card className="mb-6 border-red-300 bg-red-50" data-testid="rejected-banner">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-4">
+                <div className="h-10 w-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <X className="h-5 w-5 text-red-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-red-800">Account Rejected</h3>
+                  <p className="text-sm text-red-700 mt-1">
+                    Your transporter account application has been rejected.
+                  </p>
+                  {transporter.rejectionReason && (
+                    <div className="mt-2 p-3 bg-red-100 rounded border border-red-200">
+                      <p className="text-sm font-medium text-red-800">Reason:</p>
+                      <p className="text-sm text-red-700">{transporter.rejectionReason}</p>
+                    </div>
+                  )}
+                  <p className="text-sm text-red-700 mt-3">
+                    Please review the feedback above and contact support if you believe this was an error, 
+                    or update your documents and re-apply.
+                  </p>
+                  <Button size="sm" variant="outline" className="mt-4 text-red-700 border-red-300 hover:bg-red-100" onClick={() => setLocation("/transporter/documents")}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Review Documents
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {transporter && !transporter.isVerified && transporter.status !== "rejected" && (
           <Card className="mb-6 border-amber-200 bg-amber-50" data-testid="verification-banner">
             <CardContent className="p-4">
               <div className="flex items-start gap-4">
