@@ -55,6 +55,21 @@ export interface IStorage {
   // Transporters
   getTransporter(id: string): Promise<Transporter | undefined>;
   getAllTransporters(): Promise<Transporter[]>;
+  getAllTransportersSafe(): Promise<{
+    id: string;
+    companyName: string;
+    ownerName: string;
+    contact: string;
+    email: string | null;
+    status: string;
+    location: string;
+    fleetSize: number | null;
+    isVerified: boolean | null;
+    createdAt: Date | null;
+    vehicleCount: number;
+    driverCount: number;
+    tripCount: number;
+  }[]>;
   getPendingTransporters(): Promise<Transporter[]>;
   createTransporter(transporter: InsertTransporter): Promise<Transporter>;
   updateTransporterStatus(id: string, status: "active" | "pending_approval" | "suspended" | "pending_verification" | "rejected"): Promise<void>;
@@ -233,6 +248,47 @@ export class DatabaseStorage implements IStorage {
 
   async getAllTransporters(): Promise<Transporter[]> {
     return await db.select().from(transporters).orderBy(desc(transporters.createdAt));
+  }
+
+  async getAllTransportersSafe(): Promise<{
+    id: string;
+    companyName: string;
+    ownerName: string;
+    contact: string;
+    email: string | null;
+    status: string;
+    location: string;
+    fleetSize: number | null;
+    isVerified: boolean | null;
+    createdAt: Date | null;
+    vehicleCount: number;
+    driverCount: number;
+    tripCount: number;
+  }[]> {
+    const result = await db
+      .select({
+        id: transporters.id,
+        companyName: transporters.companyName,
+        ownerName: transporters.ownerName,
+        contact: transporters.contact,
+        email: transporters.email,
+        status: sql<string>`COALESCE(${transporters.status}, 'pending_verification')`,
+        location: transporters.location,
+        fleetSize: transporters.fleetSize,
+        isVerified: transporters.isVerified,
+        createdAt: transporters.createdAt,
+        vehicleCount: sql<number>`COALESCE(COUNT(DISTINCT ${vehicles.id}), 0)`,
+        driverCount: sql<number>`COALESCE(COUNT(DISTINCT CASE WHEN ${users.role} = 'driver' THEN ${users.id} END), 0)`,
+        tripCount: sql<number>`COALESCE(COUNT(DISTINCT ${rides.id}), 0)`
+      })
+      .from(transporters)
+      .leftJoin(users, eq(users.transporterId, transporters.id))
+      .leftJoin(vehicles, eq(vehicles.transporterId, transporters.id))
+      .leftJoin(rides, eq(rides.transporterId, transporters.id))
+      .groupBy(transporters.id)
+      .orderBy(desc(transporters.createdAt));
+    
+    return result;
   }
 
   async getPendingTransporters(): Promise<Transporter[]> {

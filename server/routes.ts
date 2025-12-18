@@ -1786,7 +1786,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Transporter routes
-  // GET /api/transporters - Admin only
+  // GET /api/transporters - Admin only (with defensive aggregates)
   app.get("/api/transporters", requireAdmin, async (req, res) => {
     const { status } = req.query;
     
@@ -1795,10 +1795,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (status === "pending_approval") {
         result = await storage.getPendingTransporters();
       } else {
-        result = await storage.getAllTransporters();
+        // Use safe method with LEFT JOINs and COALESCE for production robustness
+        result = await storage.getAllTransportersSafe();
       }
       res.json(result);
     } catch (error) {
+      console.error("❌ /api/transporters failed:", error);
       res.status(500).json({ error: "Failed to fetch transporters" });
     }
   });
