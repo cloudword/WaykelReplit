@@ -617,9 +617,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const normalizedPhone = normalizePhone(phone);
       
       // Check if phone already exists
-      const existingUser = await storage.getUserByPhone(normalizedPhone);
-      if (existingUser) {
+      const existingUserByPhone = await storage.getUserByPhone(normalizedPhone);
+      if (existingUserByPhone) {
         return res.status(400).json({ error: "Phone number already registered" });
+      }
+
+      // Check if email already exists (if provided)
+      if (email) {
+        const existingUserByEmail = await storage.getUserByEmail(email);
+        if (existingUserByEmail) {
+          return res.status(400).json({ error: "Email already registered" });
+        }
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -649,9 +657,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         expiresIn: JWT_EXPIRES_IN,
         user: userWithoutPassword,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Customer registration error:", error);
-      res.status(500).json({ error: "Registration failed" });
+      // Handle database constraint violations with specific messages
+      if (error?.code === '23505') {
+        if (error?.constraint?.includes('email')) {
+          return res.status(400).json({ error: "Email already registered" });
+        }
+        if (error?.constraint?.includes('phone')) {
+          return res.status(400).json({ error: "Phone number already registered" });
+        }
+        return res.status(400).json({ error: "Account with this information already exists" });
+      }
+      res.status(500).json({ error: "Registration failed. Please try again." });
     }
   });
 
