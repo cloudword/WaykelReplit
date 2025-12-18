@@ -82,6 +82,7 @@ const extractTokenUser = (req: Request, res: Response, next: NextFunction) => {
         id: string;
         role: string;
         isSuperAdmin?: boolean;
+        isSelfDriver?: boolean;
         transporterId?: string;
       };
       req.tokenUser = decoded;
@@ -90,6 +91,83 @@ const extractTokenUser = (req: Request, res: Response, next: NextFunction) => {
     }
   }
   next();
+};
+
+// Self-Driver Identity Resolution
+// Rule: IF user.role === "transporter" AND user.isSelfDriver === true THEN user can act as a driver
+interface DriverIdentity {
+  isDriver: boolean;
+  isSelfDriver: boolean;
+  driverId: string | null;
+  transporterId: string | null;
+  canAccessDriverRoutes: boolean;
+  canAccessTransporterRoutes: boolean;
+}
+
+const resolveDriverIdentity = (user: {
+  id: string;
+  role: string;
+  isSuperAdmin?: boolean;
+  isSelfDriver?: boolean;
+  transporterId?: string;
+}): DriverIdentity => {
+  // Admin has full access
+  if (user.isSuperAdmin || user.role === "admin") {
+    return {
+      isDriver: false,
+      isSelfDriver: false,
+      driverId: null,
+      transporterId: null,
+      canAccessDriverRoutes: true,
+      canAccessTransporterRoutes: true,
+    };
+  }
+
+  // Regular driver
+  if (user.role === "driver") {
+    return {
+      isDriver: true,
+      isSelfDriver: false,
+      driverId: user.id,
+      transporterId: user.transporterId || null,
+      canAccessDriverRoutes: true,
+      canAccessTransporterRoutes: false,
+    };
+  }
+
+  // Transporter who also drives (self-driver)
+  if (user.role === "transporter" && user.isSelfDriver === true) {
+    return {
+      isDriver: true,
+      isSelfDriver: true,
+      driverId: user.id, // Use transporter's user ID as driver ID for self-driver
+      transporterId: user.transporterId || null,
+      canAccessDriverRoutes: true,
+      canAccessTransporterRoutes: true,
+    };
+  }
+
+  // Regular transporter (not a self-driver)
+  if (user.role === "transporter") {
+    return {
+      isDriver: false,
+      isSelfDriver: false,
+      driverId: null,
+      transporterId: user.transporterId || null,
+      canAccessDriverRoutes: false,
+      canAccessTransporterRoutes: true,
+    };
+  }
+
+  // Customer or other roles
+  return {
+    isDriver: false,
+    isSelfDriver: false,
+    driverId: null,
+    transporterId: null,
+    canAccessDriverRoutes: false,
+    canAccessTransporterRoutes: false,
+  };
 };
 
 // Helper to get current user from either session or token
@@ -122,9 +200,22 @@ const requireDriverOrTransporter = (req: Request, res: Response, next: NextFunct
   if (!user?.id) {
     return res.status(401).json({ error: "Authentication required. Please log in or provide a valid Bearer token." });
   }
-  const role = user.role;
-  if (role !== "driver" && role !== "transporter" && !user.isSuperAdmin) {
+  const identity = resolveDriverIdentity(user);
+  if (!identity.canAccessDriverRoutes && !identity.canAccessTransporterRoutes) {
     return res.status(403).json({ error: "Driver or transporter access required" });
+  }
+  next();
+};
+
+// Middleware for driver-only routes - allows self-drivers (transporters with isSelfDriver=true)
+const requireDriver = (req: Request, res: Response, next: NextFunction) => {
+  const user = getCurrentUser(req);
+  if (!user?.id) {
+    return res.status(401).json({ error: "Authentication required. Please log in or provide a valid Bearer token." });
+  }
+  const identity = resolveDriverIdentity(user);
+  if (!identity.canAccessDriverRoutes) {
+    return res.status(403).json({ error: "Driver access required. Self-drivers (transporters who drive) are also allowed." });
   }
   next();
 };
@@ -618,6 +709,55 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json({ success: true, message: "Password updated successfully" });
     } catch (error) {
       res.status(400).json({ error: "Failed to change password" });
+    }
+  });
+
+  // Profile update endpoint - allows users to update their profile settings
+  app.patch("/api/auth/profile", requireAuth, async (req, res) => {
+    try {
+      const currentUser = getCurrentUser(req);
+      if (!currentUser) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { isSelfDriver, name, email } = req.body;
+      const updates: { name?: string; email?: string; isSelfDriver?: boolean } = {};
+
+      // Only transporters can set isSelfDriver
+      if (isSelfDriver !== undefined) {
+        if (currentUser.role !== "transporter") {
+          return res.status(403).json({ error: "Only transporters can set self-driver status" });
+        }
+        updates.isSelfDriver = Boolean(isSelfDriver);
+      }
+
+      if (name !== undefined) updates.name = name;
+      if (email !== undefined) updates.email = email;
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: "No valid fields to update" });
+      }
+
+      const updatedUser = await storage.updateUser(currentUser.id, updates);
+      if (!updatedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Update session with new isSelfDriver value if changed
+      if (updates.isSelfDriver !== undefined && req.session?.user) {
+        req.session.user.isSelfDriver = updates.isSelfDriver;
+        req.session.save((err) => {
+          if (err) console.error("Session save error:", err);
+        });
+      }
+
+      console.log(`[Self-Driver] User ${currentUser.id} updated isSelfDriver to ${updates.isSelfDriver}`);
+
+      const { password: _, ...userWithoutPassword } = updatedUser;
+      res.json({ success: true, user: userWithoutPassword });
+    } catch (error) {
+      console.error("Profile update error:", error);
+      res.status(400).json({ error: "Failed to update profile" });
     }
   });
 
