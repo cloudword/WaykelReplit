@@ -3270,6 +3270,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // GET /api/notifications/unread-count - Fast count for UI badges
+  app.get("/api/notifications/unread-count", async (req, res) => {
+    const sessionUser = getCurrentUser(req);
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const unreadNotifications = await storage.getUnreadNotifications(sessionUser.id);
+      res.json({ count: unreadNotifications.length });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch unread count" });
+    }
+  });
+
   app.patch("/api/notifications/:id/read", async (req, res) => {
     const sessionUser = getCurrentUser(req);
     
