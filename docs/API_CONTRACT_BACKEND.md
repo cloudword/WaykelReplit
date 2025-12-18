@@ -111,7 +111,9 @@ This document lists all HTTP API endpoints exposed by the Waykel backend.
 | GET | `/api/customers` | routes.ts:2013 | Get all customers with trip counts | both | admin |
 | GET | `/api/drivers` | routes.ts:2035 | Get all drivers | both | admin |
 
-### Documents
+### Documents (Global)
+
+> **Note**: These are the original document APIs. Consider using trip-scoped document APIs below for trip-related documents.
 
 | HTTP Method | Route Path | File:Line | Purpose | Auth | Allowed Roles |
 |-------------|------------|-----------|---------|------|---------------|
@@ -119,6 +121,16 @@ This document lists all HTTP API endpoints exposed by the Waykel backend.
 | POST | `/api/documents` | routes.ts:2243 | Create document record with automatic replacement | both | authenticated |
 | POST | `/api/documents/upload` | routes.ts:2290 | Upload file and create document atomically | both | authenticated |
 | PATCH | `/api/documents/:id/status` | routes.ts:2442 | Verify or reject document | both | admin |
+
+### Trip-Scoped Documents
+
+| HTTP Method | Route Path | File:Line | Purpose | Auth | Allowed Roles |
+|-------------|------------|-----------|---------|------|---------------|
+| GET | `/api/trips/:tripId/documents` | routes.ts:2501 | List documents for a specific trip | both | customer (own trips), transporter (assigned), driver (assigned), admin |
+| POST | `/api/trips/:tripId/documents/upload-url` | routes.ts:2524 | Get upload URL for trip document | both | customer (own trips), transporter (assigned), driver (assigned), admin |
+| POST | `/api/trips/:tripId/documents` | routes.ts:2579 | Create document record for a trip | both | customer (own trips), transporter (assigned), driver (assigned), admin |
+| DELETE | `/api/trips/:tripId/documents/:documentId` | routes.ts:2631 | Soft delete trip document (preserves history) | both | owner or admin |
+| PATCH | `/api/trips/:tripId/documents/:documentId/status` | routes.ts:2674 | Verify or reject trip document | both | admin |
 
 ### Replit Object Storage
 
@@ -204,7 +216,8 @@ This document lists all HTTP API endpoints exposed by the Waykel backend.
 | Bids | 4 |
 | Vehicles | 4 |
 | Users | 6 |
-| Documents | 4 |
+| Documents (Global) | 4 |
+| Trip-Scoped Documents | 5 |
 | Replit Object Storage | 3 |
 | DigitalOcean Spaces Storage | 3 |
 | Notifications | 3 |
@@ -212,7 +225,7 @@ This document lists all HTTP API endpoints exposed by the Waykel backend.
 | Saved Addresses | 4 |
 | Driver Applications | 7 |
 | Admin Tools | 7 |
-| **Total** | **90** |
+| **Total** | **95** |
 
 ---
 

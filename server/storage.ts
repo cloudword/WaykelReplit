@@ -98,9 +98,11 @@ export interface IStorage {
   getUserDocuments(userId: string): Promise<Document[]>;
   getTransporterDocuments(transporterId: string): Promise<Document[]>;
   getVehicleDocuments(vehicleId: string): Promise<Document[]>;
+  getTripDocuments(tripId: string): Promise<Document[]>;
   getAllDocuments(): Promise<Document[]>;
   createDocument(document: InsertDocument): Promise<Document>;
-  updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced", reviewedById?: string | null, rejectionReason?: string | null): Promise<void>;
+  updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced" | "deleted", reviewedById?: string | null, rejectionReason?: string | null): Promise<void>;
+  softDeleteDocument(id: string, deletedById: string): Promise<void>;
   findActiveDocumentByType(entityType: string, entityId: string, docType: string): Promise<Document | undefined>;
   
   // Notifications
@@ -408,6 +410,15 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(documents).where(eq(documents.vehicleId, vehicleId)).orderBy(desc(documents.createdAt));
   }
 
+  async getTripDocuments(tripId: string): Promise<Document[]> {
+    return await db.select().from(documents).where(
+      and(
+        eq(documents.rideId, tripId),
+        not(eq(documents.status, "deleted"))
+      )
+    ).orderBy(desc(documents.createdAt));
+  }
+
   async getAllDocuments(): Promise<Document[]> {
     return await db.select().from(documents).orderBy(desc(documents.createdAt));
   }
@@ -417,12 +428,20 @@ export class DatabaseStorage implements IStorage {
     return document;
   }
 
-  async updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced", reviewedById?: string | null, rejectionReason?: string | null): Promise<void> {
+  async updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced" | "deleted", reviewedById?: string | null, rejectionReason?: string | null): Promise<void> {
     await db.update(documents).set({ 
       status,
       reviewedBy: reviewedById ?? null,
       reviewedAt: new Date(),
       rejectionReason: rejectionReason ?? null
+    }).where(eq(documents.id, id));
+  }
+
+  async softDeleteDocument(id: string, deletedById: string): Promise<void> {
+    await db.update(documents).set({ 
+      status: "deleted",
+      reviewedBy: deletedById,
+      reviewedAt: new Date()
     }).where(eq(documents.id, id));
   }
 

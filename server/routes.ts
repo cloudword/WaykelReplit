@@ -3,7 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { 
   insertUserSchema, insertTransporterSchema, insertVehicleSchema, insertRideSchema, insertBidSchema, insertDocumentSchema,
-  insertRoleSchema, insertUserRoleSchema, insertSavedAddressSchema, insertDriverApplicationSchema, PERMISSIONS, VEHICLE_TYPES
+  insertRoleSchema, insertUserRoleSchema, insertSavedAddressSchema, insertDriverApplicationSchema, PERMISSIONS, VEHICLE_TYPES,
+  type Ride
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
@@ -2458,6 +2459,260 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ error: "Failed to update document status" });
+    }
+  });
+
+  // ===========================================
+  // TRIP-SCOPED DOCUMENT APIs
+  // ===========================================
+
+  // Helper to check trip access for documents
+  const checkTripDocumentAccess = async (tripId: string, user: any): Promise<{ ride: Ride | undefined; hasAccess: boolean; error?: string }> => {
+    const ride = await storage.getRide(tripId);
+    if (!ride) {
+      return { ride: undefined, hasAccess: false, error: "Trip not found" };
+    }
+
+    // Admin has full access
+    if (user.isSuperAdmin || user.role === "admin") {
+      return { ride, hasAccess: true };
+    }
+
+    // Customer can access their own trips
+    if (user.role === "customer" && ride.createdById === user.id) {
+      return { ride, hasAccess: true };
+    }
+
+    // Transporter can access assigned trips
+    if (user.role === "transporter" && user.transporterId && ride.transporterId === user.transporterId) {
+      return { ride, hasAccess: true };
+    }
+
+    // Driver can access their assigned trips
+    if (user.role === "driver" && ride.assignedDriverId === user.id) {
+      return { ride, hasAccess: true };
+    }
+
+    return { ride, hasAccess: false, error: "Access denied to this trip" };
+  };
+
+  // GET /api/trips/:tripId/documents - List documents for a trip
+  app.get("/api/trips/:tripId/documents", requireAuth, async (req, res) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { tripId } = req.params;
+      const { hasAccess, error } = await checkTripDocumentAccess(tripId, sessionUser);
+
+      if (!hasAccess) {
+        return res.status(error === "Trip not found" ? 404 : 403).json({ error });
+      }
+
+      const documents = await storage.getTripDocuments(tripId);
+      res.json(documents);
+    } catch (error) {
+      console.error("Failed to get trip documents:", error);
+      res.status(500).json({ error: "Failed to get trip documents" });
+    }
+  });
+
+  // POST /api/trips/:tripId/documents/upload-url - Get upload URL for trip document
+  app.post("/api/trips/:tripId/documents/upload-url", requireAuth, uploadLimiter, async (req, res) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { tripId } = req.params;
+      const { hasAccess, ride, error } = await checkTripDocumentAccess(tripId, sessionUser);
+
+      if (!hasAccess) {
+        return res.status(error === "Trip not found" ? 404 : 403).json({ error });
+      }
+
+      const { fileName, contentType } = req.body;
+      if (!fileName) {
+        return res.status(400).json({ error: "fileName is required" });
+      }
+
+      // Check if running on Replit
+      const isReplit = process.env.REPL_ID !== undefined;
+      
+      if (isReplit) {
+        // Use Replit Object Storage
+        const objectStorageService = new ObjectStorageService();
+        const { uploadURL, objectPath } = await objectStorageService.getObjectEntityUploadURL(fileName);
+        res.json({ uploadURL, objectPath, storageType: "replit" });
+      } else {
+        // Use DigitalOcean Spaces - return info about how to upload
+        const spacesStorage = getSpacesStorage();
+        if (!spacesStorage) {
+          return res.status(503).json({ error: "Storage not configured" });
+        }
+
+        // Build the storage path for trip documents
+        const storagePath = getDocumentStoragePath({
+          entityType: "trip",
+          rideId: tripId,
+          transporterId: ride?.transporterId || undefined,
+        });
+
+        res.json({ 
+          useSpacesApi: true, 
+          storagePath,
+          message: "Use POST /api/spaces/upload with this storagePath",
+          storageType: "spaces"
+        });
+      }
+    } catch (error) {
+      console.error("Failed to get upload URL:", error);
+      res.status(500).json({ error: "Failed to get upload URL" });
+    }
+  });
+
+  // POST /api/trips/:tripId/documents - Create document record for trip
+  app.post("/api/trips/:tripId/documents", requireAuth, uploadLimiter, async (req, res) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { tripId } = req.params;
+      const { hasAccess, ride, error } = await checkTripDocumentAccess(tripId, sessionUser);
+
+      if (!hasAccess) {
+        return res.status(error === "Trip not found" ? 404 : 403).json({ error });
+      }
+
+      const { type, url, storagePath, documentName, expiryDate } = req.body;
+
+      if (!type || !url || !documentName) {
+        return res.status(400).json({ error: "type, url, and documentName are required" });
+      }
+
+      // Determine IDs based on who is uploading
+      let customerId: string | undefined;
+      let transporterId: string | undefined;
+
+      if (sessionUser.role === "customer") {
+        customerId = sessionUser.id;
+      } else if (sessionUser.transporterId) {
+        transporterId = sessionUser.transporterId;
+      }
+
+      const document = await storage.createDocument({
+        type,
+        url,
+        storagePath,
+        documentName,
+        expiryDate,
+        entityType: "trip",
+        rideId: tripId,
+        userId: sessionUser.id,
+        customerId,
+        transporterId: transporterId || ride?.transporterId,
+        status: "pending",
+      });
+
+      res.status(201).json(document);
+    } catch (error) {
+      console.error("Failed to create trip document:", error);
+      res.status(500).json({ error: "Failed to create trip document" });
+    }
+  });
+
+  // DELETE /api/trips/:tripId/documents/:documentId - Soft delete trip document
+  app.delete("/api/trips/:tripId/documents/:documentId", requireAuth, async (req, res) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { tripId, documentId } = req.params;
+      const { hasAccess, error } = await checkTripDocumentAccess(tripId, sessionUser);
+
+      if (!hasAccess) {
+        return res.status(error === "Trip not found" ? 404 : 403).json({ error });
+      }
+
+      // Get the document and verify it belongs to this trip
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      if (document.rideId !== tripId) {
+        return res.status(403).json({ error: "Document does not belong to this trip" });
+      }
+
+      // Only allow deletion if user uploaded it or is admin
+      const isAdmin = sessionUser.isSuperAdmin || sessionUser.role === "admin";
+      const isOwner = document.userId === sessionUser.id;
+
+      if (!isAdmin && !isOwner) {
+        return res.status(403).json({ error: "You can only delete your own documents" });
+      }
+
+      // Soft delete - preserve history
+      await storage.softDeleteDocument(documentId, sessionUser.id);
+
+      res.json({ success: true, message: "Document deleted" });
+    } catch (error) {
+      console.error("Failed to delete trip document:", error);
+      res.status(500).json({ error: "Failed to delete trip document" });
+    }
+  });
+
+  // PATCH /api/trips/:tripId/documents/:documentId/status - Admin verify/reject trip document
+  app.patch("/api/trips/:tripId/documents/:documentId/status", requireAdmin, protectedLimiter, async (req, res) => {
+    try {
+      const adminUser = getCurrentUser(req);
+      if (!adminUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { tripId, documentId } = req.params;
+      const { status, rejectionReason } = req.body;
+
+      // Verify trip exists
+      const ride = await storage.getRide(tripId);
+      if (!ride) {
+        return res.status(404).json({ error: "Trip not found" });
+      }
+
+      // Get the document and verify it belongs to this trip
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      if (document.rideId !== tripId) {
+        return res.status(403).json({ error: "Document does not belong to this trip" });
+      }
+
+      // Validate status
+      const validStatuses = ["verified", "pending", "rejected"];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` });
+      }
+
+      if (status === "rejected" && !rejectionReason) {
+        return res.status(400).json({ error: "Rejection reason is required" });
+      }
+
+      const reason = status === "verified" ? null : rejectionReason;
+      await storage.updateDocumentStatus(documentId, status, adminUser.id, reason);
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to update trip document status:", error);
+      res.status(500).json({ error: "Failed to update document status" });
     }
   });
 
