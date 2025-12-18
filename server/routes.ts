@@ -2176,21 +2176,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
       
-      // Check for duplicate document of same type for this entity
-      let existingDocs: any[] = [];
-      if (data.entityType === "driver" && data.userId) {
-        existingDocs = await storage.getUserDocuments(data.userId);
-      } else if (data.entityType === "vehicle" && data.vehicleId) {
-        existingDocs = await storage.getVehicleDocuments(data.vehicleId);
-      } else if (data.entityType === "transporter" && data.transporterId) {
-        existingDocs = await storage.getTransporterDocuments(data.transporterId);
-      }
+      // AUTOMATIC DOCUMENT REPLACEMENT - Enforce ONE document per type per entity
+      // If a document of the same type exists (not already replaced), automatically replace it
+      const entityId = data.entityType === "driver" ? data.userId :
+                       data.entityType === "vehicle" ? data.vehicleId : data.transporterId;
       
-      const duplicateDoc = existingDocs.find(d => d.type === data.type && d.status !== "rejected");
-      if (duplicateDoc) {
-        return res.status(400).json({ 
-          error: `A ${data.type} document already exists for this ${data.entityType}. Delete the existing one first or wait for it to be processed.` 
-        });
+      if (entityId) {
+        const existingDoc = await storage.findActiveDocumentByType(data.entityType, entityId, data.type);
+        if (existingDoc) {
+          // Mark the existing document as replaced
+          await storage.updateDocumentStatus(existingDoc.id, "replaced" as any, sessionUser.id, null);
+        }
       }
       
       const document = await storage.createDocument(data);
@@ -2237,28 +2233,25 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         transporterId = entityId;
       }
 
-      // Check for duplicate document of same type for this entity (excluding rejected/replaced)
-      // Skip this check if we're replacing a document
-      if (!replaceDocumentId) {
-        let existingDocs: any[] = [];
-        if (entityType === "driver" && userId) {
-          existingDocs = await storage.getUserDocuments(userId);
-        } else if (entityType === "vehicle" && vehicleId) {
-          existingDocs = await storage.getVehicleDocuments(vehicleId);
-        } else if (entityType === "transporter" && transporterId) {
-          existingDocs = await storage.getTransporterDocuments(transporterId);
-        }
+      // AUTOMATIC DOCUMENT REPLACEMENT - Enforce ONE document per type per entity
+      // If a document of the same type exists (not already replaced), automatically replace it
+      let autoReplaceDocumentId: string | undefined = replaceDocumentId;
+      
+      if (!autoReplaceDocumentId) {
+        // Find existing active document of same type for this entity
+        const existingEntityId = entityType === "driver" ? userId :
+                                  entityType === "vehicle" ? vehicleId : transporterId;
         
-        const duplicateDoc = existingDocs.find(d => d.type === type && d.status !== "rejected" && d.status !== "replaced");
-        if (duplicateDoc) {
-          const statusMessage = duplicateDoc.status === "pending" 
-            ? "This document type is under review. Cannot upload duplicate."
-            : "This document type is already verified.";
-          return res.status(400).json({ error: statusMessage });
+        if (existingEntityId) {
+          const existingDoc = await storage.findActiveDocumentByType(entityType, existingEntityId, type);
+          if (existingDoc) {
+            // Automatically set this document to be replaced
+            autoReplaceDocumentId = existingDoc.id;
+          }
         }
       } else {
-        // Validate replaceDocumentId - ensure it exists and belongs to the same entity
-        const existingDoc = await storage.getDocumentById(replaceDocumentId);
+        // Validate explicit replaceDocumentId - ensure it exists and belongs to the same entity
+        const existingDoc = await storage.getDocumentById(autoReplaceDocumentId);
         if (!existingDoc) {
           return res.status(404).json({ error: "Document to replace not found" });
         }
@@ -2271,11 +2264,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         
         if (!ownsDocument) {
           return res.status(403).json({ error: "Not authorized to replace this document" });
-        }
-        
-        // Verify the document is rejected (can only replace rejected documents)
-        if (existingDoc.status !== "rejected") {
-          return res.status(400).json({ error: "Can only replace rejected documents" });
         }
         
         // Verify the document type matches
@@ -2335,9 +2323,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(503).json({ error: "No storage configured" });
       }
 
-      // If replacing, mark the old document as "replaced"
-      if (replaceDocumentId) {
-        await storage.updateDocumentStatus(replaceDocumentId, "replaced" as any, sessionUser.id, null);
+      // If replacing (either explicitly or automatically), mark the old document as "replaced"
+      if (autoReplaceDocumentId) {
+        await storage.updateDocumentStatus(autoReplaceDocumentId, "replaced" as any, sessionUser.id, null);
       }
 
       // Create document record

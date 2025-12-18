@@ -15,7 +15,7 @@ import {
   type DriverApplication, type InsertDriverApplication
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, or, sql, gte, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, or, sql, gte, inArray, not } from "drizzle-orm";
 
 export function sanitizeRequestBody(body: any): any {
   if (!body || typeof body !== 'object') return body;
@@ -101,6 +101,7 @@ export interface IStorage {
   getAllDocuments(): Promise<Document[]>;
   createDocument(document: InsertDocument): Promise<Document>;
   updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced", reviewedById?: string | null, rejectionReason?: string | null): Promise<void>;
+  findActiveDocumentByType(entityType: string, entityId: string, docType: string): Promise<Document | undefined>;
   
   // Notifications
   createNotification(notification: InsertNotification): Promise<Notification>;
@@ -423,6 +424,43 @@ export class DatabaseStorage implements IStorage {
       reviewedAt: new Date(),
       rejectionReason: rejectionReason ?? null
     }).where(eq(documents.id, id));
+  }
+
+  async findActiveDocumentByType(entityType: string, entityId: string, docType: string): Promise<Document | undefined> {
+    // Find an active (non-replaced) document of the same type for this entity
+    let query;
+    if (entityType === "driver") {
+      query = db.select().from(documents).where(
+        and(
+          eq(documents.userId, entityId),
+          eq(documents.entityType, "driver"),
+          eq(documents.type, docType as any),
+          not(eq(documents.status, "replaced"))
+        )
+      );
+    } else if (entityType === "vehicle") {
+      query = db.select().from(documents).where(
+        and(
+          eq(documents.vehicleId, entityId),
+          eq(documents.entityType, "vehicle"),
+          eq(documents.type, docType as any),
+          not(eq(documents.status, "replaced"))
+        )
+      );
+    } else if (entityType === "transporter") {
+      query = db.select().from(documents).where(
+        and(
+          eq(documents.transporterId, entityId),
+          eq(documents.entityType, "transporter"),
+          eq(documents.type, docType as any),
+          not(eq(documents.status, "replaced"))
+        )
+      );
+    } else {
+      return undefined;
+    }
+    const [doc] = await query.orderBy(desc(documents.createdAt)).limit(1);
+    return doc;
   }
 
   // Notifications
