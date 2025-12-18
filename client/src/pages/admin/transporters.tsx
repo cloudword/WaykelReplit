@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, MoreHorizontal, Building2, Download, Plus, CheckCircle, XCircle, Loader2, Users, Truck, MapPin, IndianRupee, Phone, Mail, Eye, ShieldCheck, Clock, AlertCircle, FileText, RefreshCw, Ban } from "lucide-react";
@@ -54,6 +55,8 @@ export default function AdminTransporters() {
   const [rejectingTransporterId, setRejectingTransporterId] = useState<string | null>(null);
   const [transporterRejectionReason, setTransporterRejectionReason] = useState("");
   const [approvingTransporterId, setApprovingTransporterId] = useState<string | null>(null);
+  const [confirmApproveFromRejected, setConfirmApproveFromRejected] = useState<{id: string; previousReason: string} | null>(null);
+  const [confirmRejectFromActive, setConfirmRejectFromActive] = useState<string | null>(null);
   
   const [newTransporter, setNewTransporter] = useState({
     companyName: "",
@@ -139,14 +142,24 @@ export default function AdminTransporters() {
     }
   };
 
-  const handleApproveTransporter = async (id: string) => {
+  const handleApproveTransporter = async (id: string, confirmFromRejected: boolean = false) => {
     setApprovingTransporterId(id);
     try {
-      const result = await api.transporters.approve(id);
+      const result = await api.transporters.approve(id, confirmFromRejected ? { confirmFromRejected: true } : undefined);
+      if (result.requiresConfirmation) {
+        setConfirmApproveFromRejected({ id, previousReason: result.previousRejectionReason || "Unknown reason" });
+        setApprovingTransporterId(null);
+        return;
+      }
       if (result.error) {
         toast.error(result.error);
       } else {
-        toast.success("Transporter approved successfully!");
+        if (result.noChange) {
+          toast.info("Transporter is already approved");
+        } else {
+          toast.success("Transporter approved successfully!");
+        }
+        setConfirmApproveFromRejected(null);
         fetchData();
         if (selectedTransporter?.id === id) {
           setSelectedTransporter(result.transporter);
@@ -159,19 +172,28 @@ export default function AdminTransporters() {
     }
   };
 
-  const handleRejectTransporter = async (id: string) => {
+  const handleRejectTransporter = async (id: string, confirmFromActive: boolean = false) => {
     if (!transporterRejectionReason.trim()) {
       toast.error("Please provide a rejection reason");
       return;
     }
     try {
-      const result = await api.transporters.reject(id, transporterRejectionReason.trim());
+      const result = await api.transporters.reject(id, transporterRejectionReason.trim(), confirmFromActive ? { confirmFromActive: true } : undefined);
+      if (result.requiresConfirmation) {
+        setConfirmRejectFromActive(id);
+        return;
+      }
       if (result.error) {
         toast.error(result.error);
       } else {
-        toast.success("Transporter rejected");
+        if (result.noChange) {
+          toast.info("Transporter is already rejected");
+        } else {
+          toast.success("Transporter rejected");
+        }
         setRejectingTransporterId(null);
         setTransporterRejectionReason("");
+        setConfirmRejectFromActive(null);
         fetchData();
         if (selectedTransporter?.id === id) {
           setSelectedTransporter(result.transporter);
@@ -1118,6 +1140,60 @@ export default function AdminTransporters() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation Dialog: Approve Previously Rejected Transporter */}
+      <AlertDialog open={!!confirmApproveFromRejected} onOpenChange={(open) => !open && setConfirmApproveFromRejected(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Approve Previously Rejected Transporter?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>This transporter was previously rejected with the following reason:</p>
+              <p className="bg-red-50 p-3 rounded-lg text-red-700 font-medium border border-red-200">
+                {confirmApproveFromRejected?.previousReason}
+              </p>
+              <p className="mt-2">Are you sure you want to approve this transporter now?</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              className="bg-green-600 hover:bg-green-700"
+              onClick={() => confirmApproveFromRejected && handleApproveTransporter(confirmApproveFromRejected.id, true)}
+            >
+              Yes, Approve Now
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmation Dialog: Reject Active Transporter */}
+      <AlertDialog open={!!confirmRejectFromActive} onOpenChange={(open) => !open && setConfirmRejectFromActive(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject Active Transporter?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <p>This transporter is currently active and may have ongoing trips or business.</p>
+              <p className="mt-2 text-red-600 font-medium">Rejecting them will prevent them from accepting new trips immediately.</p>
+              <p className="mt-2">Are you sure you want to reject this transporter?</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setConfirmRejectFromActive(null);
+              setRejectingTransporterId(null);
+              setTransporterRejectionReason("");
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => confirmRejectFromActive && handleRejectTransporter(confirmRejectFromActive, true)}
+            >
+              Yes, Reject Transporter
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

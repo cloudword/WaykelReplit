@@ -860,6 +860,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(403).json({ error: "Access denied" });
       }
 
+      // Verify transporter is still active/verified before accepting their bid
+      if (bid.transporterId) {
+        const transporter = await storage.getTransporter(bid.transporterId);
+        if (!transporter) {
+          return res.status(400).json({ error: "Transporter account not found. Cannot accept this bid." });
+        }
+        if (transporter.status !== "active") {
+          return res.status(400).json({ error: "This transporter's account is not verified. Cannot accept their bid." });
+        }
+      }
+
       // Update bid status
       const updatedBid = await storage.updateBidStatus(bidId, "accepted");
       
@@ -1571,11 +1582,21 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ error: "This trip has been self-assigned and is not open for bidding." });
       }
       
-      // Check if transporter is verified before allowing bids
+      // Check if transporter is verified (status = active) before allowing bids
       if (!sessionUser.isSuperAdmin && sessionUser.transporterId) {
         const transporter = await storage.getTransporter(sessionUser.transporterId);
-        if (transporter && !transporter.isVerified) {
-          return res.status(403).json({ error: "Your account must be verified before you can place bids. Please complete document verification first." });
+        if (!transporter) {
+          return res.status(403).json({ error: "Transporter account not found." });
+        }
+        if (transporter.status !== "active") {
+          const statusMessages: Record<string, string> = {
+            pending_verification: "Your account is pending document verification. Please upload all required documents.",
+            pending_approval: "Your documents are under review. You'll be notified once approved.",
+            rejected: "Your account verification was rejected. Please check the rejection reason and re-upload documents.",
+            suspended: "Your account has been suspended. Please contact support."
+          };
+          const message = statusMessages[transporter.status || "pending_verification"] || "Your account must be verified before you can place bids.";
+          return res.status(403).json({ error: message });
         }
       }
       
@@ -1834,6 +1855,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // POST /api/transporters/:id/approve - Admin only (explicit transporter approval)
+  // IDEMPOTENT: Safe to call multiple times. Returns success if already approved.
+  // STRICT TRANSITIONS: Only allows approval from pending_verification, pending_approval, rejected
   app.post("/api/transporters/:id/approve", requireAdmin, async (req, res) => {
     try {
       const sessionUser = getCurrentUser(req);
@@ -1844,6 +1867,36 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const transporter = await storage.getTransporter(req.params.id);
       if (!transporter) {
         return res.status(404).json({ error: "Transporter not found" });
+      }
+      
+      // IDEMPOTENT: Already approved - return success (no-op)
+      if (transporter.status === "active") {
+        return res.json({ 
+          success: true, 
+          message: "Transporter is already approved",
+          transporter,
+          noChange: true
+        });
+      }
+      
+      // STRICT TRANSITIONS: Only allow approval from specific states
+      const allowedFromStates = ["pending_verification", "pending_approval", "rejected"];
+      if (!allowedFromStates.includes(transporter.status || "")) {
+        return res.status(400).json({ 
+          error: `Cannot approve transporter with status '${transporter.status}'. Only pending or rejected transporters can be approved.`
+        });
+      }
+      
+      // If approving from rejected status, require explicit confirm flag
+      if (transporter.status === "rejected") {
+        const { confirmFromRejected } = req.body;
+        if (!confirmFromRejected) {
+          return res.status(400).json({ 
+            error: "This transporter was previously rejected. Send confirmFromRejected: true to proceed with approval.",
+            requiresConfirmation: true,
+            previousRejectionReason: transporter.rejectionReason
+          });
+        }
       }
       
       await storage.approveTransporter(req.params.id, sessionUser.id);
@@ -1862,6 +1915,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // POST /api/transporters/:id/reject - Admin only (reject transporter with reason)
+  // IDEMPOTENT: Safe to call multiple times with same reason. Returns success if already rejected.
+  // STRICT TRANSITIONS: Only allows rejection from pending_verification, pending_approval
   app.post("/api/transporters/:id/reject", requireAdmin, async (req, res) => {
     try {
       const sessionUser = getCurrentUser(req);
@@ -1877,6 +1932,34 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const transporter = await storage.getTransporter(req.params.id);
       if (!transporter) {
         return res.status(404).json({ error: "Transporter not found" });
+      }
+      
+      // IDEMPOTENT: Already rejected with same reason - return success (no-op)
+      if (transporter.status === "rejected") {
+        return res.json({ 
+          success: true, 
+          message: "Transporter is already rejected",
+          transporter,
+          noChange: true
+        });
+      }
+      
+      // STRICT TRANSITIONS: Cannot reject an active/approved transporter without explicit intent
+      if (transporter.status === "active") {
+        const { confirmFromActive } = req.body;
+        if (!confirmFromActive) {
+          return res.status(400).json({ 
+            error: "This transporter is currently active. Send confirmFromActive: true to proceed with rejection.",
+            requiresConfirmation: true
+          });
+        }
+      }
+      
+      // Block rejection from suspended state - use suspend workflow instead
+      if (transporter.status === "suspended") {
+        return res.status(400).json({ 
+          error: "Cannot reject a suspended transporter. Use the unsuspend workflow first."
+        });
       }
       
       await storage.rejectTransporter(req.params.id, sessionUser.id, reason.trim());
@@ -2854,6 +2937,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       
       if (!isSuperAdmin && !isRideOwner) {
         return res.status(403).json({ error: "Only the ride owner or admin can accept bids" });
+      }
+      
+      // Verify transporter is still active/verified before accepting their bid
+      if (bid.transporterId) {
+        const transporter = await storage.getTransporter(bid.transporterId);
+        if (!transporter) {
+          return res.status(400).json({ error: "Transporter account not found. Cannot accept this bid." });
+        }
+        if (transporter.status !== "active") {
+          return res.status(400).json({ error: "This transporter's account is not verified. Cannot accept their bid." });
+        }
       }
       
       // Update bid status to accepted
