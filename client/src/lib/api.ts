@@ -184,6 +184,24 @@ export const api = {
       });
       return res.json();
     },
+    approve: async (id: string, options?: { confirmFromRejected?: boolean }) => {
+      const res = await fetch(`${API_BASE}/transporters/${id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(options || {}),
+      });
+      return res.json();
+    },
+    reject: async (id: string, reason: string, options?: { confirmFromActive?: boolean }) => {
+      const res = await fetch(`${API_BASE}/transporters/${id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ reason, ...options }),
+      });
+      return res.json();
+    },
     addDriver: async (data: { name: string; phone: string; email?: string }) => {
       const res = await fetch(`${API_BASE}/transporter/drivers`, {
         method: "POST",

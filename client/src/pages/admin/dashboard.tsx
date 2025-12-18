@@ -1,6 +1,6 @@
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Truck, DollarSign, Activity, Package, Building2, ChevronRight } from "lucide-react";
+import { Users, Truck, DollarSign, Activity, Package, Building2, ChevronRight, ShieldCheck, Clock, FileText } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
@@ -19,6 +19,8 @@ interface AdminStats {
   pendingRides: number;
   totalBids: number;
   totalRevenue: number;
+  pendingVerifications: number;
+  pendingApprovals: number;
   recentRides: {
     id: string;
     pickupLocation: string;
@@ -201,6 +203,35 @@ export default function AdminDashboard() {
             </Card>
           </Link>
         </div>
+
+        {((stats?.pendingVerifications || 0) + (stats?.pendingApprovals || 0)) > 0 && (
+          <Link href="/admin/transporters?filter=pending">
+            <Card className="mb-8 border-amber-300 bg-amber-50 cursor-pointer hover:shadow-lg transition-shadow" data-testid="card-pending-verifications">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 bg-amber-100 rounded-full flex items-center justify-center">
+                      <ShieldCheck className="h-6 w-6 text-amber-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-amber-800 text-lg">Pending Transporter Verifications</h3>
+                      <p className="text-sm text-amber-700">
+                        {stats?.pendingVerifications || 0} awaiting document review, {stats?.pendingApprovals || 0} ready for approval
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-amber-700">{(stats?.pendingVerifications || 0) + (stats?.pendingApprovals || 0)}</div>
+                      <div className="text-xs text-amber-600">Total Pending</div>
+                    </div>
+                    <ChevronRight size={24} className="text-amber-400" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
 
         <div className="grid grid-cols-1 gap-6">
           <Card>

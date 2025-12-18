@@ -45,13 +45,15 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
 // Transporters table (companies/fleet owners)
+// Status flow: pending_verification -> pending_approval -> active (or rejected at any stage)
 export const transporters = pgTable("transporters", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   companyName: text("company_name").notNull(),
   ownerName: text("owner_name").notNull(),
   contact: text("contact").notNull(),
   email: text("email").unique(),
-  status: text("status").notNull().$type<"active" | "pending_approval" | "suspended" | "pending_verification">().default("pending_verification"),
+  status: text("status").notNull().$type<"active" | "pending_approval" | "suspended" | "pending_verification" | "rejected">().default("pending_verification"),
+  rejectionReason: text("rejection_reason"),
   fleetSize: integer("fleet_size").default(0),
   location: text("location").notNull(),
   basePincode: text("base_pincode"),
@@ -184,8 +186,10 @@ export const documents = pgTable("documents", {
   url: text("url").notNull(),
   storagePath: text("storage_path"),
   expiryDate: text("expiry_date"),
-  status: text("status").notNull().$type<"verified" | "pending" | "expired" | "rejected" | "replaced">().default("pending"),
+  status: text("status").notNull().$type<"verified" | "pending" | "expired" | "rejected" | "replaced" | "deleted">().default("pending"),
   rejectionReason: text("rejection_reason"),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
   replacedById: varchar("replaced_by_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });

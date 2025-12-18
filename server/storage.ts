@@ -15,7 +15,7 @@ import {
   type DriverApplication, type InsertDriverApplication
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, or, sql, gte, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, or, sql, gte, inArray, not } from "drizzle-orm";
 
 export function sanitizeRequestBody(body: any): any {
   if (!body || typeof body !== 'object') return body;
@@ -57,7 +57,9 @@ export interface IStorage {
   getAllTransporters(): Promise<Transporter[]>;
   getPendingTransporters(): Promise<Transporter[]>;
   createTransporter(transporter: InsertTransporter): Promise<Transporter>;
-  updateTransporterStatus(id: string, status: "active" | "pending_approval" | "suspended"): Promise<void>;
+  updateTransporterStatus(id: string, status: "active" | "pending_approval" | "suspended" | "pending_verification" | "rejected"): Promise<void>;
+  rejectTransporter(id: string, rejectedById: string, reason: string): Promise<void>;
+  approveTransporter(id: string, approvedById: string): Promise<void>;
   
   // Vehicles
   getVehicle(id: string): Promise<Vehicle | undefined>;
@@ -96,9 +98,12 @@ export interface IStorage {
   getUserDocuments(userId: string): Promise<Document[]>;
   getTransporterDocuments(transporterId: string): Promise<Document[]>;
   getVehicleDocuments(vehicleId: string): Promise<Document[]>;
+  getTripDocuments(tripId: string): Promise<Document[]>;
   getAllDocuments(): Promise<Document[]>;
   createDocument(document: InsertDocument): Promise<Document>;
-  updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced", rejectionReason?: string | null): Promise<void>;
+  updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced" | "deleted", reviewedById?: string | null, rejectionReason?: string | null): Promise<void>;
+  softDeleteDocument(id: string, deletedById: string): Promise<void>;
+  findActiveDocumentByType(entityType: string, entityId: string, docType: string): Promise<Document | undefined>;
   
   // Notifications
   createNotification(notification: InsertNotification): Promise<Notification>;
@@ -239,8 +244,33 @@ export class DatabaseStorage implements IStorage {
     return transporter;
   }
 
-  async updateTransporterStatus(id: string, status: "active" | "pending_approval" | "suspended"): Promise<void> {
+  async updateTransporterStatus(id: string, status: "active" | "pending_approval" | "suspended" | "pending_verification" | "rejected"): Promise<void> {
     await db.update(transporters).set({ status }).where(eq(transporters.id, id));
+  }
+
+  async rejectTransporter(id: string, rejectedById: string, reason: string): Promise<void> {
+    await db.update(transporters).set({
+      status: "rejected",
+      rejectionReason: reason,
+      isVerified: false,
+      verifiedAt: new Date(),
+      verifiedBy: rejectedById,
+    }).where(eq(transporters.id, id));
+  }
+
+  async approveTransporter(id: string, approvedById: string): Promise<void> {
+    await db.update(transporters).set({
+      status: "active",
+      isVerified: true,
+      rejectionReason: null,
+      verifiedAt: new Date(),
+      verifiedBy: approvedById,
+    }).where(eq(transporters.id, id));
+    
+    // Update associated users' profile completion status
+    await db.update(users).set({
+      profileComplete: true
+    }).where(eq(users.transporterId, id));
   }
 
   // Vehicles
@@ -380,6 +410,15 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(documents).where(eq(documents.vehicleId, vehicleId)).orderBy(desc(documents.createdAt));
   }
 
+  async getTripDocuments(tripId: string): Promise<Document[]> {
+    return await db.select().from(documents).where(
+      and(
+        eq(documents.rideId, tripId),
+        not(eq(documents.status, "deleted"))
+      )
+    ).orderBy(desc(documents.createdAt));
+  }
+
   async getAllDocuments(): Promise<Document[]> {
     return await db.select().from(documents).orderBy(desc(documents.createdAt));
   }
@@ -389,11 +428,58 @@ export class DatabaseStorage implements IStorage {
     return document;
   }
 
-  async updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced", rejectionReason?: string | null): Promise<void> {
+  async updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced" | "deleted", reviewedById?: string | null, rejectionReason?: string | null): Promise<void> {
     await db.update(documents).set({ 
       status,
+      reviewedBy: reviewedById ?? null,
+      reviewedAt: new Date(),
       rejectionReason: rejectionReason ?? null
     }).where(eq(documents.id, id));
+  }
+
+  async softDeleteDocument(id: string, deletedById: string): Promise<void> {
+    await db.update(documents).set({ 
+      status: "deleted",
+      reviewedBy: deletedById,
+      reviewedAt: new Date()
+    }).where(eq(documents.id, id));
+  }
+
+  async findActiveDocumentByType(entityType: string, entityId: string, docType: string): Promise<Document | undefined> {
+    // Find an active (non-replaced) document of the same type for this entity
+    let query;
+    if (entityType === "driver") {
+      query = db.select().from(documents).where(
+        and(
+          eq(documents.userId, entityId),
+          eq(documents.entityType, "driver"),
+          eq(documents.type, docType as any),
+          not(eq(documents.status, "replaced"))
+        )
+      );
+    } else if (entityType === "vehicle") {
+      query = db.select().from(documents).where(
+        and(
+          eq(documents.vehicleId, entityId),
+          eq(documents.entityType, "vehicle"),
+          eq(documents.type, docType as any),
+          not(eq(documents.status, "replaced"))
+        )
+      );
+    } else if (entityType === "transporter") {
+      query = db.select().from(documents).where(
+        and(
+          eq(documents.transporterId, entityId),
+          eq(documents.entityType, "transporter"),
+          eq(documents.type, docType as any),
+          not(eq(documents.status, "replaced"))
+        )
+      );
+    } else {
+      return undefined;
+    }
+    const [doc] = await query.orderBy(desc(documents.createdAt)).limit(1);
+    return doc;
   }
 
   // Notifications

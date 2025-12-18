@@ -3,7 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { 
   insertUserSchema, insertTransporterSchema, insertVehicleSchema, insertRideSchema, insertBidSchema, insertDocumentSchema,
-  insertRoleSchema, insertUserRoleSchema, insertSavedAddressSchema, insertDriverApplicationSchema, PERMISSIONS, VEHICLE_TYPES
+  insertRoleSchema, insertUserRoleSchema, insertSavedAddressSchema, insertDriverApplicationSchema, PERMISSIONS, VEHICLE_TYPES,
+  type Ride
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
@@ -860,6 +861,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(403).json({ error: "Access denied" });
       }
 
+      // Verify transporter is still active/verified before accepting their bid
+      if (bid.transporterId) {
+        const transporter = await storage.getTransporter(bid.transporterId);
+        if (!transporter) {
+          return res.status(400).json({ error: "Transporter account not found. Cannot accept this bid." });
+        }
+        if (transporter.status !== "active") {
+          return res.status(400).json({ error: "This transporter's account is not verified. Cannot accept their bid." });
+        }
+      }
+
       // Update bid status
       const updatedBid = await storage.updateBidStatus(bidId, "accepted");
       
@@ -1571,11 +1583,21 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ error: "This trip has been self-assigned and is not open for bidding." });
       }
       
-      // Check if transporter is verified before allowing bids
+      // Check if transporter is verified (status = active) before allowing bids
       if (!sessionUser.isSuperAdmin && sessionUser.transporterId) {
         const transporter = await storage.getTransporter(sessionUser.transporterId);
-        if (transporter && !transporter.isVerified) {
-          return res.status(403).json({ error: "Your account must be verified before you can place bids. Please complete document verification first." });
+        if (!transporter) {
+          return res.status(403).json({ error: "Transporter account not found." });
+        }
+        if (transporter.status !== "active") {
+          const statusMessages: Record<string, string> = {
+            pending_verification: "Your account is pending document verification. Please upload all required documents.",
+            pending_approval: "Your documents are under review. You'll be notified once approved.",
+            rejected: "Your account verification was rejected. Please check the rejection reason and re-upload documents.",
+            suspended: "Your account has been suspended. Please contact support."
+          };
+          const message = statusMessages[transporter.status || "pending_verification"] || "Your account must be verified before you can place bids.";
+          return res.status(403).json({ error: message });
         }
       }
       
@@ -1833,12 +1855,135 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // POST /api/transporters/:id/approve - Admin only (explicit transporter approval)
+  // IDEMPOTENT: Safe to call multiple times. Returns success if already approved.
+  // STRICT TRANSITIONS: Only allows approval from pending_verification, pending_approval, rejected
+  app.post("/api/transporters/:id/approve", requireAdmin, async (req, res) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const transporter = await storage.getTransporter(req.params.id);
+      if (!transporter) {
+        return res.status(404).json({ error: "Transporter not found" });
+      }
+      
+      // IDEMPOTENT: Already approved - return success (no-op)
+      if (transporter.status === "active") {
+        return res.json({ 
+          success: true, 
+          message: "Transporter is already approved",
+          transporter,
+          noChange: true
+        });
+      }
+      
+      // STRICT TRANSITIONS: Only allow approval from specific states
+      const allowedFromStates = ["pending_verification", "pending_approval", "rejected"];
+      if (!allowedFromStates.includes(transporter.status || "")) {
+        return res.status(400).json({ 
+          error: `Cannot approve transporter with status '${transporter.status}'. Only pending or rejected transporters can be approved.`
+        });
+      }
+      
+      // If approving from rejected status, require explicit confirm flag
+      if (transporter.status === "rejected") {
+        const { confirmFromRejected } = req.body;
+        if (!confirmFromRejected) {
+          return res.status(400).json({ 
+            error: "This transporter was previously rejected. Send confirmFromRejected: true to proceed with approval.",
+            requiresConfirmation: true,
+            previousRejectionReason: transporter.rejectionReason
+          });
+        }
+      }
+      
+      await storage.approveTransporter(req.params.id, sessionUser.id);
+      
+      const updatedTransporter = await storage.getTransporter(req.params.id);
+      
+      res.json({ 
+        success: true, 
+        message: "Transporter approved successfully",
+        transporter: updatedTransporter
+      });
+    } catch (error) {
+      console.error("Failed to approve transporter:", error);
+      res.status(400).json({ error: "Failed to approve transporter" });
+    }
+  });
+
+  // POST /api/transporters/:id/reject - Admin only (reject transporter with reason)
+  // IDEMPOTENT: Safe to call multiple times with same reason. Returns success if already rejected.
+  // STRICT TRANSITIONS: Only allows rejection from pending_verification, pending_approval
+  app.post("/api/transporters/:id/reject", requireAdmin, async (req, res) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const { reason } = req.body;
+      if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+        return res.status(400).json({ error: "Rejection reason is required" });
+      }
+      
+      const transporter = await storage.getTransporter(req.params.id);
+      if (!transporter) {
+        return res.status(404).json({ error: "Transporter not found" });
+      }
+      
+      // IDEMPOTENT: Already rejected with same reason - return success (no-op)
+      if (transporter.status === "rejected") {
+        return res.json({ 
+          success: true, 
+          message: "Transporter is already rejected",
+          transporter,
+          noChange: true
+        });
+      }
+      
+      // STRICT TRANSITIONS: Cannot reject an active/approved transporter without explicit intent
+      if (transporter.status === "active") {
+        const { confirmFromActive } = req.body;
+        if (!confirmFromActive) {
+          return res.status(400).json({ 
+            error: "This transporter is currently active. Send confirmFromActive: true to proceed with rejection.",
+            requiresConfirmation: true
+          });
+        }
+      }
+      
+      // Block rejection from suspended state - use suspend workflow instead
+      if (transporter.status === "suspended") {
+        return res.status(400).json({ 
+          error: "Cannot reject a suspended transporter. Use the unsuspend workflow first."
+        });
+      }
+      
+      await storage.rejectTransporter(req.params.id, sessionUser.id, reason.trim());
+      
+      const updatedTransporter = await storage.getTransporter(req.params.id);
+      
+      res.json({ 
+        success: true, 
+        message: "Transporter rejected",
+        transporter: updatedTransporter
+      });
+    } catch (error) {
+      console.error("Failed to reject transporter:", error);
+      res.status(400).json({ error: "Failed to reject transporter" });
+    }
+  });
+
   // User routes
   // GET /api/users - Admin only (or transporter can see their own users)
   app.get("/api/users", requireAuth, async (req, res) => {
     try {
       const { transporterId, role } = req.query;
-      const user = req.session.user!;
+      const user = getCurrentUser(req)!;
       const isAdmin = user.isSuperAdmin || user.role === "admin";
       
       let users;
@@ -1942,6 +2087,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const completedRides = rides.filter(r => r.status === "completed");
       const activeRides = rides.filter(r => r.status === "active" || r.status === "assigned");
       const pendingRides = rides.filter(r => r.status === "pending");
+      
+      // Transporter verification counts
+      const pendingVerifications = transporters.filter(t => t.status === "pending_verification").length;
+      const pendingApprovals = transporters.filter(t => t.status === "pending_approval").length;
 
       const totalRevenue = completedRides.reduce((sum, ride) => {
         return sum + parseFloat(ride.price || "0");
@@ -1963,6 +2112,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         pendingRides: pendingRides.length,
         totalBids: bids.length,
         totalRevenue,
+        pendingVerifications,
+        pendingApprovals,
         recentRides: recentRides.map(r => ({
           id: r.id,
           pickupLocation: r.pickupLocation,
@@ -1979,7 +2130,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Update user details (admin only)
   app.patch("/api/users/:id", async (req, res) => {
     try {
-      if (!req.session.user?.isSuperAdmin) {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser?.isSuperAdmin) {
         return res.status(403).json({ error: "Only Super Admin can update user details" });
       }
       
@@ -2036,7 +2188,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // PATCH /api/users/:id/online-status - Owner or admin
   app.patch("/api/users/:id/online-status", requireAuth, async (req, res) => {
     try {
-      const user = req.session.user!;
+      const user = getCurrentUser(req)!;
       const isAdmin = user.isSuperAdmin || user.role === "admin";
       
       if (!isAdmin && req.params.id !== user.id) {
@@ -2051,11 +2203,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // Document routes
+  // ===========================================
+  // GLOBAL DOCUMENT ROUTES (INTERNAL ONLY)
+  // ===========================================
+  // These routes are for driver/vehicle/transporter document verification.
+  // Do NOT use these for trip-related documents.
+  // Use /api/trips/:tripId/documents instead for trip documents.
+  // See docs/API_CONTRACT_CANONICAL.md for the canonical API contract.
+
   // GET /api/documents - Auth required, users can only see their own
   app.get("/api/documents", requireAuth, async (req, res) => {
     const { userId, vehicleId, transporterId } = req.query;
     const user = getCurrentUser(req);
+    // Warn if customer tries to use global document API
+    if (user?.role === 'customer') {
+      console.warn('[DEPRECATED] Customer used global document API. Use trip-scoped APIs: /api/trips/:tripId/documents');
+    }
     if (!user) {
       return res.status(401).json({ error: "Authentication required" });
     }
@@ -2114,21 +2277,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
       
-      // Check for duplicate document of same type for this entity
-      let existingDocs: any[] = [];
-      if (data.entityType === "driver" && data.userId) {
-        existingDocs = await storage.getUserDocuments(data.userId);
-      } else if (data.entityType === "vehicle" && data.vehicleId) {
-        existingDocs = await storage.getVehicleDocuments(data.vehicleId);
-      } else if (data.entityType === "transporter" && data.transporterId) {
-        existingDocs = await storage.getTransporterDocuments(data.transporterId);
-      }
+      // AUTOMATIC DOCUMENT REPLACEMENT - Enforce ONE document per type per entity
+      // If a document of the same type exists (not already replaced), automatically replace it
+      const entityId = data.entityType === "driver" ? data.userId :
+                       data.entityType === "vehicle" ? data.vehicleId : data.transporterId;
       
-      const duplicateDoc = existingDocs.find(d => d.type === data.type && d.status !== "rejected");
-      if (duplicateDoc) {
-        return res.status(400).json({ 
-          error: `A ${data.type} document already exists for this ${data.entityType}. Delete the existing one first or wait for it to be processed.` 
-        });
+      if (entityId) {
+        const existingDoc = await storage.findActiveDocumentByType(data.entityType, entityId, data.type);
+        if (existingDoc) {
+          // Mark the existing document as replaced
+          await storage.updateDocumentStatus(existingDoc.id, "replaced" as any, sessionUser.id, null);
+        }
       }
       
       const document = await storage.createDocument(data);
@@ -2175,28 +2334,25 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         transporterId = entityId;
       }
 
-      // Check for duplicate document of same type for this entity (excluding rejected/replaced)
-      // Skip this check if we're replacing a document
-      if (!replaceDocumentId) {
-        let existingDocs: any[] = [];
-        if (entityType === "driver" && userId) {
-          existingDocs = await storage.getUserDocuments(userId);
-        } else if (entityType === "vehicle" && vehicleId) {
-          existingDocs = await storage.getVehicleDocuments(vehicleId);
-        } else if (entityType === "transporter" && transporterId) {
-          existingDocs = await storage.getTransporterDocuments(transporterId);
-        }
+      // AUTOMATIC DOCUMENT REPLACEMENT - Enforce ONE document per type per entity
+      // If a document of the same type exists (not already replaced), automatically replace it
+      let autoReplaceDocumentId: string | undefined = replaceDocumentId;
+      
+      if (!autoReplaceDocumentId) {
+        // Find existing active document of same type for this entity
+        const existingEntityId = entityType === "driver" ? userId :
+                                  entityType === "vehicle" ? vehicleId : transporterId;
         
-        const duplicateDoc = existingDocs.find(d => d.type === type && d.status !== "rejected" && d.status !== "replaced");
-        if (duplicateDoc) {
-          const statusMessage = duplicateDoc.status === "pending" 
-            ? "This document type is under review. Cannot upload duplicate."
-            : "This document type is already verified.";
-          return res.status(400).json({ error: statusMessage });
+        if (existingEntityId) {
+          const existingDoc = await storage.findActiveDocumentByType(entityType, existingEntityId, type);
+          if (existingDoc) {
+            // Automatically set this document to be replaced
+            autoReplaceDocumentId = existingDoc.id;
+          }
         }
       } else {
-        // Validate replaceDocumentId - ensure it exists and belongs to the same entity
-        const existingDoc = await storage.getDocumentById(replaceDocumentId);
+        // Validate explicit replaceDocumentId - ensure it exists and belongs to the same entity
+        const existingDoc = await storage.getDocumentById(autoReplaceDocumentId);
         if (!existingDoc) {
           return res.status(404).json({ error: "Document to replace not found" });
         }
@@ -2209,11 +2365,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         
         if (!ownsDocument) {
           return res.status(403).json({ error: "Not authorized to replace this document" });
-        }
-        
-        // Verify the document is rejected (can only replace rejected documents)
-        if (existingDoc.status !== "rejected") {
-          return res.status(400).json({ error: "Can only replace rejected documents" });
         }
         
         // Verify the document type matches
@@ -2273,9 +2424,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(503).json({ error: "No storage configured" });
       }
 
-      // If replacing, mark the old document as "replaced"
-      if (replaceDocumentId) {
-        await storage.updateDocumentStatus(replaceDocumentId, "replaced" as any, null);
+      // If replacing (either explicitly or automatically), mark the old document as "replaced"
+      if (autoReplaceDocumentId) {
+        await storage.updateDocumentStatus(autoReplaceDocumentId, "replaced" as any, sessionUser.id, null);
       }
 
       // Create document record
@@ -2302,6 +2453,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // PATCH /api/documents/:id/status - Admin only (to verify/reject documents)
   app.patch("/api/documents/:id/status", protectedLimiter, requireAdmin, async (req, res) => {
     try {
+      const adminUser = getCurrentUser(req);
+      if (!adminUser) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
       const { status, rejectionReason } = req.body;
       
       if (status === "rejected" && !rejectionReason) {
@@ -2310,10 +2466,264 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       
       // Clear rejection reason when approving
       const reason = status === "verified" ? null : rejectionReason;
-      await storage.updateDocumentStatus(req.params.id, status, reason);
+      await storage.updateDocumentStatus(req.params.id, status, adminUser.id, reason);
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ error: "Failed to update document status" });
+    }
+  });
+
+  // ===========================================
+  // TRIP-SCOPED DOCUMENT APIs
+  // ===========================================
+
+  // Helper to check trip access for documents
+  const checkTripDocumentAccess = async (tripId: string, user: any): Promise<{ ride: Ride | undefined; hasAccess: boolean; error?: string }> => {
+    const ride = await storage.getRide(tripId);
+    if (!ride) {
+      return { ride: undefined, hasAccess: false, error: "Trip not found" };
+    }
+
+    // Admin has full access
+    if (user.isSuperAdmin || user.role === "admin") {
+      return { ride, hasAccess: true };
+    }
+
+    // Customer can access their own trips
+    if (user.role === "customer" && ride.createdById === user.id) {
+      return { ride, hasAccess: true };
+    }
+
+    // Transporter can access assigned trips
+    if (user.role === "transporter" && user.transporterId && ride.transporterId === user.transporterId) {
+      return { ride, hasAccess: true };
+    }
+
+    // Driver can access their assigned trips
+    if (user.role === "driver" && ride.assignedDriverId === user.id) {
+      return { ride, hasAccess: true };
+    }
+
+    return { ride, hasAccess: false, error: "Access denied to this trip" };
+  };
+
+  // GET /api/trips/:tripId/documents - List documents for a trip
+  app.get("/api/trips/:tripId/documents", requireAuth, async (req, res) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { tripId } = req.params;
+      const { hasAccess, error } = await checkTripDocumentAccess(tripId, sessionUser);
+
+      if (!hasAccess) {
+        return res.status(error === "Trip not found" ? 404 : 403).json({ error });
+      }
+
+      const documents = await storage.getTripDocuments(tripId);
+      res.json(documents);
+    } catch (error) {
+      console.error("Failed to get trip documents:", error);
+      res.status(500).json({ error: "Failed to get trip documents" });
+    }
+  });
+
+  // POST /api/trips/:tripId/documents/upload-url - Get upload URL for trip document
+  app.post("/api/trips/:tripId/documents/upload-url", requireAuth, uploadLimiter, async (req, res) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { tripId } = req.params;
+      const { hasAccess, ride, error } = await checkTripDocumentAccess(tripId, sessionUser);
+
+      if (!hasAccess) {
+        return res.status(error === "Trip not found" ? 404 : 403).json({ error });
+      }
+
+      const { fileName, contentType } = req.body;
+      if (!fileName) {
+        return res.status(400).json({ error: "fileName is required" });
+      }
+
+      // Check if running on Replit
+      const isReplit = process.env.REPL_ID !== undefined;
+      
+      if (isReplit) {
+        // Use Replit Object Storage
+        const objectStorageService = new ObjectStorageService();
+        const { uploadURL, objectPath } = await objectStorageService.getObjectEntityUploadURL(fileName);
+        res.json({ uploadURL, objectPath, storageType: "replit" });
+      } else {
+        // Use DigitalOcean Spaces - return info about how to upload
+        const spacesStorage = getSpacesStorage();
+        if (!spacesStorage) {
+          return res.status(503).json({ error: "Storage not configured" });
+        }
+
+        // Build the storage path for trip documents
+        const storagePath = getDocumentStoragePath({
+          entityType: "trip",
+          rideId: tripId,
+          transporterId: ride?.transporterId || undefined,
+        });
+
+        res.json({ 
+          useSpacesApi: true, 
+          storagePath,
+          message: "Use POST /api/spaces/upload with this storagePath",
+          storageType: "spaces"
+        });
+      }
+    } catch (error) {
+      console.error("Failed to get upload URL:", error);
+      res.status(500).json({ error: "Failed to get upload URL" });
+    }
+  });
+
+  // POST /api/trips/:tripId/documents - Create document record for trip
+  app.post("/api/trips/:tripId/documents", requireAuth, uploadLimiter, async (req, res) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { tripId } = req.params;
+      const { hasAccess, ride, error } = await checkTripDocumentAccess(tripId, sessionUser);
+
+      if (!hasAccess) {
+        return res.status(error === "Trip not found" ? 404 : 403).json({ error });
+      }
+
+      const { type, url, storagePath, documentName, expiryDate } = req.body;
+
+      if (!type || !url || !documentName) {
+        return res.status(400).json({ error: "type, url, and documentName are required" });
+      }
+
+      // Determine IDs based on who is uploading
+      let customerId: string | undefined;
+      let transporterId: string | undefined;
+
+      if (sessionUser.role === "customer") {
+        customerId = sessionUser.id;
+      } else if (sessionUser.transporterId) {
+        transporterId = sessionUser.transporterId;
+      }
+
+      const document = await storage.createDocument({
+        type,
+        url,
+        storagePath,
+        documentName,
+        expiryDate,
+        entityType: "trip",
+        rideId: tripId,
+        userId: sessionUser.id,
+        customerId,
+        transporterId: transporterId || ride?.transporterId,
+        status: "pending",
+      });
+
+      res.status(201).json(document);
+    } catch (error) {
+      console.error("Failed to create trip document:", error);
+      res.status(500).json({ error: "Failed to create trip document" });
+    }
+  });
+
+  // DELETE /api/trips/:tripId/documents/:documentId - Soft delete trip document
+  app.delete("/api/trips/:tripId/documents/:documentId", requireAuth, async (req, res) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      if (!sessionUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { tripId, documentId } = req.params;
+      const { hasAccess, error } = await checkTripDocumentAccess(tripId, sessionUser);
+
+      if (!hasAccess) {
+        return res.status(error === "Trip not found" ? 404 : 403).json({ error });
+      }
+
+      // Get the document and verify it belongs to this trip
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      if (document.rideId !== tripId) {
+        return res.status(403).json({ error: "Document does not belong to this trip" });
+      }
+
+      // Only allow deletion if user uploaded it or is admin
+      const isAdmin = sessionUser.isSuperAdmin || sessionUser.role === "admin";
+      const isOwner = document.userId === sessionUser.id;
+
+      if (!isAdmin && !isOwner) {
+        return res.status(403).json({ error: "You can only delete your own documents" });
+      }
+
+      // Soft delete - preserve history
+      await storage.softDeleteDocument(documentId, sessionUser.id);
+
+      res.json({ success: true, message: "Document deleted" });
+    } catch (error) {
+      console.error("Failed to delete trip document:", error);
+      res.status(500).json({ error: "Failed to delete trip document" });
+    }
+  });
+
+  // PATCH /api/trips/:tripId/documents/:documentId/status - Admin verify/reject trip document
+  app.patch("/api/trips/:tripId/documents/:documentId/status", requireAdmin, protectedLimiter, async (req, res) => {
+    try {
+      const adminUser = getCurrentUser(req);
+      if (!adminUser) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { tripId, documentId } = req.params;
+      const { status, rejectionReason } = req.body;
+
+      // Verify trip exists
+      const ride = await storage.getRide(tripId);
+      if (!ride) {
+        return res.status(404).json({ error: "Trip not found" });
+      }
+
+      // Get the document and verify it belongs to this trip
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      if (document.rideId !== tripId) {
+        return res.status(403).json({ error: "Document does not belong to this trip" });
+      }
+
+      // Validate status
+      const validStatuses = ["verified", "pending", "rejected"];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` });
+      }
+
+      if (status === "rejected" && !rejectionReason) {
+        return res.status(400).json({ error: "Rejection reason is required" });
+      }
+
+      const reason = status === "verified" ? null : rejectionReason;
+      await storage.updateDocumentStatus(documentId, status, adminUser.id, reason);
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Failed to update trip document status:", error);
+      res.status(500).json({ error: "Failed to update document status" });
     }
   });
 
@@ -2351,10 +2761,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Serve uploaded files (authenticated users with ACL access)
   // Note: This route only works on Replit. For DigitalOcean, use /api/spaces/download/:key instead
-  app.get("/objects/:objectPath(*)", async (req, res) => {
-    if (!req.session?.user?.id) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
+  app.get("/objects/:objectPath(*)", requireAuth, async (req, res) => {
+    const user = getCurrentUser(req)!;
     
     // Check if running on Replit - ObjectStorageService only works there
     const isReplit = process.env.REPL_ID !== undefined;
@@ -2370,12 +2778,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
       
       // Super admins can access all documents
-      if (req.session.user.isSuperAdmin || req.session.user.role === "admin") {
+      if (user.isSuperAdmin || user.role === "admin") {
         return objectStorageService.downloadObject(objectFile, res);
       }
       
       // Check if user has permission to access this file
-      const userId = req.session.user.transporterId || req.session.user.id;
+      const userId = user.transporterId || user.id;
       const canAccess = await objectStorageService.canAccessObjectEntity({
         objectFile,
         userId,
@@ -2398,10 +2806,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Confirm file upload and set ACL (requires authentication)
   // Note: This route only works on Replit. For DigitalOcean, Spaces uploads don't need confirmation
-  app.post("/api/objects/confirm", async (req, res) => {
-    if (!req.session?.user?.id) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
+  app.post("/api/objects/confirm", requireAuth, async (req, res) => {
+    const user = getCurrentUser(req)!;
     
     // Check if running on Replit - ObjectStorageService only works there
     const isReplit = process.env.REPL_ID !== undefined;
@@ -2420,7 +2826,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       // Use session user's transporterId if available, otherwise their userId
-      const ownerId = req.session.user.transporterId || req.session.user.id;
+      const ownerId = user.transporterId || user.id;
       
       const objectStorageService = new ObjectStorageService();
       const normalizedPath = await objectStorageService.trySetObjectEntityAclPolicy(
@@ -2797,6 +3203,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       
       if (!isSuperAdmin && !isRideOwner) {
         return res.status(403).json({ error: "Only the ride owner or admin can accept bids" });
+      }
+      
+      // Verify transporter is still active/verified before accepting their bid
+      if (bid.transporterId) {
+        const transporter = await storage.getTransporter(bid.transporterId);
+        if (!transporter) {
+          return res.status(400).json({ error: "Transporter account not found. Cannot accept this bid." });
+        }
+        if (transporter.status !== "active") {
+          return res.status(400).json({ error: "This transporter's account is not verified. Cannot accept their bid." });
+        }
       }
       
       // Update bid status to accepted
