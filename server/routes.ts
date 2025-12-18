@@ -2337,7 +2337,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       // If replacing, mark the old document as "replaced"
       if (replaceDocumentId) {
-        await storage.updateDocumentStatus(replaceDocumentId, "replaced" as any, null);
+        await storage.updateDocumentStatus(replaceDocumentId, "replaced" as any, sessionUser.id, null);
       }
 
       // Create document record
@@ -2364,6 +2364,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // PATCH /api/documents/:id/status - Admin only (to verify/reject documents)
   app.patch("/api/documents/:id/status", protectedLimiter, requireAdmin, async (req, res) => {
     try {
+      const adminUser = getCurrentUser(req);
+      if (!adminUser) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
       const { status, rejectionReason } = req.body;
       
       if (status === "rejected" && !rejectionReason) {
@@ -2372,7 +2377,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       
       // Clear rejection reason when approving
       const reason = status === "verified" ? null : rejectionReason;
-      await storage.updateDocumentStatus(req.params.id, status, reason);
+      await storage.updateDocumentStatus(req.params.id, status, adminUser.id, reason);
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ error: "Failed to update document status" });

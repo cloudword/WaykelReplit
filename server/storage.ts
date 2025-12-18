@@ -100,7 +100,7 @@ export interface IStorage {
   getVehicleDocuments(vehicleId: string): Promise<Document[]>;
   getAllDocuments(): Promise<Document[]>;
   createDocument(document: InsertDocument): Promise<Document>;
-  updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced", rejectionReason?: string | null): Promise<void>;
+  updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced", reviewedById?: string | null, rejectionReason?: string | null): Promise<void>;
   
   // Notifications
   createNotification(notification: InsertNotification): Promise<Notification>;
@@ -416,9 +416,11 @@ export class DatabaseStorage implements IStorage {
     return document;
   }
 
-  async updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced", rejectionReason?: string | null): Promise<void> {
+  async updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced", reviewedById?: string | null, rejectionReason?: string | null): Promise<void> {
     await db.update(documents).set({ 
       status,
+      reviewedBy: reviewedById ?? null,
+      reviewedAt: new Date(),
       rejectionReason: rejectionReason ?? null
     }).where(eq(documents.id, id));
   }

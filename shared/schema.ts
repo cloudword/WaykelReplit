@@ -188,6 +188,8 @@ export const documents = pgTable("documents", {
   expiryDate: text("expiry_date"),
   status: text("status").notNull().$type<"verified" | "pending" | "expired" | "rejected" | "replaced">().default("pending"),
   rejectionReason: text("rejection_reason"),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
   replacedById: varchar("replaced_by_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
