@@ -37,6 +37,7 @@ export const users = pgTable("users", {
   earningsToday: decimal("earnings_today", { precision: 10, scale: 2 }).default("0"),
   documentsComplete: boolean("documents_complete").default(false),
   profileComplete: boolean("profile_complete").default(false),
+  isSelfDriver: boolean("is_self_driver").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
