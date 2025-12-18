@@ -46,6 +46,7 @@ import TransporterDocuments from "@/pages/transporter/documents";
 import TransporterPostTrip from "@/pages/transporter/post-trip";
 import TransporterAddresses from "@/pages/transporter/addresses";
 import TransporterAnalytics from "@/pages/transporter/analytics";
+import TransporterSettings from "@/pages/transporter/settings";
 
 import CustomerDashboard from "@/pages/customer/dashboard";
 import CustomerRides from "@/pages/customer/rides";
@@ -80,6 +81,7 @@ function Router() {
       <Route path="/transporter/post-trip" component={TransporterPostTrip} />
       <Route path="/transporter/addresses" component={TransporterAddresses} />
       <Route path="/transporter/analytics" component={TransporterAnalytics} />
+      <Route path="/transporter/settings" component={TransporterSettings} />
 
       {/* Customer/Rider App Routes */}
       <Route path="/customer/auth" component={CustomerAuthPage} />

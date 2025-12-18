@@ -743,18 +743,45 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Update session with new isSelfDriver value if changed
-      if (updates.isSelfDriver !== undefined && req.session?.user) {
-        req.session.user.isSelfDriver = updates.isSelfDriver;
-        req.session.save((err) => {
-          if (err) console.error("Session save error:", err);
-        });
-      }
-
       console.log(`[Self-Driver] User ${currentUser.id} updated isSelfDriver to ${updates.isSelfDriver}`);
 
+      // Update session with new isSelfDriver value if changed
+      if (req.session?.user) {
+        req.session.user = {
+          id: updatedUser.id,
+          role: updatedUser.role,
+          isSuperAdmin: updatedUser.isSuperAdmin || false,
+          isSelfDriver: updatedUser.isSelfDriver || false,
+          transporterId: updatedUser.transporterId || undefined,
+        };
+      }
+
       const { password: _, ...userWithoutPassword } = updatedUser;
-      res.json({ success: true, user: userWithoutPassword });
+
+      // Generate fresh JWT token with updated isSelfDriver
+      const tokenPayload = {
+        id: updatedUser.id,
+        role: updatedUser.role,
+        isSuperAdmin: updatedUser.isSuperAdmin || false,
+        isSelfDriver: updatedUser.isSelfDriver || false,
+        transporterId: updatedUser.transporterId || undefined,
+      };
+      const expiresIn = (updatedUser.role === "admin" || updatedUser.role === "transporter") 
+        ? JWT_ADMIN_EXPIRES_IN 
+        : JWT_CUSTOMER_EXPIRES_IN;
+      const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn });
+
+      // Save session and respond
+      req.session.save((err) => {
+        if (err) console.error("Session save error:", err);
+        res.json({ 
+          success: true, 
+          user: userWithoutPassword,
+          token,
+          tokenType: "Bearer",
+          expiresIn
+        });
+      });
     } catch (error) {
       console.error("Profile update error:", error);
       res.status(400).json({ error: "Failed to update profile" });

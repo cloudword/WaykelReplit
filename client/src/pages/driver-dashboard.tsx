@@ -23,6 +23,10 @@ export default function DriverDashboard() {
   });
   const [loading, setLoading] = useState(true);
 
+  // Self-driver check: transporter with isSelfDriver=true can access driver app
+  const isSelfDriver = user?.role === "transporter" && user?.isSelfDriver === true;
+  const canAccessDriverApp = user?.role === "driver" || isSelfDriver;
+
   useEffect(() => {
     const loadRides = async () => {
       try {
@@ -77,12 +81,20 @@ export default function DriverDashboard() {
     return null;
   }
 
+  // Redirect if user cannot access driver app
+  if (!canAccessDriverApp) {
+    setLocation("/auth/login");
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       <header className="bg-white px-4 py-4 flex justify-between items-center sticky top-0 z-10 shadow-sm">
         <div>
           <h1 className="text-xl font-bold text-primary">Waykel</h1>
-          <p className="text-xs text-muted-foreground">Welcome, {user.name}</p>
+          <p className="text-xs text-muted-foreground">
+            {isSelfDriver ? "Driver Mode (Self-Driven)" : `Welcome, ${user.name}`}
+          </p>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-full">
