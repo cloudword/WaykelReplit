@@ -1,0 +1,204 @@
+✅ FIRST: Is your current implementation technically correct?
+
+Yes.
+What you’ve implemented is valid and commonly used in production SPAs:
+
+JWT with 24h expiry
+
+Client-side expiry check
+
+Client-side inactivity logout
+
+Session persistence via localStorage
+
+Auto-logout on browser reopen if expired
+
+This already fixes your current bug:
+
+“User never logs out even after browser is killed”
+
+So from a functional standpoint: ✅ correct
+
+⚠️ SECOND: Is it ideal from a security & UX standpoint?
+
+Not quite yet — and that’s normal.
+There are two different concepts that need to be cleanly separated:
+
+Concept	Purpose
+JWT expiry	Security boundary
+Session / inactivity timeout	UX & risk control
+
+Right now, your system leans too heavily on JWT expiry alone.
+
+🔐 BEST PRACTICE (INDUSTRY STANDARD)
+1️⃣ JWT expiry should be SHORTER
+
+24 hours is long for a customer-facing app.
+
+Recommended for Waykel (customer portal):
+
+Access token (JWT): 15–60 minutes
+
+Session inactivity timeout: 30–120 minutes
+
+Optional refresh token: longer (7–30 days)
+
+Why?
+
+If a token is stolen → attacker gets full access until expiry
+
+Mobile & public devices increase risk
+
+Logistics apps deal with location & identity
+
+2️⃣ Client-side inactivity logout is GOOD
+
+You did the right thing here 👍
+
+This protects against:
+
+Shared laptops
+
+Browser crashes
+
+Users forgetting to log out
+
+Your approach:
+
+Track activity
+
+Periodic validation
+
+Logout if inactive
+
+✅ This is correct
+⚠️ But it does NOT replace server-side expiry
+
+❌ WHAT YOU SHOULD NOT RELY ON
+
+❌ “Browser close = logout”
+(Browsers don’t guarantee unload events)
+
+❌ Only frontend logic for auth validity
+
+❌ Long-lived JWTs with no server validation
+
+✅ RECOMMENDED WAYKEL AUTH MODEL (PRACTICAL)
+
+Here’s what I would recommend without overengineering.
+
+🔹 TOKEN STRATEGY
+
+Backend
+
+jwt.sign(payload, JWT_SECRET, {
+  expiresIn: "30m"   // 👈 access token
+});
+
+
+Frontend
+
+Parse JWT expiry
+
+Auto-logout if expired
+
+Optional silent refresh (later)
+
+🔹 SESSION STRATEGY (Frontend)
+
+Your current logic is good. I’d slightly tune it:
+
+ACCESS_TOKEN_EXPIRY = from JWT
+INACTIVITY_TIMEOUT = 60–120 minutes
+CHECK_INTERVAL = 1 minute
+
+
+Logout if:
+
+token expired OR
+
+inactive too long
+
+🔹 LOGOUT BEHAVIOR (IMPORTANT)
+
+On logout:
+
+localStorage.removeItem("token");
+localStorage.removeItem("user");
+clearTimers();
+redirectToLogin();
+
+
+Also call backend (optional but good):
+
+POST /api/customer/logout
+
+
+Even if backend is stateless, this:
+
+helps auditing
+
+allows future token blacklisting
+
+🧠 WHY YOUR CURRENT BEHAVIOR FELT “WRONG”
+
+“User never gets logged out even if browser is killed”
+
+Because:
+
+JWT is valid for 24h
+
+Token is stored in localStorage
+
+Browser reopening restores it
+
+No expiry check was done earlier
+
+Now that you:
+
+parse JWT
+
+enforce inactivity
+
+check on load
+
+👉 That behavior is fixed.
+
+🔒 SECURITY VS UX BALANCE (WAYKEL-SPECIFIC)
+Customer Portal (waykel.com)
+
+Access token: 30–60 min
+
+Inactivity logout: 1–2 hours
+
+Remember me: optional later
+
+Admin / Transporter Portal
+
+Access token: 15–30 min
+
+Inactivity logout: 15–30 min
+
+Stronger enforcement
+
+🟢 WHAT I’D DO NEXT (IN ORDER)
+
+You’re in a good state now. I’d recommend:
+
+1️⃣ Reduce JWT expiry on backend
+2️⃣ Keep your inactivity logic
+3️⃣ Add explicit logout endpoint
+4️⃣ (Optional) Add refresh token later
+5️⃣ Add a small UI hint:
+
+“You were logged out due to inactivity”
+
+✅ ANSWER TO YOUR DIRECT QUESTION
+
+“Is this correct or should JWT/session have less expiry?”
+
+Answer:
+✔ Your implementation is correct
+⚠️ JWT expiry should be shorter
+✔ Inactivity logout is the right approach
+❌ Don’t rely on JWT alone for UX

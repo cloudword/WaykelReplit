@@ -22,7 +22,9 @@ import {
 
 // JWT Configuration
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "waykel-jwt-secret-change-in-production";
-const JWT_EXPIRES_IN = "24h";
+const JWT_CUSTOMER_EXPIRES_IN = "1h";      // Customer portal: 1 hour
+const JWT_ADMIN_EXPIRES_IN = "30m";        // Admin/Transporter: 30 minutes
+const JWT_EXPIRES_IN = JWT_CUSTOMER_EXPIRES_IN; // Default for backward compatibility
 
 // Sanitize request body to remove sensitive data before logging
 const sanitizeRequestBody = (body: any): any => {
@@ -367,13 +369,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           isSuperAdmin: user.isSuperAdmin || false,
           transporterId: user.transporterId || undefined,
         };
-        const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+        // Use role-based expiry
+        const expiresIn = (user.role === "admin" || user.role === "transporter") 
+          ? JWT_ADMIN_EXPIRES_IN 
+          : JWT_CUSTOMER_EXPIRES_IN;
+        const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn });
         
         return res.json({
           ...userWithoutPassword,
           token,
           tokenType: "Bearer",
-          expiresIn: JWT_EXPIRES_IN
+          expiresIn
         });
       }
       
@@ -483,7 +489,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
 
-      // Generate JWT token
+      // Generate JWT token with role-based expiry
       const tokenPayload = {
         id: user.id,
         role: user.role,
@@ -491,12 +497,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         transporterId: user.transporterId || undefined,
       };
 
-      const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+      // Use shorter expiry for admin/transporter users
+      const expiresIn = (user.role === "admin" || user.role === "transporter") 
+        ? JWT_ADMIN_EXPIRES_IN 
+        : JWT_CUSTOMER_EXPIRES_IN;
+      const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn });
       
       const { password: _, ...userWithoutPassword } = user;
       res.json({
         token,
-        expiresIn: JWT_EXPIRES_IN,
+        expiresIn,
         tokenType: "Bearer",
         user: userWithoutPassword
       });
@@ -526,11 +536,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         transporterId: freshUser.transporterId || undefined,
       };
 
-      const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+      // Use role-based expiry for token refresh
+      const expiresIn = (freshUser.role === "admin" || freshUser.role === "transporter") 
+        ? JWT_ADMIN_EXPIRES_IN 
+        : JWT_CUSTOMER_EXPIRES_IN;
+      const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn });
       
       res.json({
         token,
-        expiresIn: JWT_EXPIRES_IN,
+        expiresIn,
         tokenType: "Bearer"
       });
     } catch (error) {
@@ -670,7 +684,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           role: user.role,
           isSuperAdmin: false,
         };
-        token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+        token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_CUSTOMER_EXPIRES_IN });
       } catch (jwtError: any) {
         console.error("Customer registration JWT error:", jwtError?.message);
         return res.status(500).json({ error: "Registration succeeded but token generation failed. Please login." });
@@ -680,7 +694,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         success: true,
         token,
         tokenType: "Bearer",
-        expiresIn: JWT_EXPIRES_IN,
+        expiresIn: JWT_CUSTOMER_EXPIRES_IN,
         user: userWithoutPassword,
       });
     } catch (error: any) {
@@ -727,13 +741,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         role: user.role,
         isSuperAdmin: user.isSuperAdmin || false,
       };
-      const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+      const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_CUSTOMER_EXPIRES_IN });
 
       res.json({
         success: true,
         token,
         tokenType: "Bearer",
-        expiresIn: JWT_EXPIRES_IN,
+        expiresIn: JWT_CUSTOMER_EXPIRES_IN,
         user: userWithoutPassword,
       });
     } catch (error) {
