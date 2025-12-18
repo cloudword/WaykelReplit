@@ -689,6 +689,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           id: user.id,
           role: user.role,
           isSuperAdmin: false,
+          isSelfDriver: user.isSelfDriver || false,
         };
         token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_CUSTOMER_EXPIRES_IN });
       } catch (jwtError: any) {
@@ -746,6 +747,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         id: user.id,
         role: user.role,
         isSuperAdmin: user.isSuperAdmin || false,
+        isSelfDriver: user.isSelfDriver || false,
       };
       const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_CUSTOMER_EXPIRES_IN });
 
