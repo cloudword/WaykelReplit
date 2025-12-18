@@ -37,6 +37,12 @@ The Waykel platform is built with a mobile-first, role-based approach, ensuring 
 -   **Schema Design**: A single `users` table differentiates roles. Other core tables include `transporters`, `vehicles`, `rides` (for load requests), `bids`, and `documents`.
 -   **Key Decisions**: UUIDs are used for primary keys, and a bid-based system manages ride assignments.
 
+**Documents:**
+-   **Trip-Scoped**: All documents are trip-scoped. Do NOT introduce customer-level document APIs.
+-   **Canonical API**: Use `/api/trips/:tripId/documents` for all trip document operations.
+-   **Global APIs**: The `/api/documents` routes are INTERNAL ONLY for driver/vehicle/transporter verification during onboarding.
+-   **API Contract**: See `docs/API_CONTRACT_CANONICAL.md` for the canonical document API contract.
+
 **Real-time Features**:
 -   The architecture includes provisions for WebSockets to support future real-time functionalities like driver location tracking, live ride status updates, and notifications.
 

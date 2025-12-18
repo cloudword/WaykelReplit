@@ -2203,11 +2203,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // Document routes
+  // ===========================================
+  // GLOBAL DOCUMENT ROUTES (INTERNAL ONLY)
+  // ===========================================
+  // These routes are for driver/vehicle/transporter document verification.
+  // Do NOT use these for trip-related documents.
+  // Use /api/trips/:tripId/documents instead for trip documents.
+  // See docs/API_CONTRACT_CANONICAL.md for the canonical API contract.
+
   // GET /api/documents - Auth required, users can only see their own
   app.get("/api/documents", requireAuth, async (req, res) => {
     const { userId, vehicleId, transporterId } = req.query;
     const user = getCurrentUser(req);
+    // Warn if customer tries to use global document API
+    if (user?.role === 'customer') {
+      console.warn('[DEPRECATED] Customer used global document API. Use trip-scoped APIs: /api/trips/:tripId/documents');
+    }
     if (!user) {
       return res.status(401).json({ error: "Authentication required" });
     }
