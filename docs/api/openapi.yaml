@@ -41,17 +41,17 @@ tags:
   - name: Customer
     description: Customer operations
   - name: Rides
-    description: Ride/Trip management
+    description: Ride/Trip management and lifecycle
   - name: Bids
-    description: Bid management
+    description: Bid management and acceptance
   - name: Transporters
-    description: Transporter management
+    description: Transporter management and verification
   - name: Vehicles
     description: Vehicle management
   - name: Users
-    description: User management
+    description: User management and driver applications
   - name: Documents
-    description: Document upload and verification
+    description: Document upload, verification, and trip documents
   - name: Notifications
     description: Notification system
   - name: Admin
@@ -59,7 +59,7 @@ tags:
   - name: Roles
     description: Role and permission management
   - name: Storage
-    description: File storage operations
+    description: File storage (Objects, Spaces, Admin storage)
 
 components:
   securitySchemes:
@@ -1986,3 +1986,562 @@ paths:
       responses:
         '200':
           description: Address deleted
+
+  # =====================
+  # DRIVER APPLICATIONS
+  # =====================
+  /api/driver-applications:
+    get:
+      tags: [Users]
+      summary: Get driver applications (Admin/Transporter)
+      description: Admin sees all, Transporter sees their own fleet applications
+      x-roles: [admin, transporter]
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of driver applications
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Users]
+      summary: Create driver application
+      description: User applies to become a driver
+      x-roles: [authenticated]
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [licenseNumber]
+              properties:
+                licenseNumber:
+                  type: string
+                transporterId:
+                  type: string
+                  description: Optional - apply to specific transporter
+      responses:
+        '200':
+          description: Application created
+
+  /api/driver-applications/{id}:
+    get:
+      tags: [Users]
+      summary: Get driver application by ID
+      x-roles: [admin, transporter, owner]
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Application details
+    patch:
+      tags: [Users]
+      summary: Update driver application
+      x-roles: [admin, transporter]
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected]
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Application updated
+
+  /api/driver-applications/{id}/withdraw:
+    post:
+      tags: [Users]
+      summary: Withdraw driver application
+      x-roles: [owner]
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Application withdrawn
+
+  /api/my-driver-application:
+    get:
+      tags: [Users]
+      summary: Get current user's driver application
+      x-roles: [authenticated]
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User's application status
+
+  # =====================
+  # RIDE LIFECYCLE (Advanced)
+  # =====================
+  /api/rides/{id}/start:
+    patch:
+      tags: [Rides]
+      summary: Start ride (Driver)
+      description: Driver starts the trip, status becomes in_transit
+      x-roles: [driver, admin]
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ride started
+
+  /api/rides/{id}/accept:
+    post:
+      tags: [Rides]
+      summary: Accept ride (Driver)
+      description: Driver accepts assigned ride
+      x-roles: [driver]
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ride accepted
+
+  /api/rides/{id}/complete:
+    patch:
+      tags: [Rides]
+      summary: Complete ride
+      description: Mark ride as fully completed
+      x-roles: [driver, admin]
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ride completed
+
+  /api/rides/{rideId}/cheapest-bids:
+    get:
+      tags: [Bids]
+      summary: Get cheapest bids for ride
+      description: Returns top 3 lowest bids for a ride
+      x-roles: [admin, customer]
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: rideId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 3
+      responses:
+        '200':
+          description: List of cheapest bids
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Bid'
+
+  /api/rides/{rideId}/matches:
+    get:
+      tags: [Rides]
+      summary: Get matching transporters
+      description: Find transporters matching ride requirements
+      x-roles: [admin]
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: rideId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Matching transporters
+
+  /api/rides/{rideId}/notify-transporters:
+    post:
+      tags: [Rides]
+      summary: Notify matching transporters
+      description: Send notifications to transporters about new ride
+      x-roles: [admin]
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: rideId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Notifications sent
+
+  # =====================
+  # TRANSPORTER VERIFICATION
+  # =====================
+  /api/transporters/{id}/status:
+    patch:
+      tags: [Transporters]
+      summary: Update transporter status (Admin)
+      x-roles: [admin]
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [pending_verification, pending_approval, active, rejected, suspended]
+      responses:
+        '200':
+          description: Status updated
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/transporters/{id}/verify:
+    post:
+      tags: [Transporters]
+      summary: Verify transporter documents (Admin)
+      description: Mark transporter documents as verified
+      x-roles: [admin]
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transporter verified
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # =====================
+  # OBJECT STORAGE
+  # =====================
+  /api/objects/upload:
+    post:
+      tags: [Storage]
+      summary: Get presigned upload URL
+      description: Get a presigned URL for uploading objects
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename, contentType]
+              properties:
+                filename:
+                  type: string
+                contentType:
+                  type: string
+                  example: "image/jpeg"
+      responses:
+        '200':
+          description: Presigned URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploadUrl:
+                    type: string
+                  key:
+                    type: string
+
+  /api/objects/confirm:
+    post:
+      tags: [Storage]
+      summary: Confirm object upload
+      description: Confirm that an object was successfully uploaded
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key]
+              properties:
+                key:
+                  type: string
+      responses:
+        '200':
+          description: Upload confirmed
+
+  # =====================
+  # SPACES STORAGE
+  # =====================
+  /api/spaces/upload:
+    post:
+      tags: [Storage]
+      summary: Get Spaces upload URL
+      description: Get presigned URL for DigitalOcean Spaces upload
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename, contentType]
+              properties:
+                filename:
+                  type: string
+                contentType:
+                  type: string
+                folder:
+                  type: string
+      responses:
+        '200':
+          description: Presigned upload URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploadUrl:
+                    type: string
+                  key:
+                    type: string
+                  expiresIn:
+                    type: integer
+
+  /api/spaces/download/{key}:
+    get:
+      tags: [Storage]
+      summary: Download file from Spaces
+      description: Get file content or redirect to signed URL
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+          description: File key (path in storage)
+      responses:
+        '200':
+          description: File content or redirect
+
+  /api/spaces/signed-url:
+    post:
+      tags: [Storage]
+      summary: Get signed download URL
+      description: Get a time-limited signed URL for file download
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key]
+              properties:
+                key:
+                  type: string
+                expiresIn:
+                  type: integer
+                  description: Expiration in seconds (default 3600)
+      responses:
+        '200':
+          description: Signed URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                  expiresIn:
+                    type: integer
+
+  # =====================
+  # TRIP DOCUMENTS (Upload URL)
+  # =====================
+  /api/trips/{tripId}/documents/upload-url:
+    post:
+      tags: [Documents]
+      summary: Get upload URL for trip document
+      description: Get presigned URL to upload a document for a trip
+      x-roles: [driver, transporter, admin]
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [documentType, filename, contentType]
+              properties:
+                documentType:
+                  type: string
+                  enum: [POD, INVOICE, EWAY_BILL, WEIGHT_SLIP, OTHER]
+                filename:
+                  type: string
+                contentType:
+                  type: string
+      responses:
+        '200':
+          description: Upload URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploadUrl:
+                    type: string
+                  key:
+                    type: string
+
+  /api/trips/{tripId}/documents/{documentId}:
+    delete:
+      tags: [Documents]
+      summary: Delete trip document
+      x-roles: [driver, transporter, admin]
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document deleted
+
+  /api/trips/{tripId}/documents/{documentId}/status:
+    patch:
+      tags: [Documents]
+      summary: Update trip document status (Admin)
+      x-roles: [admin]
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected]
+                rejectionReason:
+                  type: string
+      responses:
+        '200':
+          description: Status updated
+        '403':
+          $ref: '#/components/responses/Forbidden'
