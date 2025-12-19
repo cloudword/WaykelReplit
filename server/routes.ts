@@ -21,6 +21,7 @@ import {
   heavyOperationLimiter
 } from "./rate-limiter";
 import { createRoleAwareNotification, createSimpleNotification } from "./notifications";
+import { assertRideTransition, RideTransitionError, isValidStatus, type RideStatus } from "./rideLifecycle";
 
 // JWT Configuration
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "waykel-jwt-secret-change-in-production";
@@ -1413,13 +1414,30 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.patch("/api/rides/:id/status", async (req, res) => {
     const sessionUser = getCurrentUser(req);
     
-    // Only super admin can update ride status
     if (!sessionUser || !sessionUser.isSuperAdmin) {
       return res.status(403).json({ error: "Only administrators can update ride status" });
     }
     
     try {
       const { status } = req.body;
+      const ride = await storage.getRide(req.params.id);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      try {
+        assertRideTransition(ride.status, status, ride.id);
+      } catch (e) {
+        if (e instanceof RideTransitionError) {
+          return res.status(400).json({ 
+            error: "Invalid status transition", 
+            from: ride.status, 
+            to: status 
+          });
+        }
+        throw e;
+      }
+      
       await storage.updateRideStatus(req.params.id, status);
       res.json({ success: true });
     } catch (error) {
@@ -1454,13 +1472,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(404).json({ error: "Ride not found" });
       }
       
-      // If transporter, verify they own this ride's accepted bid
+      try {
+        assertRideTransition(ride.status, "assigned", ride.id);
+      } catch (e) {
+        if (e instanceof RideTransitionError) {
+          return res.status(400).json({ 
+            error: "Cannot assign driver from current status", 
+            from: ride.status, 
+            to: "assigned" 
+          });
+        }
+        throw e;
+      }
+      
       if (isTransporter && !isSuperAdmin) {
         if (ride.transporterId !== sessionUser.transporterId) {
           return res.status(403).json({ error: "You can only assign drivers to your own trips" });
         }
         
-        // Enforce execution policy for transporter assignments
         const transporter = await storage.getTransporter(sessionUser.transporterId!);
         if (transporter) {
           const policyCheck = await checkExecutionPolicy(transporter, driverId);
@@ -1492,10 +1521,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(404).json({ error: "Ride not found" });
       }
       
-      // Check if driver is assigned to this ride
       const identity = resolveDriverIdentity(sessionUser);
       if (ride.assignedDriverId !== identity.driverId) {
         return res.status(403).json({ error: "Not authorized for this ride" });
+      }
+      
+      try {
+        assertRideTransition(ride.status, "pickup", ride.id);
+      } catch (e) {
+        if (e instanceof RideTransitionError) {
+          return res.status(400).json({ 
+            error: "Cannot mark pickup complete from current status", 
+            from: ride.status, 
+            to: "pickup" 
+          });
+        }
+        throw e;
       }
       
       await storage.markRidePickupComplete(req.params.id);
@@ -1520,10 +1561,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(404).json({ error: "Ride not found" });
       }
       
-      // Check if driver is assigned to this ride
       const identity = resolveDriverIdentity(sessionUser);
       if (ride.assignedDriverId !== identity.driverId) {
         return res.status(403).json({ error: "Not authorized for this ride" });
+      }
+      
+      try {
+        assertRideTransition(ride.status, "delivery", ride.id);
+      } catch (e) {
+        if (e instanceof RideTransitionError) {
+          return res.status(400).json({ 
+            error: "Cannot mark delivery complete from current status", 
+            from: ride.status, 
+            to: "delivery" 
+          });
+        }
+        throw e;
       }
       
       await storage.markRideDeliveryComplete(req.params.id);
@@ -1548,17 +1601,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(404).json({ error: "Ride not found" });
       }
       
-      // Check if driver is assigned to this ride
       const identity = resolveDriverIdentity(sessionUser);
       if (ride.assignedDriverId !== identity.driverId) {
         return res.status(403).json({ error: "Not authorized for this ride" });
       }
       
-      if (ride.status !== "assigned") {
-        return res.status(400).json({ error: "Trip cannot be started from current status" });
+      try {
+        assertRideTransition(ride.status, "active", ride.id);
+      } catch (e) {
+        if (e instanceof RideTransitionError) {
+          return res.status(400).json({ 
+            error: "Trip cannot be started from current status", 
+            from: ride.status, 
+            to: "active" 
+          });
+        }
+        throw e;
       }
       
-      // Enforce execution policy before starting trip
       if (ride.transporterId && identity.driverId) {
         const transporter = await storage.getTransporter(ride.transporterId);
         if (transporter) {
@@ -1642,14 +1702,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(404).json({ error: "Ride not found" });
       }
       
-      // Check if driver is assigned to this ride
       const identity = resolveDriverIdentity(sessionUser);
       if (ride.assignedDriverId !== identity.driverId) {
         return res.status(403).json({ error: "Not authorized for this ride" });
       }
       
-      if (ride.status !== "active") {
-        return res.status(400).json({ error: "Only active trips can be completed" });
+      try {
+        assertRideTransition(ride.status, "completed", ride.id);
+      } catch (e) {
+        if (e instanceof RideTransitionError) {
+          return res.status(400).json({ 
+            error: "Trip cannot be completed from current status", 
+            from: ride.status, 
+            to: "completed" 
+          });
+        }
+        throw e;
       }
       
       await storage.updateRideStatus(req.params.id, "completed");
@@ -2063,8 +2131,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       
       const bid = await storage.createBid(data);
       
-      // Update ride status to bid_placed
-      await storage.updateRideStatus(data.rideId, "bid_placed");
+      if (ride.status === "pending") {
+        try {
+          assertRideTransition(ride.status, "bid_placed", ride.id);
+          await storage.updateRideStatus(data.rideId, "bid_placed");
+        } catch (e) {
+          if (e instanceof RideTransitionError) {
+            console.warn(`[Bid] Could not transition ride ${ride.id} to bid_placed from ${ride.status}`);
+          } else {
+            throw e;
+          }
+        }
+      }
       
       // Notify the customer that a bid was placed on their trip
       try {
@@ -2115,47 +2193,60 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (status === "accepted") {
         const bid = await storage.getBid(req.params.id);
         if (bid) {
-          await storage.assignRideToDriver(bid.rideId, bid.userId, bid.vehicleId);
-          
           const ride = await storage.getRide(bid.rideId);
-          if (ride) {
-            const transporter = bid.transporterId ? await storage.getTransporter(bid.transporterId) : null;
-            const contextData = {
-              bidAmount: bid.amount,
-              pickupLocation: ride.pickupLocation,
-              dropLocation: ride.dropLocation,
-              transporterName: transporter?.companyName || "Transporter"
-            };
-            
-            // Notify transporter (bid accepted)
-            await createRoleAwareNotification({
-              recipientId: bid.userId,
-              recipientTransporterId: bid.transporterId || undefined,
-              recipientRole: "transporter",
-              eventType: "bid_accepted",
-              notificationType: "bid",
-              actionType: "success",
-              entityType: "trip",
-              entityId: ride.id,
-              rideId: bid.rideId,
-              bidId: bid.id,
-              context: contextData
-            });
-            
-            // Notify customer (driver assigned)
-            if (ride.createdById) {
-              await createRoleAwareNotification({
-                recipientId: ride.createdById,
-                recipientRole: "customer",
-                eventType: "bid_accepted",
-                notificationType: "trip",
-                actionType: "info",
-                entityType: "trip",
-                entityId: ride.id,
-                rideId: ride.id,
-                context: contextData
+          if (!ride) {
+            return res.status(404).json({ error: "Ride not found" });
+          }
+          
+          try {
+            assertRideTransition(ride.status, "assigned", ride.id);
+          } catch (e) {
+            if (e instanceof RideTransitionError) {
+              return res.status(400).json({ 
+                error: "Cannot assign driver from current ride status", 
+                from: ride.status, 
+                to: "assigned" 
               });
             }
+            throw e;
+          }
+          
+          await storage.assignRideToDriver(bid.rideId, bid.userId, bid.vehicleId);
+          
+          const transporter = bid.transporterId ? await storage.getTransporter(bid.transporterId) : null;
+          const contextData = {
+            bidAmount: bid.amount,
+            pickupLocation: ride.pickupLocation,
+            dropLocation: ride.dropLocation,
+            transporterName: transporter?.companyName || "Transporter"
+          };
+          
+          await createRoleAwareNotification({
+            recipientId: bid.userId,
+            recipientTransporterId: bid.transporterId || undefined,
+            recipientRole: "transporter",
+            eventType: "bid_accepted",
+            notificationType: "bid",
+            actionType: "success",
+            entityType: "trip",
+            entityId: ride.id,
+            rideId: bid.rideId,
+            bidId: bid.id,
+            context: contextData
+          });
+          
+          if (ride.createdById) {
+            await createRoleAwareNotification({
+              recipientId: ride.createdById,
+              recipientRole: "customer",
+              eventType: "bid_accepted",
+              notificationType: "trip",
+              actionType: "info",
+              entityType: "trip",
+              entityId: ride.id,
+              rideId: ride.id,
+              context: contextData
+            });
           }
         }
       }
@@ -3858,9 +3949,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         if (transporter) {
           const policyCheck = await checkExecutionPolicy(transporter, bid.userId);
           if (policyCheck.allowed) {
-            await storage.assignRideToDriver(ride.id, bid.userId, bid.vehicleId);
+            try {
+              assertRideTransition(ride.status, "assigned", ride.id);
+              await storage.assignRideToDriver(ride.id, bid.userId, bid.vehicleId);
+            } catch (e) {
+              if (e instanceof RideTransitionError) {
+                console.warn(`[BidAccept] Could not transition ride ${ride.id} to assigned from ${ride.status}`);
+              } else {
+                throw e;
+              }
+            }
           }
-          // If policy doesn't allow, driver assignment deferred - transporter must assign manually
         }
       }
       
