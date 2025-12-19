@@ -1214,16 +1214,46 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
 
     try {
+      const { pickupLocation, dropLocation, pickupTime, date, price, distance, cargoType, weight } = req.body;
+      
+      // Validate required fields
+      if (!pickupLocation || !dropLocation) {
+        return res.status(400).json({ 
+          error: "Missing required fields", 
+          details: "pickupLocation and dropLocation are required" 
+        });
+      }
+      if (!pickupTime || !date) {
+        return res.status(400).json({ 
+          error: "Missing required fields", 
+          details: "pickupTime and date are required" 
+        });
+      }
+      if (!price) {
+        return res.status(400).json({ 
+          error: "Missing required fields", 
+          details: "price is required" 
+        });
+      }
+
       const rideData = {
         ...req.body,
         createdById: user.id,
         status: "pending",
+        // Provide defaults for fields that may not be sent by customer portal
+        distance: distance || "TBD",
+        cargoType: cargoType || "General",
+        weight: weight || "N/A",
       };
+      
       const ride = await storage.createRide(rideData);
       res.status(201).json(ride);
-    } catch (error) {
-      console.error("Failed to create ride:", error);
-      res.status(500).json({ error: "Failed to create ride" });
+    } catch (error: any) {
+      console.error("[customer/rides] Failed to create ride:", error);
+      res.status(500).json({ 
+        error: "Failed to create ride",
+        details: error?.message || "Unknown error"
+      });
     }
   });
 
