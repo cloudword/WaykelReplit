@@ -44,7 +44,13 @@ export function AdminSidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 px-4 space-y-2 overflow-y-auto min-h-0">
+      <nav 
+        className="flex-1 px-4 space-y-2 overflow-y-auto min-h-0"
+        style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#475569 #1e293b'
+        }}
+      >
         {navItems.map((item) => (
           <Link key={item.href} href={item.href}>
             <div className={cn(
