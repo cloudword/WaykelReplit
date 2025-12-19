@@ -430,23 +430,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Health check endpoint for Docker and load balancers
-  app.get("/api/health", async (req, res) => {
+  // IMPORTANT: Must NOT await DB, must NOT return 503, must NOT throw
+  // DigitalOcean App Platform uses this to determine if the app is healthy
+  app.get("/api/health", (_req, res) => {
+    res.status(200).json({
+      status: "ok",
+      service: "waykel-api",
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Separate endpoint for database connectivity check (not used by DigitalOcean)
+  app.get("/api/health/db", async (_req, res) => {
     try {
-      // Test database connectivity
       await storage.getAllRides();
-      res.json({ 
-        status: "healthy", 
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        database: "connected"
-      });
-    } catch (error) {
-      res.status(503).json({
-        status: "unhealthy",
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        database: "disconnected"
-      });
+      res.json({ database: "connected", timestamp: new Date().toISOString() });
+    } catch {
+      res.json({ database: "disconnected", timestamp: new Date().toISOString() });
     }
   });
 
