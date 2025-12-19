@@ -68,6 +68,7 @@ export const transporters = pgTable("transporters", {
   verifiedAt: timestamp("verified_at"),
   verifiedBy: varchar("verified_by").references(() => users.id),
   ownerOperatorVehicleId: varchar("owner_operator_vehicle_id"),
+  executionPolicy: text("execution_policy").$type<"SELF_ONLY" | "ASSIGNED_DRIVER_ONLY" | "ANY_DRIVER">().default("ASSIGNED_DRIVER_ONLY"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
