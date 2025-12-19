@@ -32,17 +32,20 @@ export class Msg91Provider implements SmsProvider {
     }
 
     try {
-      const response = await fetch("https://api.msg91.com/api/v5/otp", {
+      const params = new URLSearchParams({
+        template_id: this.otpTemplateId || "",
+        mobile: `91${normalizedPhone}`,
+        authkey: this.authKey,
+        otp: otp,
+        otp_expiry: "10",
+        realTimeResponse: "1"
+      });
+
+      const response = await fetch(`https://control.msg91.com/api/v5/otp?${params.toString()}`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "authkey": this.authKey
-        },
-        body: JSON.stringify({
-          template_id: this.otpTemplateId,
-          mobile: `91${normalizedPhone}`,
-          otp: otp
-        })
+          "Content-Type": "application/json"
+        }
       });
 
       const result = await response.json();
