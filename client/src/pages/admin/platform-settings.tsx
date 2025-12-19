@@ -28,9 +28,19 @@ interface PlatformSettings {
   smsEnabled: boolean;
   smsMode: "shadow" | "live";
   smsProvider: "msg91" | null;
+  smsTemplates: Record<string, string>;
   updatedByAdminId: string | null;
   updatedAt: string | null;
 }
+
+const SMS_TEMPLATE_KEYS = [
+  { key: "WAYKEL_OTP", label: "OTP", description: "Login/verification OTPs" },
+  { key: "WAYKEL_TRIP_ASSIGN", label: "Trip Assigned", description: "When driver is assigned to a trip" },
+  { key: "WAYKEL_BID_ACCEPTED", label: "Bid Accepted", description: "When transporter's bid wins" },
+  { key: "WAYKEL_DELIVERY_DONE", label: "Delivery Completed", description: "When delivery is marked complete" },
+  { key: "WAYKEL_TRANSPORTER_APPROVED", label: "Transporter Approved", description: "When transporter account is approved" },
+  { key: "WAYKEL_TRANSPORTER_REJECTED", label: "Transporter Rejected", description: "When transporter account is rejected" },
+];
 
 interface FeePreview {
   finalPrice: number;
@@ -83,6 +93,7 @@ export default function PlatformSettingsPage() {
   const [smsEnabled, setSmsEnabled] = useState(false);
   const [smsMode, setSmsMode] = useState<"shadow" | "live">("shadow");
   const [smsProvider, setSmsProvider] = useState<"msg91" | null>(null);
+  const [smsTemplates, setSmsTemplates] = useState<Record<string, string>>({});
   const [previewAmount, setPreviewAmount] = useState("10000");
   const [feePreview, setFeePreview] = useState<FeePreview | null>(null);
 
@@ -97,6 +108,7 @@ export default function PlatformSettingsPage() {
       setSmsEnabled(settings.smsEnabled ?? false);
       setSmsMode(settings.smsMode ?? "shadow");
       setSmsProvider(settings.smsProvider ?? null);
+      setSmsTemplates(settings.smsTemplates ?? {});
     }
   }, [settings]);
 
@@ -121,7 +133,8 @@ export default function PlatformSettingsPage() {
       maxFee,
       smsEnabled,
       smsMode,
-      smsProvider
+      smsProvider,
+      smsTemplates
     });
   };
 
@@ -505,6 +518,46 @@ export default function PlatformSettingsPage() {
                 <p className="text-sm text-blue-800">
                   <strong>OTP Console Logging:</strong> When SMS is disabled or in shadow mode, OTPs are logged to the server console for testing purposes.
                 </p>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-base font-medium">DLT Template ID Mapping</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Map each SMS event to its MSG91 DLT template ID. Required for live mode.
+                  </p>
+                </div>
+                
+                <div className="space-y-3">
+                  {SMS_TEMPLATE_KEYS.map((template) => (
+                    <div key={template.key} className="grid grid-cols-1 md:grid-cols-2 gap-2 items-start p-3 border rounded-lg">
+                      <div>
+                        <Label className="text-sm font-medium">{template.label}</Label>
+                        <p className="text-xs text-muted-foreground">{template.description}</p>
+                        <code className="text-xs bg-gray-100 px-1 rounded">{template.key}</code>
+                      </div>
+                      <Input
+                        placeholder="e.g., 110716xxxxxxx"
+                        value={smsTemplates[template.key] || ""}
+                        onChange={(e) => setSmsTemplates(prev => ({
+                          ...prev,
+                          [template.key]: e.target.value
+                        }))}
+                        data-testid={`input-template-${template.key}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {smsMode === "live" && smsProvider === "msg91" && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
+                    <p className="text-sm text-amber-800">
+                      <strong>Note:</strong> All template IDs must be configured for live SMS to work. Missing templates will be skipped.
+                    </p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

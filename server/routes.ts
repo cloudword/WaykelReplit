@@ -2741,6 +2741,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             actionType: "success",
             context: { companyName: transporter.companyName }
           });
+          
+          // Send SMS notification for transporter approval
+          if (user.phone) {
+            sendTransactionalSms(user.phone, SmsEvent.TRANSPORTER_APPROVED, {
+              companyName: transporter.companyName
+            }).catch(err => console.error("[SMS:ERROR] Failed to send TRANSPORTER_APPROVED SMS:", err));
+          }
         }
       } catch (notifyError) {
         console.error("Failed to notify transporter users about approval:", notifyError);
@@ -2822,6 +2829,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             actionType: "warning",
             context: { companyName: transporter.companyName, reason: reason.trim() }
           });
+          
+          // Send SMS notification for transporter rejection
+          if (user.phone) {
+            sendTransactionalSms(user.phone, SmsEvent.TRANSPORTER_REJECTED, {
+              companyName: transporter.companyName,
+              reason: reason.trim()
+            }).catch(err => console.error("[SMS:ERROR] Failed to send TRANSPORTER_REJECTED SMS:", err));
+          }
         }
       } catch (notifyError) {
         console.error("Failed to notify transporter users about rejection:", notifyError);

@@ -59,9 +59,13 @@ The Waykel platform is built with a mobile-first, role-based approach, ensuring 
 -   **Shadow Mode**: When `smsMode='shadow'`, OTPs are logged to console instead of sent (for testing).
 -   **OTP Storage**: Stored in `otp_codes` table with bcrypt hashing, 3-attempt limit, 10-minute expiration.
 -   **API Endpoints**: `POST /api/auth/request-otp`, `POST /api/auth/verify-otp`, `POST /api/auth/reset-password-with-token`.
--   **Platform Settings**: `smsEnabled` (boolean), `smsMode` ('shadow'|'live'), `smsProvider` ('msg91'|null).
+-   **Platform Settings**: `smsEnabled` (boolean), `smsMode` ('shadow'|'live'), `smsProvider` ('msg91'|null), `smsTemplates` (JSON).
 -   **Defaults**: SMS is OFF, shadow mode enabled, no provider configured.
--   **Required Secrets** (for MSG91): `MSG91_AUTH_KEY`, `MSG91_SENDER_ID`, `MSG91_OTP_TEMPLATE_ID`.
+-   **Required Secrets** (for MSG91): `MSG91_AUTH_KEY`, `MSG91_SENDER_ID`.
+-   **Transactional SMS Events**: SmsEvent enum with OTP, TRIP_ASSIGNED, BID_ACCEPTED, DELIVERY_COMPLETED, TRANSPORTER_APPROVED, TRANSPORTER_REJECTED.
+-   **DLT Template Keys**: `WAYKEL_OTP`, `WAYKEL_TRIP_ASSIGN`, `WAYKEL_BID_ACCEPTED`, `WAYKEL_DELIVERY_DONE`, `WAYKEL_TRANSPORTER_APPROVED`, `WAYKEL_TRANSPORTER_REJECTED`.
+-   **Template ID Mapping**: Configured via Admin Panel → Platform Settings → SMS Settings. Map each DLT template key to MSG91 template ID.
+-   **Event Triggers**: SMS sent on bid accepted, trip assigned to driver, delivery completed (all with graceful error handling).
 
 **Mobile Applications**:
 -   Two separate native mobile apps for Customer and Driver roles are built using Capacitor, enabling access to native device features like geolocation, camera, and push notifications.
