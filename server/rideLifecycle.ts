@@ -1,10 +1,11 @@
 export const RIDE_STATUSES = [
   "pending",
-  "bid_placed",
+  "bidding",
+  "accepted",
   "assigned",
   "active",
-  "pickup",
-  "delivery",
+  "pickup_done",
+  "delivery_done",
   "completed",
   "cancelled",
   "scheduled"
@@ -13,24 +14,26 @@ export const RIDE_STATUSES = [
 export type RideStatus = typeof RIDE_STATUSES[number];
 
 export const VALID_TRANSITIONS: Record<RideStatus, RideStatus[]> = {
-  pending: ["bid_placed", "assigned", "cancelled", "scheduled"],
-  scheduled: ["pending", "bid_placed", "assigned", "cancelled"],
-  bid_placed: ["assigned", "pending", "cancelled"],
+  pending: ["bidding", "assigned", "cancelled", "scheduled"],
+  scheduled: ["pending", "bidding", "assigned", "cancelled"],
+  bidding: ["accepted", "pending", "cancelled"],
+  accepted: ["assigned", "cancelled"],
   assigned: ["active", "cancelled"],
-  active: ["pickup", "cancelled"],
-  pickup: ["delivery", "cancelled"],
-  delivery: ["completed", "cancelled"],
+  active: ["pickup_done", "cancelled"],
+  pickup_done: ["delivery_done", "cancelled"],
+  delivery_done: ["completed", "cancelled"],
   completed: [],
   cancelled: []
 };
 
 export const STATUS_LABELS: Record<RideStatus, string> = {
   pending: "Pending",
-  bid_placed: "Bid Placed",
+  bidding: "Bidding",
+  accepted: "Accepted",
   assigned: "Assigned",
   active: "Trip Started",
-  pickup: "Pickup Complete",
-  delivery: "Delivery Complete",
+  pickup_done: "Pickup Complete",
+  delivery_done: "Delivery Complete",
   completed: "Completed",
   cancelled: "Cancelled",
   scheduled: "Scheduled"

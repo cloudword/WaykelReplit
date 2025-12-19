@@ -1527,13 +1527,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       try {
-        assertRideTransition(ride.status, "pickup", ride.id);
+        assertRideTransition(ride.status, "pickup_done", ride.id);
       } catch (e) {
         if (e instanceof RideTransitionError) {
           return res.status(400).json({ 
             error: "Cannot mark pickup complete from current status", 
             from: ride.status, 
-            to: "pickup" 
+            to: "pickup_done" 
           });
         }
         throw e;
@@ -1567,13 +1567,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       try {
-        assertRideTransition(ride.status, "delivery", ride.id);
+        assertRideTransition(ride.status, "delivery_done", ride.id);
       } catch (e) {
         if (e instanceof RideTransitionError) {
           return res.status(400).json({ 
             error: "Cannot mark delivery complete from current status", 
             from: ride.status, 
-            to: "delivery" 
+            to: "delivery_done" 
           });
         }
         throw e;
@@ -2133,11 +2133,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       
       if (ride.status === "pending") {
         try {
-          assertRideTransition(ride.status, "bid_placed", ride.id);
-          await storage.updateRideStatus(data.rideId, "bid_placed");
+          assertRideTransition(ride.status, "bidding", ride.id);
+          await storage.updateRideStatus(data.rideId, "bidding");
         } catch (e) {
           if (e instanceof RideTransitionError) {
-            console.warn(`[Bid] Could not transition ride ${ride.id} to bid_placed from ${ride.status}`);
+            console.warn(`[Bid] Could not transition ride ${ride.id} to bidding from ${ride.status}`);
           } else {
             throw e;
           }
@@ -2152,7 +2152,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           await createRoleAwareNotification({
             recipientId: ride.createdById,
             recipientRole: "customer",
-            eventType: "bid_placed",
+            eventType: "bid_created",
             notificationType: "bid",
             actionType: "action_required",
             entityType: "bid",

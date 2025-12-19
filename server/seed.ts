@@ -249,7 +249,7 @@ async function seed() {
         dropLocation: "Surat Port",
         pickupTime: "06:00",
         date: "2024-12-06",
-        status: "bid_placed",
+        status: "bidding",
         price: "1500.00",
         distance: "280 km",
         cargoType: "Chemicals",

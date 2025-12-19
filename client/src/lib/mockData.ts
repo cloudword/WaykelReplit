@@ -23,7 +23,7 @@ export interface Ride {
   dropLocation: string;
   pickupTime: string;
   dropTime?: string;
-  status: "pending" | "active" | "completed" | "cancelled" | "scheduled" | "bid_placed";
+  status: "pending" | "bidding" | "accepted" | "assigned" | "active" | "pickup_done" | "delivery_done" | "completed" | "cancelled" | "scheduled";
   price: number;
   distance: string;
   cargoType: string;

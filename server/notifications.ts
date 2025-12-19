@@ -30,6 +30,7 @@ interface RoleAwareMessageParams extends NotificationParams {
 
 type NotificationEventType = 
   | "trip_created"
+  | "bid_created"
   | "bid_placed"
   | "bid_accepted"
   | "bid_rejected"
@@ -89,6 +90,7 @@ const getNotificationContent = (
         legacyType: "new_booking"
       };
 
+    case "bid_created":
     case "bid_placed":
       if (recipientRole === "customer") {
         return {
