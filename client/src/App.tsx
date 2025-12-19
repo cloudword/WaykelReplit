@@ -18,6 +18,8 @@ import DriverProfile from "@/pages/driver-profile";
 import ActiveRide from "@/pages/active-ride";
 import BookRide from "@/pages/book-ride";
 import DriverAddVehicle from "@/pages/driver-add-vehicle";
+import DriverTripDetails from "@/pages/driver/trip-details";
+import DriverTripDocuments from "@/pages/driver/trip-documents";
 
 import Notifications from "@/pages/notifications";
 import AdminDashboard from "@/pages/admin/dashboard";
@@ -46,6 +48,7 @@ import TransporterDocuments from "@/pages/transporter/documents";
 import TransporterPostTrip from "@/pages/transporter/post-trip";
 import TransporterAddresses from "@/pages/transporter/addresses";
 import TransporterAnalytics from "@/pages/transporter/analytics";
+import TransporterSettings from "@/pages/transporter/settings";
 
 import CustomerDashboard from "@/pages/customer/dashboard";
 import CustomerRides from "@/pages/customer/rides";
@@ -67,6 +70,8 @@ function Router() {
       <Route path="/driver/active-ride/:id" component={ActiveRide} />
       <Route path="/driver/book-ride" component={BookRide} />
       <Route path="/driver/add-vehicle" component={DriverAddVehicle} />
+      <Route path="/driver/trip/:id" component={DriverTripDetails} />
+      <Route path="/trips/:tripId/documents" component={DriverTripDocuments} />
       <Route path="/driver/notifications" component={Notifications} />
 
       {/* Transporter Admin Panel Routes */}
@@ -80,6 +85,7 @@ function Router() {
       <Route path="/transporter/post-trip" component={TransporterPostTrip} />
       <Route path="/transporter/addresses" component={TransporterAddresses} />
       <Route path="/transporter/analytics" component={TransporterAnalytics} />
+      <Route path="/transporter/settings" component={TransporterSettings} />
 
       {/* Customer/Rider App Routes */}
       <Route path="/customer/auth" component={CustomerAuthPage} />

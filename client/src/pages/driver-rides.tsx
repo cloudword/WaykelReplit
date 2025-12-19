@@ -84,15 +84,26 @@ export default function DriverRides() {
     });
   };
 
-  const activeRides = filterRides(rides.filter(r => ["active", "scheduled"].includes(r.status)));
+  const activeRides = filterRides(rides.filter(r => ["active", "assigned", "scheduled"].includes(r.status)));
   const completedRides = filterRides(rides.filter(r => r.status === "completed"));
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "active": return "bg-green-100 text-green-800";
+      case "active": return "bg-amber-100 text-amber-800";
+      case "assigned": return "bg-blue-100 text-blue-800";
       case "scheduled": return "bg-blue-100 text-blue-800";
-      case "completed": return "bg-gray-100 text-gray-800";
+      case "completed": return "bg-green-100 text-green-800";
       default: return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "active": return "In Transit";
+      case "assigned": return "Assigned";
+      case "scheduled": return "Scheduled";
+      case "completed": return "Completed";
+      default: return status;
     }
   };
 
@@ -240,7 +251,7 @@ export default function DriverRides() {
                     <div className="flex justify-between items-start">
                       <div className="flex items-center gap-2">
                         <Badge className={getStatusColor(ride.status)}>
-                          {ride.status === "active" ? "In Progress" : "Scheduled"}
+                          {getStatusLabel(ride.status)}
                         </Badge>
                         <span className="text-xs text-gray-500">#{ride.id.slice(0, 8)}</span>
                       </div>
@@ -285,10 +296,10 @@ export default function DriverRides() {
                       <Button 
                         size="sm" 
                         className="flex-1"
-                        onClick={() => setLocation(`/driver/active-ride/${ride.id}`)}
+                        onClick={() => setLocation(`/driver/trip/${ride.id}`)}
                         data-testid={`button-track-${ride.id}`}
                       >
-                        {ride.status === "active" ? "Track Ride" : "View Details"}
+                        {ride.status === "active" ? "Track Trip" : "View Trip"}
                         <ArrowRight className="h-3 w-3 ml-1" />
                       </Button>
                       <Button 
@@ -439,15 +450,15 @@ export default function DriverRides() {
                 </div>
               </div>
 
-              {selectedRide.status === "active" && (
+              {(selectedRide.status === "active" || selectedRide.status === "assigned") && (
                 <Button 
                   className="w-full mt-4" 
                   onClick={() => {
                     setShowDetailsDialog(false);
-                    setLocation(`/driver/active-ride/${selectedRide.id}`);
+                    setLocation(`/driver/trip/${selectedRide.id}`);
                   }}
                 >
-                  Track This Ride
+                  {selectedRide.status === "active" ? "Track Trip" : "View Trip"}
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
               )}

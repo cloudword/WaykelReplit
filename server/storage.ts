@@ -51,7 +51,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUserOnlineStatus(id: string, isOnline: boolean): Promise<void>;
   updateUserPassword(id: string, hashedPassword: string): Promise<void>;
-  updateUser(id: string, updates: { name?: string; email?: string; phone?: string; role?: string }): Promise<User | undefined>;
+  updateUser(id: string, updates: { name?: string; email?: string; phone?: string; role?: string; isSelfDriver?: boolean }): Promise<User | undefined>;
   
   // Transporters
   getTransporter(id: string): Promise<Transporter | undefined>;
@@ -98,6 +98,8 @@ export interface IStorage {
   createRide(ride: InsertRide): Promise<Ride>;
   updateRideStatus(id: string, status: string): Promise<void>;
   assignRideToDriver(rideId: string, driverId: string, vehicleId: string): Promise<void>;
+  markRidePickupComplete(rideId: string): Promise<void>;
+  markRideDeliveryComplete(rideId: string): Promise<void>;
   
   // Bids
   getBid(id: string): Promise<Bid | undefined>;
@@ -208,12 +210,13 @@ export class DatabaseStorage implements IStorage {
     await db.update(users).set({ password: hashedPassword }).where(eq(users.id, id));
   }
 
-  async updateUser(id: string, updates: { name?: string; email?: string; phone?: string; role?: string }): Promise<User | undefined> {
+  async updateUser(id: string, updates: { name?: string; email?: string; phone?: string; role?: string; isSelfDriver?: boolean }): Promise<User | undefined> {
     const updateData: any = {};
     if (updates.name !== undefined) updateData.name = updates.name;
     if (updates.email !== undefined) updateData.email = updates.email;
     if (updates.phone !== undefined) updateData.phone = updates.phone;
     if (updates.role !== undefined) updateData.role = updates.role;
+    if (updates.isSelfDriver !== undefined) updateData.isSelfDriver = updates.isSelfDriver;
     
     const [user] = await db.update(users).set(updateData).where(eq(users.id, id)).returning();
     return user || undefined;
@@ -413,6 +416,20 @@ export class DatabaseStorage implements IStorage {
       assignedDriverId: driverId,
       assignedVehicleId: vehicleId,
       status: "active"
+    }).where(eq(rides.id, rideId));
+  }
+
+  async markRidePickupComplete(rideId: string): Promise<void> {
+    await db.update(rides).set({ 
+      pickupCompleted: true,
+      pickupCompletedAt: new Date()
+    }).where(eq(rides.id, rideId));
+  }
+
+  async markRideDeliveryComplete(rideId: string): Promise<void> {
+    await db.update(rides).set({ 
+      deliveryCompleted: true,
+      deliveryCompletedAt: new Date()
     }).where(eq(rides.id, rideId));
   }
 

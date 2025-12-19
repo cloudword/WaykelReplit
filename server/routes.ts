@@ -82,6 +82,7 @@ const extractTokenUser = (req: Request, res: Response, next: NextFunction) => {
         id: string;
         role: string;
         isSuperAdmin?: boolean;
+        isSelfDriver?: boolean;
         transporterId?: string;
       };
       req.tokenUser = decoded;
@@ -90,6 +91,83 @@ const extractTokenUser = (req: Request, res: Response, next: NextFunction) => {
     }
   }
   next();
+};
+
+// Self-Driver Identity Resolution
+// Rule: IF user.role === "transporter" AND user.isSelfDriver === true THEN user can act as a driver
+interface DriverIdentity {
+  isDriver: boolean;
+  isSelfDriver: boolean;
+  driverId: string | null;
+  transporterId: string | null;
+  canAccessDriverRoutes: boolean;
+  canAccessTransporterRoutes: boolean;
+}
+
+const resolveDriverIdentity = (user: {
+  id: string;
+  role: string;
+  isSuperAdmin?: boolean;
+  isSelfDriver?: boolean;
+  transporterId?: string;
+}): DriverIdentity => {
+  // Admin has full access
+  if (user.isSuperAdmin || user.role === "admin") {
+    return {
+      isDriver: false,
+      isSelfDriver: false,
+      driverId: null,
+      transporterId: null,
+      canAccessDriverRoutes: true,
+      canAccessTransporterRoutes: true,
+    };
+  }
+
+  // Regular driver
+  if (user.role === "driver") {
+    return {
+      isDriver: true,
+      isSelfDriver: false,
+      driverId: user.id,
+      transporterId: user.transporterId || null,
+      canAccessDriverRoutes: true,
+      canAccessTransporterRoutes: false,
+    };
+  }
+
+  // Transporter who also drives (self-driver)
+  if (user.role === "transporter" && user.isSelfDriver === true) {
+    return {
+      isDriver: true,
+      isSelfDriver: true,
+      driverId: user.id, // Use transporter's user ID as driver ID for self-driver
+      transporterId: user.transporterId || null,
+      canAccessDriverRoutes: true,
+      canAccessTransporterRoutes: true,
+    };
+  }
+
+  // Regular transporter (not a self-driver)
+  if (user.role === "transporter") {
+    return {
+      isDriver: false,
+      isSelfDriver: false,
+      driverId: null,
+      transporterId: user.transporterId || null,
+      canAccessDriverRoutes: false,
+      canAccessTransporterRoutes: true,
+    };
+  }
+
+  // Customer or other roles
+  return {
+    isDriver: false,
+    isSelfDriver: false,
+    driverId: null,
+    transporterId: null,
+    canAccessDriverRoutes: false,
+    canAccessTransporterRoutes: false,
+  };
 };
 
 // Helper to get current user from either session or token
@@ -122,9 +200,22 @@ const requireDriverOrTransporter = (req: Request, res: Response, next: NextFunct
   if (!user?.id) {
     return res.status(401).json({ error: "Authentication required. Please log in or provide a valid Bearer token." });
   }
-  const role = user.role;
-  if (role !== "driver" && role !== "transporter" && !user.isSuperAdmin) {
+  const identity = resolveDriverIdentity(user);
+  if (!identity.canAccessDriverRoutes && !identity.canAccessTransporterRoutes) {
     return res.status(403).json({ error: "Driver or transporter access required" });
+  }
+  next();
+};
+
+// Middleware for driver-only routes - allows self-drivers (transporters with isSelfDriver=true)
+const requireDriver = (req: Request, res: Response, next: NextFunction) => {
+  const user = getCurrentUser(req);
+  if (!user?.id) {
+    return res.status(401).json({ error: "Authentication required. Please log in or provide a valid Bearer token." });
+  }
+  const identity = resolveDriverIdentity(user);
+  if (!identity.canAccessDriverRoutes) {
+    return res.status(403).json({ error: "Driver access required. Self-drivers (transporters who drive) are also allowed." });
   }
   next();
 };
@@ -368,6 +459,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           id: user.id,
           role: user.role,
           isSuperAdmin: user.isSuperAdmin || false,
+          isSelfDriver: user.isSelfDriver || false,
           transporterId: user.transporterId || undefined,
         };
         // Use role-based expiry
@@ -389,6 +481,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         id: user.id,
         role: user.role,
         isSuperAdmin: user.isSuperAdmin || false,
+        isSelfDriver: user.isSelfDriver || false,
         transporterId: transporterId || user.transporterId || undefined,
       };
 
@@ -443,6 +536,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         id: user.id,
         role: user.role,
         isSuperAdmin: user.isSuperAdmin || false,
+        isSelfDriver: user.isSelfDriver || false,
         transporterId: user.transporterId || undefined,
       };
 
@@ -495,6 +589,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         id: user.id,
         role: user.role,
         isSuperAdmin: user.isSuperAdmin || false,
+        isSelfDriver: user.isSelfDriver || false,
         transporterId: user.transporterId || undefined,
       };
 
@@ -534,6 +629,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         id: freshUser.id,
         role: freshUser.role,
         isSuperAdmin: freshUser.isSuperAdmin || false,
+        isSelfDriver: freshUser.isSelfDriver || false,
         transporterId: freshUser.transporterId || undefined,
       };
 
@@ -616,6 +712,82 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Profile update endpoint - allows users to update their profile settings
+  app.patch("/api/auth/profile", requireAuth, async (req, res) => {
+    try {
+      const currentUser = getCurrentUser(req);
+      if (!currentUser) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { isSelfDriver, name, email } = req.body;
+      const updates: { name?: string; email?: string; isSelfDriver?: boolean } = {};
+
+      // Only transporters can set isSelfDriver
+      if (isSelfDriver !== undefined) {
+        if (currentUser.role !== "transporter") {
+          return res.status(403).json({ error: "Only transporters can set self-driver status" });
+        }
+        updates.isSelfDriver = Boolean(isSelfDriver);
+      }
+
+      if (name !== undefined) updates.name = name;
+      if (email !== undefined) updates.email = email;
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: "No valid fields to update" });
+      }
+
+      const updatedUser = await storage.updateUser(currentUser.id, updates);
+      if (!updatedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      console.log(`[Self-Driver] User ${currentUser.id} updated isSelfDriver to ${updates.isSelfDriver}`);
+
+      // Update session with new isSelfDriver value if changed
+      if (req.session?.user) {
+        req.session.user = {
+          id: updatedUser.id,
+          role: updatedUser.role,
+          isSuperAdmin: updatedUser.isSuperAdmin || false,
+          isSelfDriver: updatedUser.isSelfDriver || false,
+          transporterId: updatedUser.transporterId || undefined,
+        };
+      }
+
+      const { password: _, ...userWithoutPassword } = updatedUser;
+
+      // Generate fresh JWT token with updated isSelfDriver
+      const tokenPayload = {
+        id: updatedUser.id,
+        role: updatedUser.role,
+        isSuperAdmin: updatedUser.isSuperAdmin || false,
+        isSelfDriver: updatedUser.isSelfDriver || false,
+        transporterId: updatedUser.transporterId || undefined,
+      };
+      const expiresIn = (updatedUser.role === "admin" || updatedUser.role === "transporter") 
+        ? JWT_ADMIN_EXPIRES_IN 
+        : JWT_CUSTOMER_EXPIRES_IN;
+      const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn });
+
+      // Save session and respond
+      req.session.save((err) => {
+        if (err) console.error("Session save error:", err);
+        res.json({ 
+          success: true, 
+          user: userWithoutPassword,
+          token,
+          tokenType: "Bearer",
+          expiresIn
+        });
+      });
+    } catch (error) {
+      console.error("Profile update error:", error);
+      res.status(400).json({ error: "Failed to update profile" });
+    }
+  });
+
   // ============== CUSTOMER PORTAL ENDPOINTS ==============
   // These endpoints are specifically for the customer-facing portal (waykelconnect)
   // They use JWT Bearer token authentication for cross-domain compatibility
@@ -684,6 +856,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           id: user.id,
           role: user.role,
           isSuperAdmin: false,
+          isSelfDriver: user.isSelfDriver || false,
         };
         token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_CUSTOMER_EXPIRES_IN });
       } catch (jwtError: any) {
@@ -741,6 +914,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         id: user.id,
         role: user.role,
         isSuperAdmin: user.isSuperAdmin || false,
+        isSelfDriver: user.isSelfDriver || false,
       };
       const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_CUSTOMER_EXPIRES_IN });
 
@@ -1213,6 +1387,126 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ error: "Failed to assign driver" });
+    }
+  });
+
+  // Driver: Mark pickup complete
+  app.patch("/api/rides/:id/pickup-complete", async (req, res) => {
+    const sessionUser = getCurrentUser(req);
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const ride = await storage.getRide(req.params.id);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      // Check if driver is assigned to this ride
+      const driverId = resolveDriverIdentity(sessionUser);
+      if (ride.assignedDriverId !== driverId) {
+        return res.status(403).json({ error: "Not authorized for this ride" });
+      }
+      
+      await storage.markRidePickupComplete(req.params.id);
+      res.json({ success: true, message: "Pickup marked as complete" });
+    } catch (error) {
+      console.error("Mark pickup complete error:", error);
+      res.status(400).json({ error: "Failed to update pickup status" });
+    }
+  });
+
+  // Driver: Mark delivery complete
+  app.patch("/api/rides/:id/delivery-complete", async (req, res) => {
+    const sessionUser = getCurrentUser(req);
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const ride = await storage.getRide(req.params.id);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      // Check if driver is assigned to this ride
+      const driverId = resolveDriverIdentity(sessionUser);
+      if (ride.assignedDriverId !== driverId) {
+        return res.status(403).json({ error: "Not authorized for this ride" });
+      }
+      
+      await storage.markRideDeliveryComplete(req.params.id);
+      res.json({ success: true, message: "Delivery marked as complete" });
+    } catch (error) {
+      console.error("Mark delivery complete error:", error);
+      res.status(400).json({ error: "Failed to update delivery status" });
+    }
+  });
+
+  // Driver: Start trip (change status from assigned to active)
+  app.patch("/api/rides/:id/start", async (req, res) => {
+    const sessionUser = getCurrentUser(req);
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const ride = await storage.getRide(req.params.id);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      // Check if driver is assigned to this ride
+      const driverId = resolveDriverIdentity(sessionUser);
+      if (ride.assignedDriverId !== driverId) {
+        return res.status(403).json({ error: "Not authorized for this ride" });
+      }
+      
+      if (ride.status !== "assigned") {
+        return res.status(400).json({ error: "Trip cannot be started from current status" });
+      }
+      
+      await storage.updateRideStatus(req.params.id, "active");
+      res.json({ success: true, message: "Trip started" });
+    } catch (error) {
+      console.error("Start trip error:", error);
+      res.status(400).json({ error: "Failed to start trip" });
+    }
+  });
+
+  // Driver: Complete trip
+  app.patch("/api/rides/:id/complete", async (req, res) => {
+    const sessionUser = getCurrentUser(req);
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const ride = await storage.getRide(req.params.id);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      // Check if driver is assigned to this ride
+      const driverId = resolveDriverIdentity(sessionUser);
+      if (ride.assignedDriverId !== driverId) {
+        return res.status(403).json({ error: "Not authorized for this ride" });
+      }
+      
+      if (ride.status !== "active") {
+        return res.status(400).json({ error: "Only active trips can be completed" });
+      }
+      
+      await storage.updateRideStatus(req.params.id, "completed");
+      res.json({ success: true, message: "Trip completed" });
+    } catch (error) {
+      console.error("Complete trip error:", error);
+      res.status(400).json({ error: "Failed to complete trip" });
     }
   });
 

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Truck, Users, FileText, MapPin, Package, Gavel, BarChart3, LogOut, Building2 } from "lucide-react";
+import { LayoutDashboard, Truck, Users, FileText, MapPin, Package, Gavel, BarChart3, LogOut, Building2, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import NotificationBell from "@/components/notifications/NotificationBell";
@@ -22,6 +22,7 @@ export function TransporterSidebar() {
     { href: "/transporter/documents", icon: FileText, label: "Documents" },
     { href: "/transporter/analytics", icon: BarChart3, label: "Analytics" },
     { href: "/transporter/addresses", icon: MapPin, label: "Saved Addresses" },
+    { href: "/transporter/settings", icon: Settings, label: "Settings" },
   ];
 
   return (

@@ -92,6 +92,34 @@ export const api = {
       });
       return res.json();
     },
+    startTrip: async (id: string) => {
+      const res = await fetch(`${API_BASE}/rides/${id}/start`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+      return res.json();
+    },
+    markPickupComplete: async (id: string) => {
+      const res = await fetch(`${API_BASE}/rides/${id}/pickup-complete`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+      return res.json();
+    },
+    markDeliveryComplete: async (id: string) => {
+      const res = await fetch(`${API_BASE}/rides/${id}/delivery-complete`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+      return res.json();
+    },
+    completeTrip: async (id: string) => {
+      const res = await fetch(`${API_BASE}/rides/${id}/complete`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+      return res.json();
+    },
   },
   bids: {
     list: async (filters?: any) => {

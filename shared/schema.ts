@@ -37,6 +37,7 @@ export const users = pgTable("users", {
   earningsToday: decimal("earnings_today", { precision: 10, scale: 2 }).default("0"),
   documentsComplete: boolean("documents_complete").default(false),
   profileComplete: boolean("profile_complete").default(false),
+  isSelfDriver: boolean("is_self_driver").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -128,6 +129,10 @@ export const rides = pgTable("rides", {
   acceptedByUserId: varchar("accepted_by_user_id").references(() => users.id),
   acceptedAt: timestamp("accepted_at"),
   isSelfAssigned: boolean("is_self_assigned").default(false),
+  pickupCompleted: boolean("pickup_completed").default(false),
+  pickupCompletedAt: timestamp("pickup_completed_at"),
+  deliveryCompleted: boolean("delivery_completed").default(false),
+  deliveryCompletedAt: timestamp("delivery_completed_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
