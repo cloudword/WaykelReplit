@@ -11,6 +11,50 @@ interface NavSection {
   defaultExpanded?: boolean;
 }
 
+const sections: NavSection[] = [
+  {
+    title: "Overview",
+    defaultExpanded: true,
+    items: [
+      { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
+    ],
+  },
+  {
+    title: "Operations",
+    defaultExpanded: true,
+    items: [
+      { href: "/admin/rides", icon: Gavel, label: "Bid Approvals" },
+      { href: "/admin/trips", icon: Calendar, label: "Trip Scheduler" },
+      { href: "/admin/transporters", icon: Building2, label: "Transporters" },
+      { href: "/admin/customers", icon: UserCheck, label: "Customers" },
+      { href: "/admin/vehicles", icon: Truck, label: "Vehicles" },
+      { href: "/admin/earnings", icon: Wallet, label: "Revenue" },
+    ],
+  },
+  {
+    title: "Verification",
+    defaultExpanded: true,
+    items: [
+      { href: "/admin/verification/transporters", icon: Building2, label: "Transporters" },
+      { href: "/admin/verification/drivers", icon: Users, label: "Drivers" },
+      { href: "/admin/verification/vehicles", icon: Truck, label: "Vehicles" },
+    ],
+  },
+  {
+    title: "System",
+    defaultExpanded: false,
+    items: [
+      { href: "/admin/users", icon: Users, label: "User Management" },
+      { href: "/admin/roles", icon: ShieldCheck, label: "Roles & Permissions" },
+      { href: "/admin/platform-settings", icon: DollarSign, label: "Monetization" },
+      { href: "/admin/api-explorer", icon: Code, label: "API Explorer" },
+      { href: "/admin/api-logs", icon: ScrollText, label: "API Logs" },
+      { href: "/admin/storage", icon: HardDrive, label: "Storage" },
+      { href: "/admin/settings", icon: Settings, label: "Settings" },
+    ],
+  },
+];
+
 export function AdminSidebar() {
   const [location] = useLocation();
   const navRef = useRef<HTMLElement>(null);
@@ -52,50 +96,6 @@ export function AdminSidebar() {
   const toggleSection = (title: string) => {
     setExpandedSections(prev => ({ ...prev, [title]: !prev[title] }));
   };
-
-  const sections: NavSection[] = [
-    {
-      title: "Overview",
-      defaultExpanded: true,
-      items: [
-        { href: "/admin", icon: LayoutDashboard, label: "Dashboard" },
-      ],
-    },
-    {
-      title: "Operations",
-      defaultExpanded: true,
-      items: [
-        { href: "/admin/rides", icon: Gavel, label: "Bid Approvals" },
-        { href: "/admin/trips", icon: Calendar, label: "Trip Scheduler" },
-        { href: "/admin/transporters", icon: Building2, label: "Transporters" },
-        { href: "/admin/customers", icon: UserCheck, label: "Customers" },
-        { href: "/admin/vehicles", icon: Truck, label: "Vehicles" },
-        { href: "/admin/earnings", icon: Wallet, label: "Revenue" },
-      ],
-    },
-    {
-      title: "Verification",
-      defaultExpanded: true,
-      items: [
-        { href: "/admin/verification/transporters", icon: Building2, label: "Transporters" },
-        { href: "/admin/verification/drivers", icon: Users, label: "Drivers" },
-        { href: "/admin/verification/vehicles", icon: Truck, label: "Vehicles" },
-      ],
-    },
-    {
-      title: "System",
-      defaultExpanded: false,
-      items: [
-        { href: "/admin/users", icon: Users, label: "User Management" },
-        { href: "/admin/roles", icon: ShieldCheck, label: "Roles & Permissions" },
-        { href: "/admin/platform-settings", icon: DollarSign, label: "Monetization" },
-        { href: "/admin/api-explorer", icon: Code, label: "API Explorer" },
-        { href: "/admin/api-logs", icon: ScrollText, label: "API Logs" },
-        { href: "/admin/storage", icon: HardDrive, label: "Storage" },
-        { href: "/admin/settings", icon: Settings, label: "Settings" },
-      ],
-    },
-  ];
 
   return (
     <div className="w-64 bg-slate-900 text-white min-h-screen flex flex-col fixed left-0 top-0 bottom-0 z-50">
