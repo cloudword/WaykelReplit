@@ -8,10 +8,30 @@ import {
 } from "@/lib/notificationsApi";
 import { Bell } from "lucide-react";
 
+interface Notification {
+  id: number;
+  recipientId: string | null;
+  recipientTransporterId: string | null;
+  type: string;
+  title: string;
+  message: string;
+  rideId: string | null;
+  bidId: string | null;
+  isRead: boolean;
+  createdAt: string;
+  matchScore: number | null;
+  matchReason: string | null;
+  notificationType: string | null;
+  actionType: string | null;
+  entityType: string | null;
+  entityId: string | null;
+  deepLink: string | null;
+}
+
 export default function NotificationBell() {
   const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
@@ -41,8 +61,12 @@ export default function NotificationBell() {
     }
   }
 
-  function getNotificationDestination(notification: any): string | null {
-    const { type, rideId, bidId } = notification;
+  function getNotificationDestination(notification: Notification): string | null {
+    const { type, rideId, deepLink } = notification;
+    
+    if (deepLink) {
+      console.log("[NotificationBell] Deep link available:", deepLink);
+    }
     
     const user = JSON.parse(localStorage.getItem("currentUser") || "{}");
     const role = user?.role || "customer";
