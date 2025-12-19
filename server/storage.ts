@@ -1,6 +1,6 @@
 import { 
   users, vehicles, rides, bids, transporters, documents, notifications, apiLogs,
-  roles, userRoles, savedAddresses, driverApplications, ledgerEntries,
+  roles, userRoles, savedAddresses, driverApplications, ledgerEntries, platformSettings,
   type User, type InsertUser,
   type Vehicle, type InsertVehicle,
   type Ride, type InsertRide,
@@ -13,7 +13,8 @@ import {
   type UserRole, type InsertUserRole,
   type SavedAddress, type InsertSavedAddress,
   type DriverApplication, type InsertDriverApplication,
-  type LedgerEntry, type InsertLedgerEntry
+  type LedgerEntry, type InsertLedgerEntry,
+  type PlatformSettings, type InsertPlatformSettings
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, or, sql, gte, inArray, not } from "drizzle-orm";
@@ -107,6 +108,8 @@ export interface IStorage {
     platformFee: string;
     transporterEarning: string;
     platformFeePercent: string;
+    shadowPlatformFee?: string;
+    shadowPlatformFeePercent?: string;
     financialLockedAt: Date;
   }): Promise<void>;
   updateRidePaymentStatus(rideId: string, paymentStatus: string): Promise<void>;
@@ -164,6 +167,8 @@ export interface IStorage {
       platformFee: string;
       transporterEarning: string;
       platformFeePercent: string;
+      shadowPlatformFee?: string;
+      shadowPlatformFeePercent?: string;
     };
   }): Promise<void>;
   
@@ -201,6 +206,10 @@ export interface IStorage {
   createDriverApplication(application: InsertDriverApplication): Promise<DriverApplication>;
   updateDriverApplication(id: string, updates: Partial<InsertDriverApplication>): Promise<DriverApplication | undefined>;
   hireDriver(applicationId: string, transporterId: string): Promise<void>;
+  
+  // Platform Settings
+  getPlatformSettings(): Promise<PlatformSettings>;
+  updatePlatformSettings(updates: Partial<InsertPlatformSettings>, updatedByAdminId: string): Promise<PlatformSettings>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -473,6 +482,8 @@ export class DatabaseStorage implements IStorage {
     platformFee: string;
     transporterEarning: string;
     platformFeePercent: string;
+    shadowPlatformFee?: string;
+    shadowPlatformFeePercent?: string;
     financialLockedAt: Date;
   }): Promise<void> {
     await db.update(rides).set({
@@ -480,6 +491,8 @@ export class DatabaseStorage implements IStorage {
       platformFee: financials.platformFee,
       transporterEarning: financials.transporterEarning,
       platformFeePercent: financials.platformFeePercent,
+      shadowPlatformFee: financials.shadowPlatformFee,
+      shadowPlatformFeePercent: financials.shadowPlatformFeePercent,
       financialLockedAt: financials.financialLockedAt
     }).where(eq(rides.id, rideId));
   }
@@ -815,6 +828,8 @@ export class DatabaseStorage implements IStorage {
       platformFee: string;
       transporterEarning: string;
       platformFeePercent: string;
+      shadowPlatformFee?: string;
+      shadowPlatformFeePercent?: string;
     };
   }): Promise<void> {
     const { bidId, rideId, transporterId, acceptedByUserId, financials } = params;
@@ -834,6 +849,8 @@ export class DatabaseStorage implements IStorage {
         platformFee: financials.platformFee,
         transporterEarning: financials.transporterEarning,
         platformFeePercent: financials.platformFeePercent,
+        shadowPlatformFee: financials.shadowPlatformFee,
+        shadowPlatformFeePercent: financials.shadowPlatformFeePercent,
         financialLockedAt: now
       }).where(eq(rides.id, rideId));
 
@@ -1049,6 +1066,39 @@ export class DatabaseStorage implements IStorage {
     await db.update(users).set({
       transporterId: transporterId
     }).where(eq(users.id, application.driverId));
+  }
+
+  // Platform Settings
+  async getPlatformSettings(): Promise<PlatformSettings> {
+    const [settings] = await db.select().from(platformSettings).where(eq(platformSettings.id, "default"));
+    if (settings) return settings;
+    
+    const [newSettings] = await db.insert(platformSettings).values({
+      id: "default",
+      commissionEnabled: false,
+      commissionMode: "shadow",
+      tierConfig: [
+        { amount: 5000, percent: 10 },
+        { amount: 10000, percent: 8 },
+        { amount: 25000, percent: 6 },
+        { amount: 50000, percent: 5 }
+      ],
+      basePercent: "10",
+      minFee: "50",
+      maxFee: "5000"
+    }).returning();
+    return newSettings;
+  }
+
+  async updatePlatformSettings(updates: Partial<InsertPlatformSettings>, updatedByAdminId: string): Promise<PlatformSettings> {
+    await this.getPlatformSettings();
+    
+    const [updated] = await db.update(platformSettings).set({
+      ...updates,
+      updatedByAdminId,
+      updatedAt: new Date()
+    }).where(eq(platformSettings.id, "default")).returning();
+    return updated;
   }
 }
 

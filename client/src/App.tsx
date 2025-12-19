@@ -37,6 +37,7 @@ import AdminUsers from "@/pages/admin/users";
 import AdminTrips from "@/pages/admin/trips";
 import AdminRoles from "@/pages/admin/roles";
 import AdminStorage from "@/pages/admin/storage";
+import AdminPlatformSettings from "@/pages/admin/platform-settings";
 
 import TransporterDashboard from "@/pages/transporter/dashboard";
 import TransporterBids from "@/pages/transporter/bids";
@@ -111,6 +112,7 @@ function Router() {
       <Route path="/admin/api-logs" component={AdminApiLogs} />
       <Route path="/admin/roles" component={AdminRoles} />
       <Route path="/admin/storage" component={AdminStorage} />
+      <Route path="/admin/platform-settings" component={AdminPlatformSettings} />
       
       <Route component={NotFound} />
     </Switch>

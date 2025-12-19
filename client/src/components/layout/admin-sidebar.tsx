@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Users, Truck, Wallet, Settings, LogOut, Building2, Gavel, Calendar, Shield, UserCheck, Code, ScrollText, ShieldCheck, HardDrive } from "lucide-react";
+import { LayoutDashboard, Users, Truck, Wallet, Settings, LogOut, Building2, Gavel, Calendar, Shield, UserCheck, Code, ScrollText, ShieldCheck, HardDrive, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import NotificationBell from "@/components/notifications/NotificationBell";
@@ -25,6 +25,7 @@ export function AdminSidebar() {
     { href: "/admin/api-explorer", icon: Code, label: "API Explorer" },
     { href: "/admin/api-logs", icon: ScrollText, label: "API Logs" },
     { href: "/admin/storage", icon: HardDrive, label: "Storage" },
+    { href: "/admin/platform-settings", icon: DollarSign, label: "Monetization" },
     { href: "/admin/settings", icon: Settings, label: "Settings" },
   ];
 
