@@ -193,9 +193,9 @@ export default function VerificationTransporters() {
   const pendingCount = transporters.filter(t => t.pendingDocuments > 0).length;
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pl-64">
       <AdminSidebar />
-      <main className="flex-1 p-6">
+      <main className="p-8">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div>
