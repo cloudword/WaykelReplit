@@ -160,7 +160,7 @@ export default function NotificationBell() {
 
       {open && (
         <div 
-          className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-900 border rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto"
+          className="fixed right-4 top-16 w-80 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-[60] max-h-[70vh] overflow-y-auto"
           data-testid="notification-dropdown"
         >
           <div className="p-3 border-b font-semibold flex justify-between items-center">
@@ -203,7 +203,7 @@ export default function NotificationBell() {
 
       {open && (
         <div 
-          className="fixed inset-0 z-40" 
+          className="fixed inset-0 z-[55] bg-black/20" 
           onClick={() => setOpen(false)}
         />
       )}
