@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Settings, Save, DollarSign, AlertCircle, Calculator, Plus, Trash2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Settings, Save, DollarSign, AlertCircle, Calculator, Plus, Trash2, MessageSquare } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -24,9 +25,22 @@ interface PlatformSettings {
   basePercent: string;
   minFee: string;
   maxFee: string;
+  smsEnabled: boolean;
+  smsMode: "shadow" | "live";
+  smsProvider: "msg91" | null;
+  smsTemplates: Record<string, string>;
   updatedByAdminId: string | null;
   updatedAt: string | null;
 }
+
+const SMS_TEMPLATE_KEYS = [
+  { key: "WAYKEL_OTP", label: "OTP", description: "Login/verification OTPs" },
+  { key: "WAYKEL_TRIP_ASSIGN", label: "Trip Assigned", description: "When driver is assigned to a trip" },
+  { key: "WAYKEL_BID_ACCEPTED", label: "Bid Accepted", description: "When transporter's bid wins" },
+  { key: "WAYKEL_DELIVERY_DONE", label: "Delivery Completed", description: "When delivery is marked complete" },
+  { key: "WAYKEL_TRANSPORTER_APPROVED", label: "Transporter Approved", description: "When transporter account is approved" },
+  { key: "WAYKEL_TRANSPORTER_REJECTED", label: "Transporter Rejected", description: "When transporter account is rejected" },
+];
 
 interface FeePreview {
   finalPrice: number;
@@ -76,6 +90,10 @@ export default function PlatformSettingsPage() {
   const [basePercent, setBasePercent] = useState("10");
   const [minFee, setMinFee] = useState("50");
   const [maxFee, setMaxFee] = useState("5000");
+  const [smsEnabled, setSmsEnabled] = useState(false);
+  const [smsMode, setSmsMode] = useState<"shadow" | "live">("shadow");
+  const [smsProvider, setSmsProvider] = useState<"msg91" | null>(null);
+  const [smsTemplates, setSmsTemplates] = useState<Record<string, string>>({});
   const [previewAmount, setPreviewAmount] = useState("10000");
   const [feePreview, setFeePreview] = useState<FeePreview | null>(null);
 
@@ -87,6 +105,10 @@ export default function PlatformSettingsPage() {
       setBasePercent(settings.basePercent ?? "10");
       setMinFee(settings.minFee ?? "50");
       setMaxFee(settings.maxFee ?? "5000");
+      setSmsEnabled(settings.smsEnabled ?? false);
+      setSmsMode(settings.smsMode ?? "shadow");
+      setSmsProvider(settings.smsProvider ?? null);
+      setSmsTemplates(settings.smsTemplates ?? {});
     }
   }, [settings]);
 
@@ -108,7 +130,11 @@ export default function PlatformSettingsPage() {
       tierConfig,
       basePercent,
       minFee,
-      maxFee
+      maxFee,
+      smsEnabled,
+      smsMode,
+      smsProvider,
+      smsTemplates
     });
   };
 
@@ -405,6 +431,134 @@ export default function PlatformSettingsPage() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5" />
+                SMS Settings
+              </CardTitle>
+              <CardDescription>
+                Control SMS notifications and OTP delivery
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="sms-enabled">SMS Enabled</Label>
+                  <p className="text-sm text-muted-foreground">
+                    When disabled, no SMS messages are sent
+                  </p>
+                </div>
+                <Switch
+                  id="sms-enabled"
+                  checked={smsEnabled}
+                  onCheckedChange={setSmsEnabled}
+                  data-testid="switch-sms-enabled"
+                />
+              </div>
+
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="sms-mode">SMS Mode</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {smsMode === "shadow" 
+                      ? "Shadow: SMS logic runs but messages are logged only" 
+                      : "Live: SMS messages are actually sent"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant={smsMode === "shadow" ? "secondary" : "destructive"}>
+                    {smsMode === "shadow" ? "Shadow" : "Live"}
+                  </Badge>
+                  <Switch
+                    id="sms-mode"
+                    checked={smsMode === "live"}
+                    onCheckedChange={(checked) => setSmsMode(checked ? "live" : "shadow")}
+                    data-testid="switch-sms-mode"
+                  />
+                </div>
+              </div>
+
+              {smsMode === "live" && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-md flex items-start gap-2">
+                  <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-amber-800">
+                    <strong>Warning:</strong> Live mode will send actual SMS messages. Ensure MSG91 credentials are configured.
+                  </div>
+                </div>
+              )}
+
+              <Separator />
+
+              <div className="grid gap-2">
+                <Label htmlFor="sms-provider">SMS Provider</Label>
+                <Select
+                  value={smsProvider || "none"}
+                  onValueChange={(value) => setSmsProvider(value === "none" ? null : value as "msg91")}
+                >
+                  <SelectTrigger id="sms-provider" data-testid="select-sms-provider">
+                    <SelectValue placeholder="Select provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None (Disabled)</SelectItem>
+                    <SelectItem value="msg91">MSG91</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Select the SMS provider to use for OTP and notifications
+                </p>
+              </div>
+
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                <p className="text-sm text-blue-800">
+                  <strong>OTP Console Logging:</strong> When SMS is disabled or in shadow mode, OTPs are logged to the server console for testing purposes.
+                </p>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-base font-medium">DLT Template ID Mapping</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Map each SMS event to its MSG91 DLT template ID. Required for live mode.
+                  </p>
+                </div>
+                
+                <div className="space-y-3">
+                  {SMS_TEMPLATE_KEYS.map((template) => (
+                    <div key={template.key} className="grid grid-cols-1 md:grid-cols-2 gap-2 items-start p-3 border rounded-lg">
+                      <div>
+                        <Label className="text-sm font-medium">{template.label}</Label>
+                        <p className="text-xs text-muted-foreground">{template.description}</p>
+                        <code className="text-xs bg-gray-100 px-1 rounded">{template.key}</code>
+                      </div>
+                      <Input
+                        placeholder="e.g., 110716xxxxxxx"
+                        value={smsTemplates[template.key] || ""}
+                        onChange={(e) => setSmsTemplates(prev => ({
+                          ...prev,
+                          [template.key]: e.target.value
+                        }))}
+                        data-testid={`input-template-${template.key}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {smsMode === "live" && smsProvider === "msg91" && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
+                    <p className="text-sm text-amber-800">
+                      <strong>Note:</strong> All template IDs must be configured for live SMS to work. Missing templates will be skipped.
+                    </p>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>

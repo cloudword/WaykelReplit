@@ -1,0 +1,119 @@
+A1. Define SMS Capability Flags (Backend)
+
+📍 WaykelDev
+
+Create platform-level SMS control, similar to what you did for monetization.
+
+Table: platform_settings (extend existing)
+
+Add fields (nullable defaults):
+
+smsEnabled: boolean // default false
+smsMode: 'shadow' | 'live' // default 'shadow'
+smsProvider: 'msg91' | null
+
+
+🔒 Default = OFF + shadow
+So nothing is sent, but logic runs.
+
+A2. Create SMS Provider Interface (Critical Design)
+
+📍 WaykelDev
+
+Create a clean abstraction so you’re NOT locked into MSG91.
+
+// server/sms/smsProvider.ts
+export interface SmsProvider {
+  sendOtp(phone: string, otp: string): Promise<void>
+  sendTransactional(
+    phone: string,
+    template: SmsTemplate,
+    variables: Record<string, string>
+  ): Promise<void>
+}
+
+
+Why?
+
+Today: MSG91
+
+Tomorrow: Twilio / Karix / Gupshup
+
+Zero rewrite later
+
+A3. Implement MSG91 Adapter (Shadow Mode First)
+
+📍 WaykelDev
+
+// server/sms/providers/msg91.ts
+export class Msg91Provider implements SmsProvider {
+  async sendOtp(phone, otp) {
+    if (!platformSettings.smsEnabled) {
+      console.log('[SMS:SHADOW][OTP]', phone, otp)
+      return
+    }
+
+    if (platformSettings.smsMode === 'shadow') {
+      console.log('[SMS:SHADOW][OTP]', phone, otp)
+      return
+    }
+
+    // REAL API CALL later
+  }
+}
+
+
+🔑 Key idea
+
+Same code path
+
+Shadow logs instead of sending
+
+No dependency on DLT yet
+
+A4. Central SMS Service (Single Entry Point)
+
+📍 WaykelDev
+
+// server/sms/smsService.ts
+export async function sendOtpSms(phone, otp) {
+  const provider = getSmsProvider()
+  await provider.sendOtp(phone, otp)
+}
+
+
+ALL SMS goes through this.
+No direct MSG91 calls anywhere else.
+
+PHASE B — OTP FLOW (HIGH PRIORITY)
+B1. OTP for Login / Forgot Password
+
+📍 WaykelDev
+
+You already have:
+
+/auth/login
+
+/auth/change-password
+
+customer login flows
+
+Add:
+POST /api/auth/request-otp
+POST /api/auth/verify-otp
+
+
+Flow:
+
+User enters phone
+
+OTP generated + stored (hashed)
+
+sendOtpSms() called
+
+In shadow mode → logs only
+
+📌 Do NOT block login if SMS is off
+Fallback for now:
+
+Show OTP in console logs (admin testing)

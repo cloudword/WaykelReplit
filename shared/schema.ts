@@ -399,6 +399,10 @@ export const platformSettings = pgTable("platform_settings", {
   basePercent: decimal("base_percent", { precision: 5, scale: 2 }).default("10"),
   minFee: decimal("min_fee", { precision: 10, scale: 2 }).default("50"),
   maxFee: decimal("max_fee", { precision: 10, scale: 2 }).default("5000"),
+  smsEnabled: boolean("sms_enabled").default(false),
+  smsMode: text("sms_mode").$type<"shadow" | "live">().default("shadow"),
+  smsProvider: text("sms_provider").$type<"msg91" | null>().default(null),
+  smsTemplates: json("sms_templates").$type<Record<string, string>>().default({}),
   updatedByAdminId: varchar("updated_by_admin_id").references(() => users.id),
   updatedAt: timestamp("updated_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
@@ -407,3 +411,19 @@ export const platformSettings = pgTable("platform_settings", {
 export const insertPlatformSettingsSchema = createInsertSchema(platformSettings).omit({ createdAt: true });
 export type InsertPlatformSettings = z.infer<typeof insertPlatformSettingsSchema>;
 export type PlatformSettings = typeof platformSettings.$inferSelect;
+
+// OTP for phone verification
+export const otpCodes = pgTable("otp_codes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  phone: varchar("phone", { length: 15 }).notNull(),
+  otpHash: varchar("otp_hash", { length: 255 }).notNull(),
+  purpose: text("purpose").$type<"login" | "forgot_password" | "verify_phone">().notNull(),
+  attempts: integer("attempts").default(0),
+  verified: boolean("verified").default(false),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertOtpCodeSchema = createInsertSchema(otpCodes).omit({ id: true, createdAt: true });
+export type InsertOtpCode = z.infer<typeof insertOtpCodeSchema>;
+export type OtpCode = typeof otpCodes.$inferSelect;

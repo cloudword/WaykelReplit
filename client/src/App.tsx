@@ -11,6 +11,7 @@ window.addEventListener('unhandledrejection', (event) => {
 import NotFound from "@/pages/not-found";
 import SplashScreen from "@/pages/splash";
 import AuthPage from "@/pages/auth";
+import ForgotPasswordPage from "@/pages/forgot-password";
 import DriverDashboard from "@/pages/driver-dashboard";
 import DriverRides from "@/pages/driver-rides";
 import DriverEarnings from "@/pages/driver-earnings";
@@ -62,6 +63,7 @@ function Router() {
       <Route path="/" component={SplashScreen} />
       <Route path="/auth" component={AuthPage} />
       <Route path="/auth/login" component={AuthPage} />
+      <Route path="/forgot-password" component={ForgotPasswordPage} />
       
       {/* Driver App Routes */}
       <Route path="/driver" component={DriverDashboard} />

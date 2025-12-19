@@ -48,10 +48,15 @@ export default function AdminStorage() {
   useEffect(() => {
     const checkSuperAdmin = async () => {
       try {
-        const res = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
+        const res = await fetch(`${API_BASE}/auth/session`, { credentials: "include" });
         if (res.ok) {
-          const user = await res.json();
-          if (user.isSuperAdmin) {
+          const data = await res.json();
+          if (!data.authenticated) {
+            setIsSuperAdmin(false);
+            setAccessError("Authentication required");
+            return;
+          }
+          if (data.user?.isSuperAdmin) {
             setIsSuperAdmin(true);
           } else {
             setIsSuperAdmin(false);

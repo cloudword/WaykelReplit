@@ -1,6 +1,6 @@
 import { 
   users, vehicles, rides, bids, transporters, documents, notifications, apiLogs,
-  roles, userRoles, savedAddresses, driverApplications, ledgerEntries, platformSettings,
+  roles, userRoles, savedAddresses, driverApplications, ledgerEntries, platformSettings, otpCodes,
   type User, type InsertUser,
   type Vehicle, type InsertVehicle,
   type Ride, type InsertRide,
@@ -14,7 +14,8 @@ import {
   type SavedAddress, type InsertSavedAddress,
   type DriverApplication, type InsertDriverApplication,
   type LedgerEntry, type InsertLedgerEntry,
-  type PlatformSettings, type InsertPlatformSettings
+  type PlatformSettings, type InsertPlatformSettings,
+  type OtpCode, type InsertOtpCode
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, or, sql, gte, inArray, not } from "drizzle-orm";
@@ -210,6 +211,13 @@ export interface IStorage {
   // Platform Settings
   getPlatformSettings(): Promise<PlatformSettings>;
   updatePlatformSettings(updates: Partial<InsertPlatformSettings>, updatedByAdminId: string): Promise<PlatformSettings>;
+  
+  // OTP Codes
+  createOtpCode(otp: InsertOtpCode): Promise<OtpCode>;
+  getActiveOtpCode(phone: string, purpose: "login" | "forgot_password" | "verify_phone"): Promise<OtpCode | undefined>;
+  incrementOtpAttempts(id: string): Promise<void>;
+  markOtpVerified(id: string): Promise<void>;
+  invalidateOtpCodes(phone: string, purpose: "login" | "forgot_password" | "verify_phone"): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1099,6 +1107,45 @@ export class DatabaseStorage implements IStorage {
       updatedAt: new Date()
     }).where(eq(platformSettings.id, "default")).returning();
     return updated;
+  }
+
+  // OTP Codes
+  async createOtpCode(otp: InsertOtpCode): Promise<OtpCode> {
+    const [created] = await db.insert(otpCodes).values(otp).returning();
+    return created;
+  }
+
+  async getActiveOtpCode(phone: string, purpose: "login" | "forgot_password" | "verify_phone"): Promise<OtpCode | undefined> {
+    const [otp] = await db.select().from(otpCodes)
+      .where(and(
+        eq(otpCodes.phone, phone),
+        eq(otpCodes.purpose, purpose),
+        eq(otpCodes.verified, false),
+        gte(otpCodes.expiresAt, new Date())
+      ))
+      .orderBy(desc(otpCodes.createdAt))
+      .limit(1);
+    return otp || undefined;
+  }
+
+  async incrementOtpAttempts(id: string): Promise<void> {
+    await db.update(otpCodes).set({
+      attempts: sql`${otpCodes.attempts} + 1`
+    }).where(eq(otpCodes.id, id));
+  }
+
+  async markOtpVerified(id: string): Promise<void> {
+    await db.update(otpCodes).set({ verified: true }).where(eq(otpCodes.id, id));
+  }
+
+  async invalidateOtpCodes(phone: string, purpose: "login" | "forgot_password" | "verify_phone"): Promise<void> {
+    await db.update(otpCodes).set({ verified: true }).where(
+      and(
+        eq(otpCodes.phone, phone),
+        eq(otpCodes.purpose, purpose),
+        eq(otpCodes.verified, false)
+      )
+    );
   }
 }
 

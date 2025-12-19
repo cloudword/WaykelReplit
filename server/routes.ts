@@ -24,6 +24,7 @@ import {
 import { createRoleAwareNotification, createSimpleNotification } from "./notifications";
 import { assertRideTransition, RideTransitionError, isValidStatus, type RideStatus } from "./rideLifecycle";
 import { lockTripFinancialsAtomic, computeTripFinancials, computeTripFinancialsWithSettings, settingsToFeeConfig } from "./tripFinancials";
+import { sendTransactionalSms, SmsEvent } from "./sms/smsService";
 
 // JWT Configuration
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "waykel-jwt-secret-change-in-production";
@@ -703,6 +704,187 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     } catch (error) {
       res.status(400).json({ error: "Token refresh failed" });
+    }
+  });
+
+  // ============== OTP AUTHENTICATION ==============
+  
+  app.post("/api/auth/request-otp", authLimiter, async (req, res) => {
+    try {
+      const { phone, purpose = "login" } = req.body;
+      
+      if (!phone) {
+        return res.status(400).json({ error: "Phone number is required" });
+      }
+      
+      const validPurposes = ["login", "forgot_password", "verify_phone"];
+      if (!validPurposes.includes(purpose)) {
+        return res.status(400).json({ error: "Invalid OTP purpose" });
+      }
+      
+      let normalizedPhone: string;
+      try {
+        normalizedPhone = normalizePhone(phone);
+      } catch (e) {
+        return res.status(400).json({ error: "Invalid phone number format. Must be 10 digits." });
+      }
+      
+      const user = await storage.getUserByPhone(normalizedPhone);
+      if (!user && purpose !== "verify_phone") {
+        return res.status(404).json({ error: "No account found with this phone number" });
+      }
+      
+      await storage.invalidateOtpCodes(normalizedPhone, purpose);
+      
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const otpHash = await bcrypt.hash(otp, 10);
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+      
+      await storage.createOtpCode({
+        phone: normalizedPhone,
+        otpHash,
+        purpose,
+        expiresAt,
+        attempts: 0,
+        verified: false
+      });
+      
+      const { sendOtpSms } = await import("./sms/smsService");
+      await sendOtpSms(normalizedPhone, otp);
+      
+      console.log(`[OTP] Generated for ${normalizedPhone} (${purpose}): ${otp}`);
+      
+      res.json({ 
+        success: true, 
+        message: "OTP sent successfully",
+        expiresIn: 600
+      });
+    } catch (error) {
+      console.error("OTP request error:", error);
+      res.status(500).json({ error: "Failed to send OTP" });
+    }
+  });
+  
+  app.post("/api/auth/verify-otp", authLimiter, async (req, res) => {
+    try {
+      const { phone, otp, purpose = "login" } = req.body;
+      
+      if (!phone || !otp) {
+        return res.status(400).json({ error: "Phone and OTP are required" });
+      }
+      
+      let normalizedPhone: string;
+      try {
+        normalizedPhone = normalizePhone(phone);
+      } catch (e) {
+        return res.status(400).json({ error: "Invalid phone number format. Must be 10 digits." });
+      }
+      
+      const otpRecord = await storage.getActiveOtpCode(normalizedPhone, purpose);
+      
+      if (!otpRecord) {
+        return res.status(400).json({ error: "OTP expired or not found. Please request a new one." });
+      }
+      
+      if ((otpRecord.attempts || 0) >= 3) {
+        return res.status(400).json({ error: "Too many attempts. Please request a new OTP." });
+      }
+      
+      await storage.incrementOtpAttempts(otpRecord.id);
+      
+      const isValid = await bcrypt.compare(otp, otpRecord.otpHash);
+      
+      if (!isValid) {
+        const remainingAttempts = 2 - (otpRecord.attempts || 0);
+        return res.status(400).json({ 
+          error: "Invalid OTP",
+          remainingAttempts: Math.max(0, remainingAttempts)
+        });
+      }
+      
+      await storage.markOtpVerified(otpRecord.id);
+      
+      const user = await storage.getUserByPhone(normalizedPhone);
+      
+      if (!user) {
+        return res.json({ 
+          success: true, 
+          verified: true,
+          message: "Phone verified successfully"
+        });
+      }
+      
+      if (purpose === "forgot_password") {
+        const resetToken = jwt.sign(
+          { userId: user.id, purpose: "password_reset" },
+          JWT_SECRET,
+          { expiresIn: "15m" }
+        );
+        return res.json({
+          success: true,
+          verified: true,
+          resetToken,
+          message: "OTP verified. Use the reset token to set a new password."
+        });
+      }
+      
+      req.session.user = {
+        id: user.id,
+        role: user.role,
+        isSuperAdmin: user.isSuperAdmin || false,
+        isSelfDriver: user.isSelfDriver || false,
+        transporterId: user.transporterId || undefined,
+      };
+      
+      req.session.save((saveErr) => {
+        if (saveErr) {
+          console.error("Session save error during OTP login:", saveErr);
+          return res.status(500).json({ error: "Session save failed" });
+        }
+        const { password: _, ...userWithoutPassword } = user;
+        res.json({ 
+          success: true,
+          verified: true,
+          user: userWithoutPassword,
+          message: "Logged in successfully"
+        });
+      });
+    } catch (error) {
+      console.error("OTP verification error:", error);
+      res.status(500).json({ error: "Failed to verify OTP" });
+    }
+  });
+  
+  app.post("/api/auth/reset-password-with-token", sensitiveAuthLimiter, async (req, res) => {
+    try {
+      const { resetToken, newPassword } = req.body;
+      
+      if (!resetToken || !newPassword) {
+        return res.status(400).json({ error: "Reset token and new password are required" });
+      }
+      
+      if (newPassword.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
+      
+      let decoded: { userId: string; purpose: string };
+      try {
+        decoded = jwt.verify(resetToken, JWT_SECRET) as { userId: string; purpose: string };
+      } catch (err) {
+        return res.status(400).json({ error: "Invalid or expired reset token" });
+      }
+      
+      if (decoded.purpose !== "password_reset") {
+        return res.status(400).json({ error: "Invalid reset token" });
+      }
+      
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await storage.updateUserPassword(decoded.userId, hashedPassword);
+      
+      res.json({ success: true, message: "Password reset successfully" });
+    } catch (error) {
+      console.error("Password reset error:", error);
+      res.status(500).json({ error: "Failed to reset password" });
     }
   });
 
@@ -1515,6 +1697,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       await storage.assignRideToDriver(req.params.id, driverId, vehicleId);
+      
+      // Send SMS to assigned driver
+      const driver = await storage.getUser(driverId);
+      if (driver?.phone) {
+        sendTransactionalSms(driver.phone, SmsEvent.TRIP_ASSIGNED, {
+          pickup: ride.pickupLocation,
+          drop: ride.dropLocation,
+          date: ride.date
+        }).catch(err => console.error("[SMS:ERROR] Failed to send TRIP_ASSIGNED SMS:", err));
+      }
+      
       res.json({ success: true });
     } catch (error) {
       console.error("Failed to assign driver:", error);
@@ -1595,6 +1788,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       await storage.markRideDeliveryComplete(req.params.id);
+      
+      // Send SMS for delivery completion
+      if (ride.customerPhone) {
+        sendTransactionalSms(ride.customerPhone, SmsEvent.DELIVERY_COMPLETED, {
+          pickup: ride.pickupLocation,
+          drop: ride.dropLocation
+        }).catch(err => console.error("[SMS:ERROR] Failed to send DELIVERY_COMPLETED SMS:", err));
+      }
+      
       res.json({ success: true, message: "Delivery marked as complete" });
     } catch (error) {
       console.error("Mark delivery complete error:", error);
@@ -2539,6 +2741,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             actionType: "success",
             context: { companyName: transporter.companyName }
           });
+          
+          // Send SMS notification for transporter approval
+          if (user.phone) {
+            sendTransactionalSms(user.phone, SmsEvent.TRANSPORTER_APPROVED, {
+              companyName: transporter.companyName
+            }).catch(err => console.error("[SMS:ERROR] Failed to send TRANSPORTER_APPROVED SMS:", err));
+          }
         }
       } catch (notifyError) {
         console.error("Failed to notify transporter users about approval:", notifyError);
@@ -2620,6 +2829,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             actionType: "warning",
             context: { companyName: transporter.companyName, reason: reason.trim() }
           });
+          
+          // Send SMS notification for transporter rejection
+          if (user.phone) {
+            sendTransactionalSms(user.phone, SmsEvent.TRANSPORTER_REJECTED, {
+              companyName: transporter.companyName,
+              reason: reason.trim()
+            }).catch(err => console.error("[SMS:ERROR] Failed to send TRANSPORTER_REJECTED SMS:", err));
+          }
         }
       } catch (notifyError) {
         console.error("Failed to notify transporter users about rejection:", notifyError);
@@ -4017,6 +4234,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           rideId: ride.id,
           bidId: bid.id,
         });
+        
+        // Send SMS to winning bidder
+        const bidUser = await storage.getUser(bid.userId);
+        if (bidUser?.phone) {
+          sendTransactionalSms(bidUser.phone, SmsEvent.BID_ACCEPTED, {
+            amount: String(bid.amount),
+            pickup: ride.pickupLocation,
+            drop: ride.dropLocation
+          }).catch(err => console.error("[SMS:ERROR] Failed to send BID_ACCEPTED SMS:", err));
+        }
       }
       
       // Notify the customer that bid was accepted (if super admin accepted it)
@@ -4688,7 +4915,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     ),
     basePercent: optionalNumericPercent,
     minFee: optionalNumeric,
-    maxFee: optionalNumeric
+    maxFee: optionalNumeric,
+    smsEnabled: z.boolean().optional(),
+    smsMode: z.enum(["shadow", "live"]).optional(),
+    smsProvider: z.enum(["msg91"]).nullable().optional(),
+    smsTemplates: z.record(z.string(), z.string()).optional()
   }).strict();
 
   app.patch("/api/admin/platform-settings", requireAuth, async (req: Request, res: Response) => {
@@ -4704,7 +4935,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ error: "Invalid settings data", details: parseResult.error.errors });
       }
       
-      const { commissionEnabled, commissionMode, tierConfig, basePercent, minFee, maxFee } = parseResult.data;
+      const { commissionEnabled, commissionMode, tierConfig, basePercent, minFee, maxFee, smsEnabled, smsMode, smsProvider, smsTemplates } = parseResult.data;
       
       const updates: any = {};
       if (typeof commissionEnabled === "boolean") updates.commissionEnabled = commissionEnabled;
@@ -4713,8 +4944,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (basePercent !== undefined) updates.basePercent = String(basePercent);
       if (minFee !== undefined) updates.minFee = String(minFee);
       if (maxFee !== undefined) updates.maxFee = String(maxFee);
+      if (typeof smsEnabled === "boolean") updates.smsEnabled = smsEnabled;
+      if (smsMode) updates.smsMode = smsMode;
+      if ("smsProvider" in req.body) updates.smsProvider = smsProvider;
+      if (smsTemplates) updates.smsTemplates = smsTemplates;
       
       const updatedSettings = await storage.updatePlatformSettings(updates, sessionUser.id);
+      
+      if (updates.smsEnabled !== undefined || updates.smsMode !== undefined || updates.smsProvider !== undefined || updates.smsTemplates !== undefined) {
+        const { invalidateSmsSettingsCache } = await import("./sms/smsService");
+        invalidateSmsSettingsCache();
+      }
       
       console.log(`[PlatformSettings] Updated by ${sessionUser.id}:`, updates);
       
