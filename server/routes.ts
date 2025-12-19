@@ -2949,13 +2949,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Admin dashboard stats - Admin only
   app.get("/api/admin/stats", requireAdmin, async (req, res) => {
     try {
+      // Defensive: each query wrapped with catch to prevent cascade failures
       const [drivers, transporters, customers, vehicles, rides, bids] = await Promise.all([
-        storage.getDrivers(),
-        storage.getAllTransporters(),
-        storage.getCustomers(),
-        storage.getAllVehicles(),
-        storage.getAllRides(),
-        storage.getAllBids(),
+        storage.getDrivers().catch(() => []),
+        storage.getAllTransporters().catch(() => []),
+        storage.getCustomers().catch(() => []),
+        storage.getAllVehicles().catch(() => []),
+        storage.getAllRides().catch(() => []),
+        storage.getAllBids().catch(() => []),
       ]);
 
       const activeVehicles = vehicles.filter(v => v.status === "active");
@@ -2998,7 +2999,25 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         })),
       });
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch admin stats" });
+      console.error("Admin stats error:", error);
+      // Return degraded stats instead of crashing
+      res.json({
+        totalDrivers: 0,
+        totalTransporters: 0,
+        totalCustomers: 0,
+        totalVehicles: 0,
+        activeVehicles: 0,
+        totalRides: 0,
+        completedRides: 0,
+        activeRides: 0,
+        pendingRides: 0,
+        totalBids: 0,
+        totalRevenue: 0,
+        pendingVerifications: 0,
+        pendingApprovals: 0,
+        recentRides: [],
+        degraded: true,
+      });
     }
   });
 
