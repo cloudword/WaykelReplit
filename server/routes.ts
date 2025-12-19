@@ -4098,18 +4098,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // GET /api/notifications/unread-count - Fast count for UI badges
+  // IMPORTANT: Must NEVER throw or return non-JSON - UI polls this frequently
   app.get("/api/notifications/unread-count", async (req, res) => {
-    const sessionUser = getCurrentUser(req);
-    
-    if (!sessionUser) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-    
     try {
+      const sessionUser = getCurrentUser(req);
+      
+      if (!sessionUser) {
+        // Return 0 for unauthenticated users instead of 401
+        return res.json({ count: 0 });
+      }
+      
       const unreadNotifications = await storage.getUnreadNotifications(sessionUser.id);
       res.json({ count: unreadNotifications.length });
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch unread count" });
+      console.error("[notifications] unread-count failed:", error);
+      // NEVER throw - return 0 on failure to prevent UI breakage
+      res.json({ count: 0 });
     }
   });
 
@@ -4895,10 +4899,29 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       const settings = await storage.getPlatformSettings();
-      res.json(settings);
+      // Return settings or safe defaults if null
+      res.json(settings ?? {
+        commissionEnabled: false,
+        commissionMode: "shadow",
+        tierConfig: [],
+        smsEnabled: false,
+        smsMode: "shadow",
+        smsProvider: null,
+        smsTemplates: {}
+      });
     } catch (error) {
-      console.error("Failed to get platform settings:", error);
-      res.status(500).json({ error: "Failed to get platform settings" });
+      console.error("[admin] platform-settings failed:", error);
+      // NEVER return 500 - return safe defaults with degraded flag
+      res.json({
+        commissionEnabled: false,
+        commissionMode: "shadow",
+        tierConfig: [],
+        smsEnabled: false,
+        smsMode: "shadow",
+        smsProvider: null,
+        smsTemplates: {},
+        degraded: true
+      });
     }
   });
 
