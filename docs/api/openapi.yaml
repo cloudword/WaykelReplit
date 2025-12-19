@@ -1,0 +1,1988 @@
+openapi: 3.0.3
+info:
+  title: Waykel API
+  description: |
+    Commercial Vehicle Logistics Platform API.
+    
+    ## Authentication
+    The API supports two authentication methods:
+    - **Session-based**: For browser clients (cookies with `credentials: include`)
+    - **JWT Bearer Token**: For server-to-server or mobile app integrations
+    
+    ## Rate Limiting
+    - Auth endpoints: 10 requests/minute
+    - Bid creation: 20 requests/minute
+    - General API: 100 requests/15 minutes
+    
+    ## Roles
+    - **Super Admin**: Full platform access
+    - **Transporter**: Fleet owner, manages vehicles and drivers
+    - **Driver**: Operates vehicles, completes trips
+    - **Customer**: Books rides and manages shipments
+  version: 1.0.0
+  contact:
+    name: Waykel Support
+    url: https://waykel.com
+    email: support@waykel.com
+
+servers:
+  - url: https://api.waykel.com
+    description: Production server
+  - url: http://localhost:5000
+    description: Development server
+
+tags:
+  - name: Health
+    description: System health checks
+  - name: Auth
+    description: Authentication (Transporter/Driver/Admin)
+  - name: Customer Auth
+    description: Customer authentication
+  - name: Customer
+    description: Customer operations
+  - name: Rides
+    description: Ride/Trip management
+  - name: Bids
+    description: Bid management
+  - name: Transporters
+    description: Transporter management
+  - name: Vehicles
+    description: Vehicle management
+  - name: Users
+    description: User management
+  - name: Documents
+    description: Document upload and verification
+  - name: Notifications
+    description: Notification system
+  - name: Admin
+    description: Admin-only operations
+  - name: Roles
+    description: Role and permission management
+  - name: Storage
+    description: File storage operations
+
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: connect.sid
+      description: Session cookie authentication
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token authentication
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Authentication required"
+      required:
+        - error
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        role:
+          type: string
+          enum: [driver, transporter, admin, customer]
+        isSuperAdmin:
+          type: boolean
+        isSelfDriver:
+          type: boolean
+        transporterId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+
+    Transporter:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        companyName:
+          type: string
+        city:
+          type: string
+        fleetSize:
+          type: integer
+        status:
+          type: string
+          enum: [pending_verification, pending_approval, active, rejected, suspended]
+        ownerDriverUserId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+
+    Vehicle:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        registrationNumber:
+          type: string
+        vehicleType:
+          type: string
+        capacity:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, maintenance]
+        transporterId:
+          type: string
+          format: uuid
+
+    Ride:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        pickupLocation:
+          type: string
+        dropLocation:
+          type: string
+        pickupDate:
+          type: string
+          format: date-time
+        vehicleType:
+          type: string
+        cargoType:
+          type: string
+        weight:
+          type: string
+        price:
+          type: string
+        status:
+          type: string
+          enum: [pending, active, assigned, in_transit, completed, cancelled]
+        customerId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+
+    Bid:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        rideId:
+          type: string
+          format: uuid
+        transporterId:
+          type: string
+          format: uuid
+        amount:
+          type: string
+        status:
+          type: string
+          enum: [pending, accepted, rejected, cancelled]
+        notes:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+        recipientId:
+          type: string
+        type:
+          type: string
+        title:
+          type: string
+        message:
+          type: string
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    Document:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        documentType:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        fileUrl:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Authentication required. Please log in or provide a valid Bearer token."
+
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Admin access required"
+
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Invalid request body"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Resource not found"
+
+paths:
+  # =====================
+  # HEALTH
+  # =====================
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  # =====================
+  # AUTH (Transporter/Driver/Admin)
+  # =====================
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register new user
+      description: Register as driver or transporter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, phone, password, role]
+              properties:
+                name:
+                  type: string
+                  example: "Rajesh Kumar"
+                phone:
+                  type: string
+                  example: "9876543210"
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 6
+                role:
+                  type: string
+                  enum: [driver, transporter]
+                companyName:
+                  type: string
+                  description: Required for transporter
+                location:
+                  type: string
+                  description: Required for transporter
+                fleetSize:
+                  type: integer
+      responses:
+        '200':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      description: Login with phone/username and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                phone:
+                  type: string
+                  example: "9876543210"
+                username:
+                  type: string
+                password:
+                  type: string
+            examples:
+              phoneLogin:
+                summary: Login with phone
+                value:
+                  phone: "9876543210"
+                  password: "password123"
+              usernameLogin:
+                summary: Login with username
+                value:
+                  username: "admin"
+                  password: "password123"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/auth/token:
+    post:
+      tags: [Auth]
+      summary: Get JWT token
+      description: Exchange credentials for JWT token (server-to-server auth)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, password]
+              properties:
+                phone:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Token generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  expiresIn:
+                    type: string
+                    example: "24h"
+                  user:
+                    $ref: '#/components/schemas/User'
+
+  /api/auth/token/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh JWT token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  expiresIn:
+                    type: string
+
+  /api/auth/request-otp:
+    post:
+      tags: [Auth]
+      summary: Request OTP
+      description: Send OTP to phone number for verification or password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone:
+                  type: string
+                  example: "9876543210"
+                purpose:
+                  type: string
+                  enum: [login, forgot_password]
+                  default: login
+      responses:
+        '200':
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  expiresIn:
+                    type: integer
+                    description: Seconds until OTP expires
+
+  /api/auth/verify-otp:
+    post:
+      tags: [Auth]
+      summary: Verify OTP
+      description: Verify OTP code. Returns reset token for forgot_password purpose.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, otp]
+              properties:
+                phone:
+                  type: string
+                otp:
+                  type: string
+                  example: "123456"
+                purpose:
+                  type: string
+                  enum: [login, forgot_password]
+      responses:
+        '200':
+          description: OTP verified
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    description: Login purpose - returns user
+                    properties:
+                      user:
+                        $ref: '#/components/schemas/User'
+                  - type: object
+                    description: Forgot password - returns reset token
+                    properties:
+                      resetToken:
+                        type: string
+                      expiresIn:
+                        type: integer
+
+  /api/auth/reset-password-with-token:
+    post:
+      tags: [Auth]
+      summary: Reset password with token
+      description: Reset password using token from OTP verification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resetToken, newPassword]
+              properties:
+                resetToken:
+                  type: string
+                newPassword:
+                  type: string
+                  minLength: 6
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Password reset successfully"
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      description: End session and clear cookies
+      responses:
+        '200':
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /api/auth/session:
+    get:
+      tags: [Auth]
+      summary: Get current session
+      description: Check if user is authenticated and get user info
+      responses:
+        '200':
+          description: Session info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authenticated:
+                    type: boolean
+                  user:
+                    $ref: '#/components/schemas/User'
+              examples:
+                authenticated:
+                  value:
+                    authenticated: true
+                    user:
+                      id: "uuid"
+                      name: "Admin User"
+                      role: "admin"
+                      isSuperAdmin: true
+                notAuthenticated:
+                  value:
+                    authenticated: false
+
+  /api/auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Change password
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+                  minLength: 6
+      responses:
+        '200':
+          description: Password changed
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/auth/profile:
+    patch:
+      tags: [Auth]
+      summary: Update profile
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                phone:
+                  type: string
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  # =====================
+  # CUSTOMER AUTH
+  # =====================
+  /api/customer/register:
+    post:
+      tags: [Customer Auth]
+      summary: Register customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, phone, password]
+              properties:
+                name:
+                  type: string
+                phone:
+                  type: string
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /api/customer/login:
+    post:
+      tags: [Customer Auth]
+      summary: Customer login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, password]
+              properties:
+                phone:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /api/customer/session:
+    get:
+      tags: [Customer Auth]
+      summary: Get customer session
+      responses:
+        '200':
+          description: Session info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authenticated:
+                    type: boolean
+                  user:
+                    $ref: '#/components/schemas/User'
+
+  /api/customer/logout:
+    post:
+      tags: [Customer Auth]
+      summary: Customer logout
+      responses:
+        '200':
+          description: Logged out
+
+  # =====================
+  # CUSTOMER OPERATIONS
+  # =====================
+  /api/customer/rides:
+    get:
+      tags: [Customer]
+      summary: Get customer's rides
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of rides
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Ride'
+    post:
+      tags: [Customer]
+      summary: Create new ride request
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pickupLocation, dropLocation, pickupDate, vehicleType]
+              properties:
+                pickupLocation:
+                  type: string
+                dropLocation:
+                  type: string
+                pickupDate:
+                  type: string
+                  format: date-time
+                vehicleType:
+                  type: string
+                cargoType:
+                  type: string
+                weight:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Ride created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ride'
+
+  /api/customer/rides/{rideId}/bids:
+    get:
+      tags: [Customer]
+      summary: Get bids for a ride
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: rideId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of bids
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Bid'
+
+  /api/customer/bids/{bidId}/accept:
+    patch:
+      tags: [Customer]
+      summary: Accept a bid
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: bidId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Bid accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bid'
+
+  /api/customer/addresses:
+    get:
+      tags: [Customer]
+      summary: Get saved addresses
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of addresses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    label:
+                      type: string
+                    address:
+                      type: string
+                    isDefault:
+                      type: boolean
+    post:
+      tags: [Customer]
+      summary: Add saved address
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label, address]
+              properties:
+                label:
+                  type: string
+                address:
+                  type: string
+                isDefault:
+                  type: boolean
+      responses:
+        '200':
+          description: Address added
+
+  # =====================
+  # RIDES
+  # =====================
+  /api/rides:
+    get:
+      tags: [Rides]
+      summary: Get all rides
+      description: Get rides with optional filters. Admin sees all, others see their own.
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, active, assigned, in_transit, completed, cancelled]
+        - name: customerId
+          in: query
+          schema:
+            type: string
+        - name: transporterId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of rides
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Ride'
+    post:
+      tags: [Rides]
+      summary: Create ride (Admin)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pickupLocation, dropLocation, pickupDate, vehicleType]
+              properties:
+                pickupLocation:
+                  type: string
+                dropLocation:
+                  type: string
+                pickupDate:
+                  type: string
+                vehicleType:
+                  type: string
+                cargoType:
+                  type: string
+                weight:
+                  type: string
+                price:
+                  type: string
+                customerId:
+                  type: string
+      responses:
+        '200':
+          description: Ride created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ride'
+
+  /api/rides/{id}:
+    get:
+      tags: [Rides]
+      summary: Get ride by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ride details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ride'
+
+  /api/rides/{id}/status:
+    patch:
+      tags: [Rides]
+      summary: Update ride status
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [pending, active, assigned, in_transit, completed, cancelled]
+      responses:
+        '200':
+          description: Status updated
+
+  /api/rides/{id}/assign:
+    patch:
+      tags: [Rides]
+      summary: Assign ride to driver
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [driverId, vehicleId]
+              properties:
+                driverId:
+                  type: string
+                vehicleId:
+                  type: string
+      responses:
+        '200':
+          description: Ride assigned
+
+  /api/rides/{id}/pickup-complete:
+    patch:
+      tags: [Rides]
+      summary: Mark pickup complete
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pickup marked complete
+
+  /api/rides/{id}/delivery-complete:
+    patch:
+      tags: [Rides]
+      summary: Mark delivery complete
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Delivery marked complete
+
+  # =====================
+  # TRANSPORTER
+  # =====================
+  /api/transporter/marketplace:
+    get:
+      tags: [Transporters]
+      summary: Get available rides for bidding
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Available rides
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Ride'
+
+  /api/transporter/analytics:
+    get:
+      tags: [Transporters]
+      summary: Get transporter analytics
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Analytics data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalTrips:
+                    type: integer
+                  completedTrips:
+                    type: integer
+                  totalRevenue:
+                    type: number
+                  activeDrivers:
+                    type: integer
+
+  /api/transporters:
+    get:
+      tags: [Transporters]
+      summary: Get all transporters (Admin)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of transporters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transporter'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/transporters/{id}/approve:
+    post:
+      tags: [Transporters]
+      summary: Approve transporter (Admin)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transporter approved
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/transporters/{id}/reject:
+    post:
+      tags: [Transporters]
+      summary: Reject transporter (Admin)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Transporter rejected
+
+  # =====================
+  # BIDS
+  # =====================
+  /api/bids:
+    get:
+      tags: [Bids]
+      summary: Get bids
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: rideId
+          in: query
+          schema:
+            type: string
+        - name: transporterId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of bids
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Bid'
+    post:
+      tags: [Bids]
+      summary: Create bid
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rideId, amount]
+              properties:
+                rideId:
+                  type: string
+                amount:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Bid created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bid'
+
+  /api/bids/{id}/status:
+    patch:
+      tags: [Bids]
+      summary: Update bid status
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [accepted, rejected, cancelled]
+      responses:
+        '200':
+          description: Bid status updated
+
+  /api/bids/{bidId}/accept:
+    post:
+      tags: [Bids]
+      summary: Accept bid (Customer)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: bidId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Bid accepted
+
+  # =====================
+  # VEHICLES
+  # =====================
+  /api/vehicles:
+    get:
+      tags: [Vehicles]
+      summary: Get vehicles for current user
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of vehicles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Vehicle'
+    post:
+      tags: [Vehicles]
+      summary: Add vehicle
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [registrationNumber, vehicleType]
+              properties:
+                registrationNumber:
+                  type: string
+                vehicleType:
+                  type: string
+                capacity:
+                  type: string
+      responses:
+        '200':
+          description: Vehicle added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+
+  /api/vehicles/all:
+    get:
+      tags: [Vehicles]
+      summary: Get all vehicles (Admin)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All vehicles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Vehicle'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # =====================
+  # USERS (Admin)
+  # =====================
+  /api/users:
+    get:
+      tags: [Users]
+      summary: Get all users
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+
+  /api/users/{id}:
+    patch:
+      tags: [Users]
+      summary: Update user (Super Admin)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                phone:
+                  type: string
+                role:
+                  type: string
+      responses:
+        '200':
+          description: User updated
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/users/{id}/reset-password:
+    post:
+      tags: [Users]
+      summary: Reset user password (Admin)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [newPassword]
+              properties:
+                newPassword:
+                  type: string
+      responses:
+        '200':
+          description: Password reset
+
+  /api/customers:
+    get:
+      tags: [Users]
+      summary: Get all customers (Admin)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of customers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/drivers:
+    get:
+      tags: [Users]
+      summary: Get all drivers (Admin)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of drivers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # =====================
+  # DOCUMENTS
+  # =====================
+  /api/documents:
+    get:
+      tags: [Documents]
+      summary: Get documents
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Document'
+
+  /api/documents/{id}/status:
+    patch:
+      tags: [Documents]
+      summary: Update document status (Admin)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected]
+                rejectionReason:
+                  type: string
+      responses:
+        '200':
+          description: Status updated
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/trips/{tripId}/documents:
+    get:
+      tags: [Documents]
+      summary: Get trip documents
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trip documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Document'
+    post:
+      tags: [Documents]
+      summary: Upload trip document
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [documentType, fileUrl]
+              properties:
+                documentType:
+                  type: string
+                fileUrl:
+                  type: string
+      responses:
+        '200':
+          description: Document uploaded
+
+  # =====================
+  # NOTIFICATIONS
+  # =====================
+  /api/notifications:
+    get:
+      tags: [Notifications]
+      summary: Get notifications
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+
+  /api/notifications/unread-count:
+    get:
+      tags: [Notifications]
+      summary: Get unread count
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Unread count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+
+  /api/notifications/{id}/read:
+    patch:
+      tags: [Notifications]
+      summary: Mark notification as read
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Marked as read
+
+  /api/notifications/mark-all-read:
+    patch:
+      tags: [Notifications]
+      summary: Mark all notifications as read
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All marked as read
+
+  # =====================
+  # ADMIN
+  # =====================
+  /api/admin/stats:
+    get:
+      tags: [Admin]
+      summary: Get admin dashboard stats
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalDrivers:
+                    type: integer
+                  totalTransporters:
+                    type: integer
+                  totalCustomers:
+                    type: integer
+                  totalVehicles:
+                    type: integer
+                  totalRides:
+                    type: integer
+                  completedRides:
+                    type: integer
+                  totalRevenue:
+                    type: number
+                  pendingVerifications:
+                    type: integer
+                  pendingApprovals:
+                    type: integer
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/logs:
+    get:
+      tags: [Admin]
+      summary: Get API logs
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: API logs
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/logs/stats:
+    get:
+      tags: [Admin]
+      summary: Get API log statistics
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Log statistics
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/storage:
+    get:
+      tags: [Storage]
+      summary: Browse storage files (Super Admin)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: prefix
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Storage listing
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/storage/file:
+    get:
+      tags: [Storage]
+      summary: Get file signed URL
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: key
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Signed URL
+    delete:
+      tags: [Storage]
+      summary: Delete file
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: key
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File deleted
+
+  # =====================
+  # ROLES & PERMISSIONS
+  # =====================
+  /api/roles:
+    get:
+      tags: [Roles]
+      summary: Get all roles (Admin)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of roles
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Roles]
+      summary: Create role (Admin)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                permissions:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Role created
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/roles/{id}:
+    patch:
+      tags: [Roles]
+      summary: Update role (Admin)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Role updated
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      tags: [Roles]
+      summary: Delete role (Admin)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Role deleted
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/permissions:
+    get:
+      tags: [Roles]
+      summary: Get all permissions (Admin)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of permissions
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/users/{userId}/roles:
+    get:
+      tags: [Roles]
+      summary: Get user's roles
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User roles
+    post:
+      tags: [Roles]
+      summary: Assign role to user (Admin)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [roleId]
+              properties:
+                roleId:
+                  type: string
+      responses:
+        '200':
+          description: Role assigned
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/users/{userId}/roles/{roleId}:
+    delete:
+      tags: [Roles]
+      summary: Remove role from user (Admin)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: roleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Role removed
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # =====================
+  # SAVED ADDRESSES
+  # =====================
+  /api/saved-addresses:
+    get:
+      tags: [Customer]
+      summary: Get saved addresses
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of addresses
+    post:
+      tags: [Customer]
+      summary: Add saved address
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label, address]
+              properties:
+                label:
+                  type: string
+                address:
+                  type: string
+                city:
+                  type: string
+                state:
+                  type: string
+                pincode:
+                  type: string
+                isDefault:
+                  type: boolean
+      responses:
+        '200':
+          description: Address added
+
+  /api/saved-addresses/{id}:
+    patch:
+      tags: [Customer]
+      summary: Update saved address
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Address updated
+    delete:
+      tags: [Customer]
+      summary: Delete saved address
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Address deleted
