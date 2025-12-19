@@ -180,46 +180,40 @@ interface ExecutionPolicyCheck {
 }
 
 const checkExecutionPolicy = async (
-  transporter: { id: string; executionPolicy?: ExecutionPolicy | null; isOwnerOperator?: boolean },
-  driverId: string,
-  sessionUser: { id: string; isSelfDriver?: boolean; transporterId?: string }
+  transporter: { id: string; executionPolicy?: ExecutionPolicy | null; isOwnerOperator?: boolean; ownerDriverUserId?: string | null },
+  driverId: string
 ): Promise<ExecutionPolicyCheck> => {
   // Get effective policy (default based on isOwnerOperator if not set)
   const effectivePolicy: ExecutionPolicy = transporter.executionPolicy || 
     (transporter.isOwnerOperator ? "SELF_ONLY" : "ASSIGNED_DRIVER_ONLY");
   
+  // Fetch the driver info
+  const driver = await storage.getUser(driverId);
+  if (!driver) {
+    return { allowed: false, error: "Driver not found" };
+  }
+  
   switch (effectivePolicy) {
     case "SELF_ONLY":
       // Only the transporter owner (self-driver) can execute
-      if (!sessionUser.isSelfDriver || sessionUser.id !== driverId) {
+      // Check if driver is the owner-operator of this transporter
+      const isOwnerOperator = transporter.ownerDriverUserId === driverId || 
+        (driver.isSelfDriver && driver.transporterId === transporter.id);
+      if (!isOwnerOperator) {
         return { allowed: false, error: "This transporter only allows self-execution. Owner must be the driver." };
       }
       return { allowed: true };
       
     case "ASSIGNED_DRIVER_ONLY":
-      // Only the specifically assigned driver can execute
-      // The driver must belong to this transporter
-      const driver = await storage.getUser(driverId);
-      if (!driver) {
-        return { allowed: false, error: "Driver not found" };
-      }
-      if (driver.transporterId !== transporter.id && driverId !== sessionUser.id) {
+      // The driver must belong to this transporter (or be the owner-operator)
+      if (driver.transporterId !== transporter.id && transporter.ownerDriverUserId !== driverId) {
         return { allowed: false, error: "Driver must belong to this transporter" };
       }
       return { allowed: true };
       
     case "ANY_DRIVER":
-      // Any driver under the transporter can execute
-      const anyDriver = await storage.getUser(driverId);
-      if (!anyDriver) {
-        return { allowed: false, error: "Driver not found" };
-      }
-      // Self-driver is always allowed
-      if (sessionUser.isSelfDriver && sessionUser.id === driverId) {
-        return { allowed: true };
-      }
-      // Check if driver belongs to transporter
-      if (anyDriver.transporterId !== transporter.id) {
+      // Any driver under the transporter can execute (or the owner-operator)
+      if (driver.transporterId !== transporter.id && transporter.ownerDriverUserId !== driverId) {
         return { allowed: false, error: "Driver must belong to this transporter" };
       }
       return { allowed: true };
@@ -1435,16 +1429,50 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.patch("/api/rides/:id/assign", async (req, res) => {
     const sessionUser = getCurrentUser(req);
     
-    // Only super admin can assign drivers
-    if (!sessionUser || !sessionUser.isSuperAdmin) {
-      return res.status(403).json({ error: "Only administrators can assign drivers" });
+    // Only super admin or transporter can assign drivers
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    const isSuperAdmin = sessionUser.isSuperAdmin;
+    const isTransporter = sessionUser.role === "transporter";
+    
+    if (!isSuperAdmin && !isTransporter) {
+      return res.status(403).json({ error: "Only administrators or transporters can assign drivers" });
     }
     
     try {
       const { driverId, vehicleId } = req.body;
+      
+      if (!driverId || !vehicleId) {
+        return res.status(400).json({ error: "driverId and vehicleId are required" });
+      }
+      
+      const ride = await storage.getRide(req.params.id);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      // If transporter, verify they own this ride's accepted bid
+      if (isTransporter && !isSuperAdmin) {
+        if (ride.transporterId !== sessionUser.transporterId) {
+          return res.status(403).json({ error: "You can only assign drivers to your own trips" });
+        }
+        
+        // Enforce execution policy for transporter assignments
+        const transporter = await storage.getTransporter(sessionUser.transporterId!);
+        if (transporter) {
+          const policyCheck = await checkExecutionPolicy(transporter, driverId);
+          if (!policyCheck.allowed) {
+            return res.status(403).json({ error: policyCheck.error || "Driver assignment not allowed by transporter policy" });
+          }
+        }
+      }
+      
       await storage.assignRideToDriver(req.params.id, driverId, vehicleId);
       res.json({ success: true });
     } catch (error) {
+      console.error("Failed to assign driver:", error);
       res.status(400).json({ error: "Failed to assign driver" });
     }
   });
@@ -1520,13 +1548,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       // Check if driver is assigned to this ride
-      const driverId = resolveDriverIdentity(sessionUser);
-      if (ride.assignedDriverId !== driverId) {
+      const identity = resolveDriverIdentity(sessionUser);
+      if (ride.assignedDriverId !== identity.driverId) {
         return res.status(403).json({ error: "Not authorized for this ride" });
       }
       
       if (ride.status !== "assigned") {
         return res.status(400).json({ error: "Trip cannot be started from current status" });
+      }
+      
+      // Enforce execution policy before starting trip
+      if (ride.transporterId && identity.driverId) {
+        const transporter = await storage.getTransporter(ride.transporterId);
+        if (transporter) {
+          const policyCheck = await checkExecutionPolicy(transporter, identity.driverId);
+          if (!policyCheck.allowed) {
+            return res.status(403).json({ error: policyCheck.error || "Trip start not allowed by transporter policy" });
+          }
+        }
       }
       
       await storage.updateRideStatus(req.params.id, "active");
@@ -3721,9 +3760,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // Close bidding and record who accepted
       await storage.closeBidding(ride.id, sessionUser.id);
       
-      // Assign driver and vehicle if available
-      if (bid.userId && bid.vehicleId) {
-        await storage.assignRideToDriver(ride.id, bid.userId, bid.vehicleId);
+      // Assign driver and vehicle if available, but enforce execution policy
+      if (bid.userId && bid.vehicleId && bid.transporterId) {
+        const transporter = await storage.getTransporter(bid.transporterId);
+        if (transporter) {
+          const policyCheck = await checkExecutionPolicy(transporter, bid.userId);
+          if (policyCheck.allowed) {
+            await storage.assignRideToDriver(ride.id, bid.userId, bid.vehicleId);
+          }
+          // If policy doesn't allow, driver assignment deferred - transporter must assign manually
+        }
       }
       
       // Reject all other pending bids for this ride
