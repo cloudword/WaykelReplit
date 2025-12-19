@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Users, Truck, Wallet, Settings, LogOut, Building2, Gavel, Calendar, Shield, UserCheck, Code, ScrollText, ShieldCheck, HardDrive, DollarSign } from "lucide-react";
+import { LayoutDashboard, Users, Truck, Wallet, Settings, LogOut, Building2, Gavel, Calendar, Shield, UserCheck, Code, ScrollText, ShieldCheck, HardDrive, DollarSign, ClipboardCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import NotificationBell from "@/components/notifications/NotificationBell";
@@ -27,6 +27,12 @@ export function AdminSidebar() {
     { href: "/admin/storage", icon: HardDrive, label: "Storage" },
     { href: "/admin/platform-settings", icon: DollarSign, label: "Monetization" },
     { href: "/admin/settings", icon: Settings, label: "Settings" },
+  ];
+
+  const verificationItems = [
+    { href: "/admin/verification/transporters", icon: Building2, label: "Transporters" },
+    { href: "/admin/verification/drivers", icon: Users, label: "Drivers" },
+    { href: "/admin/verification/vehicles", icon: Truck, label: "Vehicles" },
   ];
 
   return (
@@ -64,6 +70,26 @@ export function AdminSidebar() {
             </div>
           </Link>
         ))}
+        
+        <div className="pt-4 mt-4 border-t border-slate-800">
+          <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <ClipboardCheck size={14} />
+            Verification Inbox
+          </div>
+          {verificationItems.map((item) => (
+            <Link key={item.href} href={item.href}>
+              <div className={cn(
+                "flex items-center gap-3 px-4 py-2.5 rounded-lg cursor-pointer transition-colors ml-2",
+                location === item.href 
+                  ? "bg-emerald-600 text-white" 
+                  : "text-slate-400 hover:bg-slate-800 hover:text-white"
+              )}>
+                <item.icon size={16} />
+                <span className="font-medium text-sm">{item.label}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
       </nav>
 
       <div className="p-4 border-t border-slate-800 flex-shrink-0">

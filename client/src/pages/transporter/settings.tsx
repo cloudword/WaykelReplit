@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Settings, Truck, User } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 
 export default function TransporterSettings() {
   const [_, setLocation] = useLocation();
@@ -27,7 +27,7 @@ export default function TransporterSettings() {
   const handleSelfDriverToggle = async (checked: boolean) => {
     setLoading(true);
     try {
-      const response = await fetch("/api/auth/profile", {
+      const response = await fetch(`${API_BASE}/auth/profile`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
