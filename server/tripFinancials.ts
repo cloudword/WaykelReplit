@@ -1,6 +1,6 @@
 import { storage } from "./storage";
 import { db } from "./db";
-import { rides, ledgerEntries, type InsertLedgerEntry } from "@shared/schema";
+import { rides, ledgerEntries, type InsertLedgerEntry, type PlatformSettings } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 export interface PlatformFeeConfig {
@@ -24,6 +24,15 @@ const DEFAULT_FEE_CONFIG: PlatformFeeConfig = {
     { amount: 50000, percent: 5 }
   ]
 };
+
+export function settingsToFeeConfig(settings: PlatformSettings): PlatformFeeConfig {
+  return {
+    basePercent: settings.basePercent ? parseFloat(settings.basePercent) : 10,
+    minFee: settings.minFee ? parseFloat(settings.minFee) : 50,
+    maxFee: settings.maxFee ? parseFloat(settings.maxFee) : 5000,
+    tierThresholds: (settings.tierConfig as { amount: number; percent: number }[] | null) || DEFAULT_FEE_CONFIG.tierThresholds
+  };
+}
 
 export function calculatePlatformFee(
   bidAmount: number,
@@ -59,11 +68,16 @@ export interface TripFinancials {
   platformFee: number;
   platformFeePercent: number;
   transporterEarning: number;
+  shadowPlatformFee: number;
+  shadowPlatformFeePercent: number;
+  commissionEnabled: boolean;
+  commissionMode: "shadow" | "live";
 }
 
 export function computeTripFinancials(
   bidAmount: number | string,
-  config?: PlatformFeeConfig
+  config?: PlatformFeeConfig,
+  settings?: { commissionEnabled: boolean; commissionMode: "shadow" | "live" }
 ): TripFinancials {
   const amount = typeof bidAmount === "string" ? parseFloat(bidAmount) : bidAmount;
   
@@ -71,14 +85,37 @@ export function computeTripFinancials(
     throw new Error(`Invalid bid amount: ${bidAmount}`);
   }
 
-  const { platformFee, feePercent, transporterEarning } = calculatePlatformFee(amount, config);
+  const { platformFee, feePercent, transporterEarning: rawTransporterEarning } = calculatePlatformFee(amount, config);
+  
+  const commissionEnabled = settings?.commissionEnabled ?? false;
+  const commissionMode = settings?.commissionMode ?? "shadow";
+  
+  const appliedFee = commissionEnabled ? platformFee : 0;
+  const appliedPercent = commissionEnabled ? feePercent : 0;
+  const appliedTransporterEarning = commissionEnabled ? rawTransporterEarning : amount;
 
   return {
     finalPrice: amount,
-    platformFee,
-    platformFeePercent: feePercent,
-    transporterEarning
+    platformFee: appliedFee,
+    platformFeePercent: appliedPercent,
+    transporterEarning: appliedTransporterEarning,
+    shadowPlatformFee: platformFee,
+    shadowPlatformFeePercent: feePercent,
+    commissionEnabled,
+    commissionMode
   };
+}
+
+export async function computeTripFinancialsWithSettings(
+  bidAmount: number | string
+): Promise<TripFinancials> {
+  const settings = await storage.getPlatformSettings();
+  const config = settingsToFeeConfig(settings);
+  
+  return computeTripFinancials(bidAmount, config, {
+    commissionEnabled: settings.commissionEnabled ?? false,
+    commissionMode: (settings.commissionMode as "shadow" | "live") ?? "shadow"
+  });
 }
 
 export async function lockTripFinancials(
@@ -86,13 +123,16 @@ export async function lockTripFinancials(
   bidAmount: number | string,
   acceptedByUserId?: string
 ): Promise<TripFinancials> {
-  const financials = computeTripFinancials(bidAmount);
+  const financials = await computeTripFinancialsWithSettings(bidAmount);
 
   console.log(`[TripFinancials] Locking financials for ride ${rideId}:`, {
     finalPrice: financials.finalPrice,
     platformFee: financials.platformFee,
     platformFeePercent: financials.platformFeePercent,
-    transporterEarning: financials.transporterEarning
+    transporterEarning: financials.transporterEarning,
+    shadowPlatformFee: financials.shadowPlatformFee,
+    shadowPlatformFeePercent: financials.shadowPlatformFeePercent,
+    commissionEnabled: financials.commissionEnabled
   });
 
   await storage.updateRideFinancials(rideId, {
@@ -100,6 +140,8 @@ export async function lockTripFinancials(
     platformFee: financials.platformFee.toString(),
     transporterEarning: financials.transporterEarning.toString(),
     platformFeePercent: financials.platformFeePercent.toString(),
+    shadowPlatformFee: financials.shadowPlatformFee.toString(),
+    shadowPlatformFeePercent: financials.shadowPlatformFeePercent.toString(),
     financialLockedAt: new Date()
   });
 
@@ -126,7 +168,9 @@ export async function createTripLedgerEntries(
       transporterId: transporterId || undefined,
       entryType: "platform_fee",
       amount: (-financials.platformFee).toString(),
-      description: `Platform fee (${financials.platformFeePercent}%)`,
+      description: financials.commissionEnabled 
+        ? `Platform fee (${financials.platformFeePercent}%)` 
+        : `Platform fee waived (shadow: ${financials.shadowPlatformFeePercent}%)`,
       referenceType: "ride"
     },
     {
@@ -153,13 +197,16 @@ export async function lockTripFinancialsAtomic(
   bidAmount: number | string,
   createdById?: string
 ): Promise<TripFinancials> {
-  const financials = computeTripFinancials(bidAmount);
+  const financials = await computeTripFinancialsWithSettings(bidAmount);
 
   console.log(`[TripFinancials] Atomically locking financials for ride ${rideId}:`, {
     finalPrice: financials.finalPrice,
     platformFee: financials.platformFee,
     platformFeePercent: financials.platformFeePercent,
-    transporterEarning: financials.transporterEarning
+    transporterEarning: financials.transporterEarning,
+    shadowPlatformFee: financials.shadowPlatformFee,
+    shadowPlatformFeePercent: financials.shadowPlatformFeePercent,
+    commissionEnabled: financials.commissionEnabled
   });
 
   await db.transaction(async (tx) => {
@@ -168,6 +215,8 @@ export async function lockTripFinancialsAtomic(
       platformFee: financials.platformFee.toString(),
       transporterEarning: financials.transporterEarning.toString(),
       platformFeePercent: financials.platformFeePercent.toString(),
+      shadowPlatformFee: financials.shadowPlatformFee.toString(),
+      shadowPlatformFeePercent: financials.shadowPlatformFeePercent.toString(),
       financialLockedAt: new Date()
     }).where(eq(rides.id, rideId));
 
@@ -185,7 +234,9 @@ export async function lockTripFinancialsAtomic(
         transporterId: transporterId || undefined,
         entryType: "platform_fee" as const,
         amount: (-financials.platformFee).toString(),
-        description: `Platform fee (${financials.platformFeePercent}%)`,
+        description: financials.commissionEnabled 
+          ? `Platform fee (${financials.platformFeePercent}%)` 
+          : `Platform fee waived (shadow: ${financials.shadowPlatformFeePercent}%)`,
         referenceType: "ride"
       },
       {
@@ -227,12 +278,16 @@ export function getFinancialSummary(ride: {
   platformFee?: string | null;
   transporterEarning?: string | null;
   platformFeePercent?: string | null;
+  shadowPlatformFee?: string | null;
+  shadowPlatformFeePercent?: string | null;
   paymentStatus?: string | null;
 }): {
   finalPrice: number;
   platformFee: number;
   transporterEarning: number;
   platformFeePercent: number;
+  shadowPlatformFee: number;
+  shadowPlatformFeePercent: number;
   paymentStatus: string;
   isLocked: boolean;
 } | null {
@@ -245,6 +300,8 @@ export function getFinancialSummary(ride: {
     platformFee: parseFloat(ride.platformFee),
     transporterEarning: parseFloat(ride.transporterEarning),
     platformFeePercent: ride.platformFeePercent ? parseFloat(ride.platformFeePercent) : 0,
+    shadowPlatformFee: ride.shadowPlatformFee ? parseFloat(ride.shadowPlatformFee) : 0,
+    shadowPlatformFeePercent: ride.shadowPlatformFeePercent ? parseFloat(ride.shadowPlatformFeePercent) : 0,
     paymentStatus: ride.paymentStatus || "pending",
     isLocked: true
   };

@@ -22,7 +22,7 @@ import {
 } from "./rate-limiter";
 import { createRoleAwareNotification, createSimpleNotification } from "./notifications";
 import { assertRideTransition, RideTransitionError, isValidStatus, type RideStatus } from "./rideLifecycle";
-import { lockTripFinancialsAtomic, computeTripFinancials } from "./tripFinancials";
+import { lockTripFinancialsAtomic, computeTripFinancials, computeTripFinancialsWithSettings, settingsToFeeConfig } from "./tripFinancials";
 
 // JWT Configuration
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "waykel-jwt-secret-change-in-production";
@@ -1102,8 +1102,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
 
-      // Compute financials before atomic operation
-      const financials = computeTripFinancials(bid.amount);
+      // Compute financials with platform settings before atomic operation
+      const financials = await computeTripFinancialsWithSettings(bid.amount);
       
       // Atomically: update bid, ride, close bidding, lock financials, create ledger, reject other bids
       await storage.acceptBidAtomic({
@@ -1115,7 +1115,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           finalPrice: financials.finalPrice.toString(),
           platformFee: financials.platformFee.toString(),
           transporterEarning: financials.transporterEarning.toString(),
-          platformFeePercent: financials.platformFeePercent.toString()
+          platformFeePercent: financials.platformFeePercent.toString(),
+          shadowPlatformFee: financials.shadowPlatformFee.toString(),
+          shadowPlatformFeePercent: financials.shadowPlatformFeePercent.toString()
         }
       });
       
@@ -3946,8 +3948,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
       
-      // Compute financials before atomic operation
-      const financials = computeTripFinancials(bid.amount);
+      // Compute financials with platform settings before atomic operation
+      const financials = await computeTripFinancialsWithSettings(bid.amount);
       
       // Atomically: update bid, ride, close bidding, lock financials, create ledger, reject other bids
       await storage.acceptBidAtomic({
@@ -3959,7 +3961,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           finalPrice: financials.finalPrice.toString(),
           platformFee: financials.platformFee.toString(),
           transporterEarning: financials.transporterEarning.toString(),
-          platformFeePercent: financials.platformFeePercent.toString()
+          platformFeePercent: financials.platformFeePercent.toString(),
+          shadowPlatformFee: financials.shadowPlatformFee.toString(),
+          shadowPlatformFeePercent: financials.shadowPlatformFeePercent.toString()
         }
       });
       
@@ -4629,6 +4633,75 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (error) {
       console.error("Failed to list directories:", error);
       res.status(500).json({ error: "Failed to list directories" });
+    }
+  });
+
+  // ============== PLATFORM SETTINGS (Super Admin Only) ==============
+
+  app.get("/api/admin/platform-settings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      
+      if (!sessionUser.isSuperAdmin) {
+        return res.status(403).json({ error: "Only Super Admins can view platform settings" });
+      }
+      
+      const settings = await storage.getPlatformSettings();
+      res.json(settings);
+    } catch (error) {
+      console.error("Failed to get platform settings:", error);
+      res.status(500).json({ error: "Failed to get platform settings" });
+    }
+  });
+
+  app.patch("/api/admin/platform-settings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      
+      if (!sessionUser.isSuperAdmin) {
+        return res.status(403).json({ error: "Only Super Admins can update platform settings" });
+      }
+      
+      const { commissionEnabled, commissionMode, tierConfig, basePercent, minFee, maxFee } = req.body;
+      
+      const updates: any = {};
+      if (typeof commissionEnabled === "boolean") updates.commissionEnabled = commissionEnabled;
+      if (commissionMode === "shadow" || commissionMode === "live") updates.commissionMode = commissionMode;
+      if (Array.isArray(tierConfig)) updates.tierConfig = tierConfig;
+      if (basePercent !== undefined) updates.basePercent = String(basePercent);
+      if (minFee !== undefined) updates.minFee = String(minFee);
+      if (maxFee !== undefined) updates.maxFee = String(maxFee);
+      
+      const updatedSettings = await storage.updatePlatformSettings(updates, sessionUser.id);
+      
+      console.log(`[PlatformSettings] Updated by ${sessionUser.id}:`, updates);
+      
+      res.json(updatedSettings);
+    } catch (error) {
+      console.error("Failed to update platform settings:", error);
+      res.status(500).json({ error: "Failed to update platform settings" });
+    }
+  });
+
+  // Get calculated fees preview for a given amount (for admin testing)
+  app.get("/api/admin/platform-settings/preview/:amount", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const sessionUser = getCurrentUser(req);
+      
+      if (!sessionUser.isSuperAdmin) {
+        return res.status(403).json({ error: "Only Super Admins can preview fee calculations" });
+      }
+      
+      const amount = parseFloat(req.params.amount);
+      if (isNaN(amount) || amount <= 0) {
+        return res.status(400).json({ error: "Invalid amount" });
+      }
+      
+      const financials = await computeTripFinancialsWithSettings(amount);
+      res.json(financials);
+    } catch (error) {
+      console.error("Failed to preview fee calculation:", error);
+      res.status(500).json({ error: "Failed to preview fee calculation" });
     }
   });
 
