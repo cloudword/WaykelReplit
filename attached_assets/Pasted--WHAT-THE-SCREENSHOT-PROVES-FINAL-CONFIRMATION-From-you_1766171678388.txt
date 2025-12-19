@@ -1,0 +1,154 @@
+🔴 WHAT THE SCREENSHOT PROVES (FINAL CONFIRMATION)
+
+From your Network tab:
+
+Request URL:
+https://admin.waykel.com/api/notifications/unread-count
+
+❌ THIS IS WRONG
+
+That endpoint must NEVER be called on admin.waykel.com.
+
+Why?
+
+admin.waykel.com → frontend (serves HTML)
+
+api.waykel.com → backend (serves JSON)
+
+So the browser gets:
+
+<!DOCTYPE html>...
+
+
+instead of:
+
+{ "count": 0 }
+
+
+That’s exactly why you see:
+
+Unexpected token '<'
+
+✅ THE FIX (NO THEORY, ONLY ACTION)
+🎯 GOAL
+
+Force ALL API calls in Admin UI to go to:
+
+https://api.waykel.com
+
+STEP 1 — FIND THE ADMIN API CLIENT (WHERE TO DO IT)
+
+Search in WaykelConnect / Admin frontend repo for any of these:
+
+fetch(
+axios.create(
+api.ts
+adminApi.ts
+useApi.ts
+
+
+Most likely file (based on your build):
+
+src/lib/api.ts
+or
+src/utils/api.ts
+or
+src/services/api.ts
+
+STEP 2 — DEFINE A SINGLE SOURCE OF TRUTH (MANDATORY)
+
+At the top of that file, add this:
+
+const API_BASE =
+  import.meta.env.PROD
+    ? 'https://api.waykel.com'
+    : '';
+
+
+⚠️ Do NOT rely on relative URLs in production with subdomains.
+
+STEP 3 — FIX THE UNREAD COUNT CALL (THIS ONE IS FAILING)
+❌ CURRENT (wrong)
+fetch('/api/notifications/unread-count')
+
+✅ REPLACE WITH
+fetch(`${API_BASE}/api/notifications/unread-count`, {
+  credentials: 'include',
+})
+
+
+📌 credentials is NOT optional
+
+STEP 4 — FIX ALL ADMIN API CALLS (IMPORTANT)
+
+Every admin API call must be:
+
+fetch(`${API_BASE}/api/...`, {
+  credentials: 'include',
+})
+
+
+or if using axios:
+
+axios.create({
+  baseURL: import.meta.env.PROD
+    ? 'https://api.waykel.com'
+    : '',
+  withCredentials: true,
+});
+
+STEP 5 — REBUILD & DEPLOY ADMIN FRONTEND
+npm run build
+# or
+pnpm build
+
+
+Deploy only frontend (backend is already correct).
+
+STEP 6 — VERIFY (30-SECOND CHECK)
+
+Reload admin panel → Network tab → click unread-count
+
+✅ You should see:
+Request URL: https://api.waykel.com/api/notifications/unread-count
+Status: 200
+Response: { "count": 0 }
+
+❌ If you still see admin.waykel.com
+
+→ you missed a fetch/axios wrapper.
+
+🔍 WHY PLATFORM SETTINGS ALSO FAILED
+
+Same reason.
+
+GET /api/platform-settings
+
+
+was going to:
+
+admin.waykel.com/api/platform-settings
+
+
+Which returned HTML → frontend showed:
+
+“Make sure you are a Super Admin”
+
+It was not an auth problem, it was wrong host.
+
+🧠 IMPORTANT ARCHITECTURAL RULE (FOR WAYKEL)
+
+Rule:
+When frontend and backend live on different subdomains,
+NEVER use relative /api/* URLs in production.
+
+You hit a classic SaaS trap. You handled it correctly.
+
+✅ STATUS AFTER THIS FIX
+Area	Status
+Deployment	✅ Stable
+Health checks	✅ Passing
+Sessions	✅ Working
+Admin APIs	❌ One frontend bug
+Fix complexity	🟢 Simple
+Confidence	💯
