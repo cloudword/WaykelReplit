@@ -4091,9 +4091,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         notifications = await storage.getUserNotifications(sessionUser.id);
       }
       
-      res.json(notifications);
+      // Ensure we always return an array
+      res.json(Array.isArray(notifications) ? notifications : []);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch notifications" });
+      console.error("[notifications] Failed to fetch:", error);
+      // Return empty array on error to prevent frontend crash
+      res.json([]);
     }
   });
 
