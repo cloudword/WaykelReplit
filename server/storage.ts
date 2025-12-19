@@ -1,6 +1,6 @@
 import { 
   users, vehicles, rides, bids, transporters, documents, notifications, apiLogs,
-  roles, userRoles, savedAddresses, driverApplications, ledgerEntries,
+  roles, userRoles, savedAddresses, driverApplications, ledgerEntries, platformSettings,
   type User, type InsertUser,
   type Vehicle, type InsertVehicle,
   type Ride, type InsertRide,
@@ -13,7 +13,8 @@ import {
   type UserRole, type InsertUserRole,
   type SavedAddress, type InsertSavedAddress,
   type DriverApplication, type InsertDriverApplication,
-  type LedgerEntry, type InsertLedgerEntry
+  type LedgerEntry, type InsertLedgerEntry,
+  type PlatformSettings, type InsertPlatformSettings
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, or, sql, gte, inArray, not } from "drizzle-orm";

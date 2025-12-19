@@ -138,6 +138,8 @@ export const rides = pgTable("rides", {
   platformFee: decimal("platform_fee", { precision: 10, scale: 2 }),
   transporterEarning: decimal("transporter_earning", { precision: 10, scale: 2 }),
   platformFeePercent: decimal("platform_fee_percent", { precision: 5, scale: 2 }),
+  shadowPlatformFee: decimal("shadow_platform_fee", { precision: 10, scale: 2 }),
+  shadowPlatformFeePercent: decimal("shadow_platform_fee_percent", { precision: 5, scale: 2 }),
   paymentStatus: text("payment_status").$type<"pending" | "invoiced" | "paid" | "settled" | "disputed" | "refunded">().default("pending"),
   financialLockedAt: timestamp("financial_locked_at"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -382,3 +384,26 @@ export const driverApplications = pgTable("driver_applications", {
 export const insertDriverApplicationSchema = createInsertSchema(driverApplications).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertDriverApplication = z.infer<typeof insertDriverApplicationSchema>;
 export type DriverApplication = typeof driverApplications.$inferSelect;
+
+// Platform Settings (singleton table for monetization control)
+export const platformSettings = pgTable("platform_settings", {
+  id: varchar("id").primaryKey().default("default"),
+  commissionEnabled: boolean("commission_enabled").default(false),
+  commissionMode: text("commission_mode").$type<"shadow" | "live">().default("shadow"),
+  tierConfig: json("tier_config").$type<{ amount: number; percent: number }[]>().default([
+    { amount: 5000, percent: 10 },
+    { amount: 10000, percent: 8 },
+    { amount: 25000, percent: 6 },
+    { amount: 50000, percent: 5 }
+  ]),
+  basePercent: decimal("base_percent", { precision: 5, scale: 2 }).default("10"),
+  minFee: decimal("min_fee", { precision: 10, scale: 2 }).default("50"),
+  maxFee: decimal("max_fee", { precision: 10, scale: 2 }).default("5000"),
+  updatedByAdminId: varchar("updated_by_admin_id").references(() => users.id),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertPlatformSettingsSchema = createInsertSchema(platformSettings).omit({ createdAt: true });
+export type InsertPlatformSettings = z.infer<typeof insertPlatformSettingsSchema>;
+export type PlatformSettings = typeof platformSettings.$inferSelect;
