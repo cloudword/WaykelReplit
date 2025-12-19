@@ -402,6 +402,7 @@ export const platformSettings = pgTable("platform_settings", {
   smsEnabled: boolean("sms_enabled").default(false),
   smsMode: text("sms_mode").$type<"shadow" | "live">().default("shadow"),
   smsProvider: text("sms_provider").$type<"msg91" | null>().default(null),
+  smsTemplates: json("sms_templates").$type<Record<string, string>>().default({}),
   updatedByAdminId: varchar("updated_by_admin_id").references(() => users.id),
   updatedAt: timestamp("updated_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),

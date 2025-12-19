@@ -24,6 +24,7 @@ import {
 import { createRoleAwareNotification, createSimpleNotification } from "./notifications";
 import { assertRideTransition, RideTransitionError, isValidStatus, type RideStatus } from "./rideLifecycle";
 import { lockTripFinancialsAtomic, computeTripFinancials, computeTripFinancialsWithSettings, settingsToFeeConfig } from "./tripFinancials";
+import { sendTransactionalSms, SmsEvent } from "./sms/smsService";
 
 // JWT Configuration
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "waykel-jwt-secret-change-in-production";
@@ -1696,6 +1697,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       await storage.assignRideToDriver(req.params.id, driverId, vehicleId);
+      
+      // Send SMS to assigned driver
+      const driver = await storage.getUser(driverId);
+      if (driver?.phone) {
+        sendTransactionalSms(driver.phone, SmsEvent.TRIP_ASSIGNED, {
+          pickup: ride.pickupLocation,
+          drop: ride.dropLocation,
+          date: ride.date
+        }).catch(err => console.error("[SMS:ERROR] Failed to send TRIP_ASSIGNED SMS:", err));
+      }
+      
       res.json({ success: true });
     } catch (error) {
       console.error("Failed to assign driver:", error);
@@ -1776,6 +1788,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       await storage.markRideDeliveryComplete(req.params.id);
+      
+      // Send SMS for delivery completion
+      if (ride.customerPhone) {
+        sendTransactionalSms(ride.customerPhone, SmsEvent.DELIVERY_COMPLETED, {
+          pickup: ride.pickupLocation,
+          drop: ride.dropLocation
+        }).catch(err => console.error("[SMS:ERROR] Failed to send DELIVERY_COMPLETED SMS:", err));
+      }
+      
       res.json({ success: true, message: "Delivery marked as complete" });
     } catch (error) {
       console.error("Mark delivery complete error:", error);
@@ -4198,6 +4219,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           rideId: ride.id,
           bidId: bid.id,
         });
+        
+        // Send SMS to winning bidder
+        const bidUser = await storage.getUser(bid.userId);
+        if (bidUser?.phone) {
+          sendTransactionalSms(bidUser.phone, SmsEvent.BID_ACCEPTED, {
+            amount: String(bid.amount),
+            pickup: ride.pickupLocation,
+            drop: ride.dropLocation
+          }).catch(err => console.error("[SMS:ERROR] Failed to send BID_ACCEPTED SMS:", err));
+        }
       }
       
       // Notify the customer that bid was accepted (if super admin accepted it)
@@ -4872,7 +4903,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     maxFee: optionalNumeric,
     smsEnabled: z.boolean().optional(),
     smsMode: z.enum(["shadow", "live"]).optional(),
-    smsProvider: z.enum(["msg91"]).nullable().optional()
+    smsProvider: z.enum(["msg91"]).nullable().optional(),
+    smsTemplates: z.record(z.string(), z.string()).optional()
   }).strict();
 
   app.patch("/api/admin/platform-settings", requireAuth, async (req: Request, res: Response) => {
@@ -4888,7 +4920,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ error: "Invalid settings data", details: parseResult.error.errors });
       }
       
-      const { commissionEnabled, commissionMode, tierConfig, basePercent, minFee, maxFee, smsEnabled, smsMode, smsProvider } = parseResult.data;
+      const { commissionEnabled, commissionMode, tierConfig, basePercent, minFee, maxFee, smsEnabled, smsMode, smsProvider, smsTemplates } = parseResult.data;
       
       const updates: any = {};
       if (typeof commissionEnabled === "boolean") updates.commissionEnabled = commissionEnabled;
@@ -4900,10 +4932,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (typeof smsEnabled === "boolean") updates.smsEnabled = smsEnabled;
       if (smsMode) updates.smsMode = smsMode;
       if ("smsProvider" in req.body) updates.smsProvider = smsProvider;
+      if (smsTemplates) updates.smsTemplates = smsTemplates;
       
       const updatedSettings = await storage.updatePlatformSettings(updates, sessionUser.id);
       
-      if (updates.smsEnabled !== undefined || updates.smsMode !== undefined || updates.smsProvider !== undefined) {
+      if (updates.smsEnabled !== undefined || updates.smsMode !== undefined || updates.smsProvider !== undefined || updates.smsTemplates !== undefined) {
         const { invalidateSmsSettingsCache } = await import("./sms/smsService");
         invalidateSmsSettingsCache();
       }

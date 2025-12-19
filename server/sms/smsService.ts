@@ -1,4 +1,4 @@
-import { SmsProvider, SmsTemplate, SmsSettings } from "./smsProvider";
+import { SmsProvider, SmsEvent, SmsSettings } from "./smsProvider";
 import { Msg91Provider } from "./providers/msg91";
 import { storage } from "../storage";
 
@@ -16,7 +16,8 @@ async function getSmsSettings(): Promise<SmsSettings> {
   cachedSettings = {
     smsEnabled: platformSettings.smsEnabled ?? false,
     smsMode: (platformSettings.smsMode as "shadow" | "live") ?? "shadow",
-    smsProvider: (platformSettings.smsProvider as "msg91" | null) ?? null
+    smsProvider: (platformSettings.smsProvider as "msg91" | null) ?? null,
+    smsTemplates: (platformSettings.smsTemplates as Record<string, string>) ?? {}
   };
   settingsLastFetched = now;
   return cachedSettings;
@@ -39,15 +40,17 @@ export async function sendOtpSms(phone: string, otp: string): Promise<void> {
 
 export async function sendTransactionalSms(
   phone: string,
-  template: SmsTemplate,
+  event: SmsEvent,
   variables: Record<string, string>
 ): Promise<void> {
   const settings = await getSmsSettings();
   const provider = getSmsProvider(settings);
-  await provider.sendTransactional(phone, template, variables);
+  await provider.sendTransactional(phone, event, variables);
 }
 
 export function invalidateSmsSettingsCache(): void {
   cachedSettings = null;
   settingsLastFetched = 0;
 }
+
+export { SmsEvent };
