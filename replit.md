@@ -54,6 +54,15 @@ The Waykel platform is built with a mobile-first, role-based approach, ensuring 
 **Real-time Features**:
 -   The architecture includes provisions for WebSockets to support future real-time functionalities like driver location tracking, live ride status updates, and notifications.
 
+**SMS & OTP Authentication:**
+-   **Provider Abstraction**: SMS sent via `server/sms/smsService.ts` with pluggable providers (MSG91 implemented).
+-   **Shadow Mode**: When `smsMode='shadow'`, OTPs are logged to console instead of sent (for testing).
+-   **OTP Storage**: Stored in `otp_codes` table with bcrypt hashing, 3-attempt limit, 10-minute expiration.
+-   **API Endpoints**: `POST /api/auth/request-otp`, `POST /api/auth/verify-otp`, `POST /api/auth/reset-password-with-token`.
+-   **Platform Settings**: `smsEnabled` (boolean), `smsMode` ('shadow'|'live'), `smsProvider` ('msg91'|null).
+-   **Defaults**: SMS is OFF, shadow mode enabled, no provider configured.
+-   **Required Secrets** (for MSG91): `MSG91_AUTH_KEY`, `MSG91_SENDER_ID`, `MSG91_OTP_TEMPLATE_ID`.
+
 **Mobile Applications**:
 -   Two separate native mobile apps for Customer and Driver roles are built using Capacitor, enabling access to native device features like geolocation, camera, and push notifications.
 
