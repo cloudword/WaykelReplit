@@ -1492,8 +1492,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       // Check if driver is assigned to this ride
-      const driverId = resolveDriverIdentity(sessionUser);
-      if (ride.assignedDriverId !== driverId) {
+      const identity = resolveDriverIdentity(sessionUser);
+      if (ride.assignedDriverId !== identity.driverId) {
         return res.status(403).json({ error: "Not authorized for this ride" });
       }
       
@@ -1520,8 +1520,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       // Check if driver is assigned to this ride
-      const driverId = resolveDriverIdentity(sessionUser);
-      if (ride.assignedDriverId !== driverId) {
+      const identity = resolveDriverIdentity(sessionUser);
+      if (ride.assignedDriverId !== identity.driverId) {
         return res.status(403).json({ error: "Not authorized for this ride" });
       }
       
@@ -1576,6 +1576,57 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Driver: Accept trip (confirms driver will execute the assigned trip)
+  app.post("/api/rides/:id/accept", async (req, res) => {
+    const sessionUser = getCurrentUser(req);
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const ride = await storage.getRide(req.params.id);
+      if (!ride) {
+        return res.status(404).json({ error: "Trip not found" });
+      }
+      
+      // Check if driver is assigned to this ride
+      const identity = resolveDriverIdentity(sessionUser);
+      if (!identity.canAccessDriverRoutes) {
+        return res.status(403).json({ error: "Driver access required" });
+      }
+      if (ride.assignedDriverId !== identity.driverId) {
+        return res.status(403).json({ error: "You are not assigned to this trip" });
+      }
+      
+      if (ride.status !== "assigned") {
+        return res.status(400).json({ error: "Trip cannot be accepted from current status" });
+      }
+      
+      // Check if already accepted
+      if (ride.acceptedAt) {
+        return res.status(400).json({ error: "Trip has already been accepted" });
+      }
+      
+      // Enforce execution policy before accepting trip
+      if (ride.transporterId && identity.driverId) {
+        const transporter = await storage.getTransporter(ride.transporterId);
+        if (transporter) {
+          const policyCheck = await checkExecutionPolicy(transporter, identity.driverId);
+          if (!policyCheck.allowed) {
+            return res.status(403).json({ error: policyCheck.error || "Trip acceptance not allowed by transporter policy" });
+          }
+        }
+      }
+      
+      await storage.driverAcceptTrip(req.params.id, identity.driverId!);
+      res.json({ success: true, message: "Trip accepted successfully" });
+    } catch (error) {
+      console.error("Accept trip error:", error);
+      res.status(400).json({ error: "Failed to accept trip" });
+    }
+  });
+
   // Driver: Complete trip
   app.patch("/api/rides/:id/complete", async (req, res) => {
     const sessionUser = getCurrentUser(req);
@@ -1591,8 +1642,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       // Check if driver is assigned to this ride
-      const driverId = resolveDriverIdentity(sessionUser);
-      if (ride.assignedDriverId !== driverId) {
+      const identity = resolveDriverIdentity(sessionUser);
+      if (ride.assignedDriverId !== identity.driverId) {
         return res.status(403).json({ error: "Not authorized for this ride" });
       }
       

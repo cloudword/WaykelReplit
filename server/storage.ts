@@ -98,6 +98,7 @@ export interface IStorage {
   createRide(ride: InsertRide): Promise<Ride>;
   updateRideStatus(id: string, status: string): Promise<void>;
   assignRideToDriver(rideId: string, driverId: string, vehicleId: string): Promise<void>;
+  driverAcceptTrip(rideId: string, driverId: string): Promise<void>;
   markRidePickupComplete(rideId: string): Promise<void>;
   markRideDeliveryComplete(rideId: string): Promise<void>;
   
@@ -415,7 +416,14 @@ export class DatabaseStorage implements IStorage {
     await db.update(rides).set({ 
       assignedDriverId: driverId,
       assignedVehicleId: vehicleId,
-      status: "active"
+      status: "assigned"
+    }).where(eq(rides.id, rideId));
+  }
+
+  async driverAcceptTrip(rideId: string, driverId: string): Promise<void> {
+    await db.update(rides).set({ 
+      acceptedByUserId: driverId,
+      acceptedAt: new Date()
     }).where(eq(rides.id, rideId));
   }
 
