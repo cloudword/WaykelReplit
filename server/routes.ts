@@ -6,6 +6,7 @@ import {
   insertRoleSchema, insertUserRoleSchema, insertSavedAddressSchema, insertDriverApplicationSchema, PERMISSIONS, VEHICLE_TYPES,
   type Ride
 } from "@shared/schema";
+import { z } from "zod";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -4654,6 +4655,42 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  const optionalNumeric = z.preprocess(
+    (val) => (val === "" || val === null || val === undefined) ? undefined : val,
+    z.coerce.number().min(0).optional()
+  );
+  const optionalNumericPercent = z.preprocess(
+    (val) => (val === "" || val === null || val === undefined) ? undefined : val,
+    z.coerce.number().min(0).max(100).optional()
+  );
+  const tierEntrySchema = z.object({
+    amount: z.coerce.number().min(1, "Tier amount must be at least 1"),
+    percent: z.coerce.number().min(0.1, "Tier percent must be at least 0.1").max(100, "Tier percent cannot exceed 100")
+  });
+  const platformSettingsUpdateSchema = z.object({
+    commissionEnabled: z.boolean().optional(),
+    commissionMode: z.enum(["shadow", "live"]).optional(),
+    tierConfig: z.array(tierEntrySchema).optional().transform(tiers => {
+      if (!tiers || tiers.length === 0) return null;
+      return tiers;
+    }).refine(
+      (tiers) => {
+        if (!tiers) return true;
+        const amounts = tiers.map(t => t.amount);
+        const uniqueAmounts = new Set(amounts);
+        if (uniqueAmounts.size !== amounts.length) return false;
+        for (let i = 1; i < amounts.length; i++) {
+          if (amounts[i] <= amounts[i-1]) return false;
+        }
+        return true;
+      },
+      { message: "Tiers must have unique amounts in ascending order" }
+    ),
+    basePercent: optionalNumericPercent,
+    minFee: optionalNumeric,
+    maxFee: optionalNumeric
+  }).strict();
+
   app.patch("/api/admin/platform-settings", requireAuth, async (req: Request, res: Response) => {
     try {
       const sessionUser = getCurrentUser(req);
@@ -4662,12 +4699,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(403).json({ error: "Only Super Admins can update platform settings" });
       }
       
-      const { commissionEnabled, commissionMode, tierConfig, basePercent, minFee, maxFee } = req.body;
+      const parseResult = platformSettingsUpdateSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: "Invalid settings data", details: parseResult.error.errors });
+      }
+      
+      const { commissionEnabled, commissionMode, tierConfig, basePercent, minFee, maxFee } = parseResult.data;
       
       const updates: any = {};
       if (typeof commissionEnabled === "boolean") updates.commissionEnabled = commissionEnabled;
-      if (commissionMode === "shadow" || commissionMode === "live") updates.commissionMode = commissionMode;
-      if (Array.isArray(tierConfig)) updates.tierConfig = tierConfig;
+      if (commissionMode) updates.commissionMode = commissionMode;
+      if ("tierConfig" in req.body) updates.tierConfig = tierConfig;
       if (basePercent !== undefined) updates.basePercent = String(basePercent);
       if (minFee !== undefined) updates.minFee = String(minFee);
       if (maxFee !== undefined) updates.maxFee = String(maxFee);
