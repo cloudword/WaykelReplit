@@ -20,6 +20,7 @@ import {
   uploadLimiter,
   heavyOperationLimiter
 } from "./rate-limiter";
+import { createRoleAwareNotification, createSimpleNotification } from "./notifications";
 
 // JWT Configuration
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "waykel-jwt-secret-change-in-production";
@@ -2070,13 +2071,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         if (ride.createdById) {
           const transporter = sessionUser.transporterId ? await storage.getTransporter(sessionUser.transporterId) : null;
           const transporterName = transporter?.companyName || sessionUser.name || "A transporter";
-          await storage.createNotification({
+          await createRoleAwareNotification({
             recipientId: ride.createdById,
-            type: "bid_placed",
-            title: "New Bid Received",
-            message: `${transporterName} placed a bid of ₹${data.amount} on your trip from ${ride.pickupLocation} to ${ride.dropLocation}`,
+            recipientRole: "customer",
+            eventType: "bid_placed",
+            notificationType: "bid",
+            actionType: "action_required",
+            entityType: "bid",
+            entityId: bid.id,
             rideId: ride.id,
             bidId: bid.id,
+            context: {
+              transporterName,
+              bidAmount: data.amount,
+              pickupLocation: ride.pickupLocation,
+              dropLocation: ride.dropLocation
+            }
           });
         }
       } catch (notifyError) {
@@ -2107,18 +2117,45 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         if (bid) {
           await storage.assignRideToDriver(bid.rideId, bid.userId, bid.vehicleId);
           
-          // Notify driver
           const ride = await storage.getRide(bid.rideId);
           if (ride) {
-            await storage.createNotification({
+            const transporter = bid.transporterId ? await storage.getTransporter(bid.transporterId) : null;
+            const contextData = {
+              bidAmount: bid.amount,
+              pickupLocation: ride.pickupLocation,
+              dropLocation: ride.dropLocation,
+              transporterName: transporter?.companyName || "Transporter"
+            };
+            
+            // Notify transporter (bid accepted)
+            await createRoleAwareNotification({
               recipientId: bid.userId,
               recipientTransporterId: bid.transporterId || undefined,
-              type: "bid_accepted",
-              title: "Bid Accepted!",
-              message: `Your bid for trip from ${ride.pickupLocation} to ${ride.dropLocation} has been accepted.`,
+              recipientRole: "transporter",
+              eventType: "bid_accepted",
+              notificationType: "bid",
+              actionType: "success",
+              entityType: "trip",
+              entityId: ride.id,
               rideId: bid.rideId,
               bidId: bid.id,
+              context: contextData
             });
+            
+            // Notify customer (driver assigned)
+            if (ride.createdById) {
+              await createRoleAwareNotification({
+                recipientId: ride.createdById,
+                recipientRole: "customer",
+                eventType: "bid_accepted",
+                notificationType: "trip",
+                actionType: "info",
+                entityType: "trip",
+                entityId: ride.id,
+                rideId: ride.id,
+                context: contextData
+              });
+            }
           }
         }
       }
@@ -2387,12 +2424,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       try {
         const transporterUsers = await storage.getUsersByTransporter(req.params.id);
         for (const user of transporterUsers) {
-          await storage.createNotification({
+          await createRoleAwareNotification({
             recipientId: user.id,
             recipientTransporterId: req.params.id,
-            type: "system",
-            title: "Account Approved!",
-            message: `Congratulations! Your transporter account "${transporter.companyName}" has been approved. You can now place bids on available trips.`,
+            recipientRole: "transporter",
+            eventType: "transporter_approved",
+            notificationType: "account",
+            actionType: "success",
+            context: { companyName: transporter.companyName }
           });
         }
       } catch (notifyError) {
@@ -2466,12 +2505,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       try {
         const transporterUsers = await storage.getUsersByTransporter(req.params.id);
         for (const user of transporterUsers) {
-          await storage.createNotification({
+          await createRoleAwareNotification({
             recipientId: user.id,
             recipientTransporterId: req.params.id,
-            type: "system",
-            title: "Account Verification Rejected",
-            message: `Your transporter account "${transporter.companyName}" verification was rejected. Reason: ${reason.trim()}. Please update your documents and resubmit.`,
+            recipientRole: "transporter",
+            eventType: "transporter_rejected",
+            notificationType: "account",
+            actionType: "warning",
+            context: { companyName: transporter.companyName, reason: reason.trim() }
           });
         }
       } catch (notifyError) {

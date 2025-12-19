@@ -204,6 +204,16 @@ export const insertDocumentSchema = createInsertSchema(documents).omit({ id: tru
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type Document = typeof documents.$inferSelect;
 
+// Notification type enums for domain model
+export const NOTIFICATION_TYPES = ["trip", "bid", "document", "account", "system"] as const;
+export type NotificationType = typeof NOTIFICATION_TYPES[number];
+
+export const ACTION_TYPES = ["info", "action_required", "success", "warning"] as const;
+export type ActionType = typeof ACTION_TYPES[number];
+
+export const NOTIFICATION_ENTITY_TYPES = ["trip", "bid", "document"] as const;
+export type NotificationEntityType = typeof NOTIFICATION_ENTITY_TYPES[number];
+
 // Notifications table for booking alerts
 export const notifications = pgTable("notifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -217,6 +227,11 @@ export const notifications = pgTable("notifications", {
   isRead: boolean("is_read").default(false),
   matchScore: integer("match_score"),
   matchReason: text("match_reason"),
+  notificationType: text("notification_type").$type<NotificationType>(),
+  actionType: text("action_type").$type<ActionType>(),
+  entityType: text("entity_type").$type<NotificationEntityType>(),
+  entityId: varchar("entity_id"),
+  deepLink: text("deep_link"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
