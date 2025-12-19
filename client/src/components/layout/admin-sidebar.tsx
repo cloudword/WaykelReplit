@@ -3,9 +3,22 @@ import { LayoutDashboard, Users, Truck, Wallet, Settings, LogOut, Building2, Gav
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import { useEffect, useRef } from "react";
 
 export function AdminSidebar() {
   const [location] = useLocation();
+  const navRef = useRef<HTMLElement>(null);
+  const activeItemRef = useRef<HTMLDivElement>(null);
+
+  // Scroll active item into view when location changes
+  useEffect(() => {
+    if (activeItemRef.current && navRef.current) {
+      activeItemRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'nearest' 
+      });
+    }
+  }, [location]);
 
   const handleLogout = () => {
     localStorage.removeItem("currentUser");
@@ -51,44 +64,57 @@ export function AdminSidebar() {
       </div>
 
       <nav 
+        ref={navRef}
         className="flex-1 px-4 space-y-2 overflow-y-auto min-h-0"
         style={{
           scrollbarWidth: 'thin',
           scrollbarColor: '#475569 #1e293b'
         }}
       >
-        {navItems.map((item) => (
-          <Link key={item.href} href={item.href}>
-            <div className={cn(
-              "flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-colors",
-              location === item.href 
-                ? "bg-blue-600 text-white" 
-                : "text-slate-400 hover:bg-slate-800 hover:text-white"
-            )}>
-              <item.icon size={20} />
-              <span className="font-medium text-sm">{item.label}</span>
-            </div>
-          </Link>
-        ))}
+        {navItems.map((item) => {
+          const isActive = location === item.href;
+          return (
+            <Link key={item.href} href={item.href}>
+              <div 
+                ref={isActive ? activeItemRef : undefined}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-colors",
+                  isActive 
+                    ? "bg-blue-600 text-white" 
+                    : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                )}
+              >
+                <item.icon size={20} />
+                <span className="font-medium text-sm">{item.label}</span>
+              </div>
+            </Link>
+          );
+        })}
         
         <div className="pt-4 mt-4 border-t border-slate-800">
           <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
             <ClipboardCheck size={14} />
             Verification Inbox
           </div>
-          {verificationItems.map((item) => (
-            <Link key={item.href} href={item.href}>
-              <div className={cn(
-                "flex items-center gap-3 px-4 py-2.5 rounded-lg cursor-pointer transition-colors ml-2",
-                location === item.href 
-                  ? "bg-emerald-600 text-white" 
-                  : "text-slate-400 hover:bg-slate-800 hover:text-white"
-              )}>
-                <item.icon size={16} />
-                <span className="font-medium text-sm">{item.label}</span>
-              </div>
-            </Link>
-          ))}
+          {verificationItems.map((item) => {
+            const isActive = location === item.href;
+            return (
+              <Link key={item.href} href={item.href}>
+                <div 
+                  ref={isActive ? activeItemRef : undefined}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-2.5 rounded-lg cursor-pointer transition-colors ml-2",
+                    isActive 
+                      ? "bg-emerald-600 text-white" 
+                      : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                  )}
+                >
+                  <item.icon size={16} />
+                  <span className="font-medium text-sm">{item.label}</span>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </nav>
 
