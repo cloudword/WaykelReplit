@@ -44,7 +44,7 @@ export function AdminSidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 px-4 space-y-2">
+      <nav className="flex-1 px-4 space-y-2 overflow-y-auto min-h-0">
         {navItems.map((item) => (
           <Link key={item.href} href={item.href}>
             <div className={cn(
@@ -60,7 +60,7 @@ export function AdminSidebar() {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-slate-800">
+      <div className="p-4 border-t border-slate-800 flex-shrink-0">
         <div className="mb-4 px-4">
           <p className="text-xs text-slate-500">Logged in as</p>
           <p className="text-sm font-medium text-white">Super Admin</p>
