@@ -134,6 +134,12 @@ export const rides = pgTable("rides", {
   pickupCompletedAt: timestamp("pickup_completed_at"),
   deliveryCompleted: boolean("delivery_completed").default(false),
   deliveryCompletedAt: timestamp("delivery_completed_at"),
+  finalPrice: decimal("final_price", { precision: 10, scale: 2 }),
+  platformFee: decimal("platform_fee", { precision: 10, scale: 2 }),
+  transporterEarning: decimal("transporter_earning", { precision: 10, scale: 2 }),
+  platformFeePercent: decimal("platform_fee_percent", { precision: 5, scale: 2 }),
+  paymentStatus: text("payment_status").$type<"pending" | "invoiced" | "paid" | "settled" | "disputed" | "refunded">().default("pending"),
+  financialLockedAt: timestamp("financial_locked_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -156,6 +162,38 @@ export const bids = pgTable("bids", {
 export const insertBidSchema = createInsertSchema(bids).omit({ id: true, createdAt: true });
 export type InsertBid = z.infer<typeof insertBidSchema>;
 export type Bid = typeof bids.$inferSelect;
+
+// Ledger entries for trip economics
+export const LEDGER_ENTRY_TYPES = [
+  "trip_revenue",
+  "platform_fee",
+  "transporter_payout",
+  "customer_payment",
+  "refund",
+  "adjustment",
+  "incentive",
+  "penalty"
+] as const;
+export type LedgerEntryType = typeof LEDGER_ENTRY_TYPES[number];
+
+export const ledgerEntries = pgTable("ledger_entries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  rideId: varchar("ride_id").references(() => rides.id).notNull(),
+  transporterId: varchar("transporter_id").references(() => transporters.id),
+  entryType: text("entry_type").notNull().$type<LedgerEntryType>(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  description: text("description"),
+  referenceId: varchar("reference_id"),
+  referenceType: text("reference_type"),
+  balanceBefore: decimal("balance_before", { precision: 12, scale: 2 }),
+  balanceAfter: decimal("balance_after", { precision: 12, scale: 2 }),
+  createdById: varchar("created_by_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertLedgerEntrySchema = createInsertSchema(ledgerEntries).omit({ id: true, createdAt: true });
+export type InsertLedgerEntry = z.infer<typeof insertLedgerEntrySchema>;
+export type LedgerEntry = typeof ledgerEntries.$inferSelect;
 
 // Document types enum
 export const DOCUMENT_TYPES = [
