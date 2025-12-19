@@ -4888,6 +4888,200 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // ============== ADMIN VERIFICATION INBOX ==============
+  
+  // GET /api/admin/verification/transporters - Get transporters needing verification
+  app.get("/api/admin/verification/transporters", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const allTransporters = await storage.getAllTransporters();
+      const result = [];
+      
+      for (const transporter of allTransporters) {
+        const docs = await storage.getTransporterDocuments(transporter.id).catch(() => []);
+        const pendingDocs = docs.filter(d => d.status === "pending");
+        const verifiedDocs = docs.filter(d => d.status === "verified");
+        const rejectedDocs = docs.filter(d => d.status === "rejected");
+        
+        // Calculate oldest pending document age
+        let oldestPendingAge = null;
+        if (pendingDocs.length > 0) {
+          const oldestDoc = pendingDocs.reduce((oldest, doc) => 
+            (doc.createdAt && (!oldest.createdAt || doc.createdAt < oldest.createdAt)) ? doc : oldest
+          );
+          if (oldestDoc.createdAt) {
+            oldestPendingAge = Math.floor((Date.now() - new Date(oldestDoc.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+          }
+        }
+        
+        result.push({
+          id: transporter.id,
+          companyName: transporter.companyName,
+          ownerName: transporter.ownerName,
+          contact: transporter.contact,
+          email: transporter.email,
+          status: transporter.status,
+          isVerified: transporter.isVerified,
+          documentsComplete: transporter.documentsComplete,
+          createdAt: transporter.createdAt,
+          totalDocuments: docs.length,
+          pendingDocuments: pendingDocs.length,
+          verifiedDocuments: verifiedDocs.length,
+          rejectedDocuments: rejectedDocs.length,
+          oldestPendingDocumentAge: oldestPendingAge,
+          documents: docs
+        });
+      }
+      
+      // Sort: pending docs first, then by oldest pending age
+      result.sort((a, b) => {
+        if (a.pendingDocuments > 0 && b.pendingDocuments === 0) return -1;
+        if (a.pendingDocuments === 0 && b.pendingDocuments > 0) return 1;
+        if (a.oldestPendingDocumentAge !== null && b.oldestPendingDocumentAge !== null) {
+          return b.oldestPendingDocumentAge - a.oldestPendingDocumentAge;
+        }
+        return 0;
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error("[admin] verification/transporters failed:", error);
+      res.json([]);
+    }
+  });
+  
+  // GET /api/admin/verification/drivers - Get drivers needing verification
+  app.get("/api/admin/verification/drivers", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const allDrivers = await storage.getDrivers();
+      const result = [];
+      
+      for (const driver of allDrivers) {
+        const docs = await storage.getUserDocuments(driver.id).catch(() => []);
+        const driverDocs = docs.filter(d => d.entityType === "driver");
+        const pendingDocs = driverDocs.filter(d => d.status === "pending");
+        const verifiedDocs = driverDocs.filter(d => d.status === "verified");
+        const rejectedDocs = driverDocs.filter(d => d.status === "rejected");
+        
+        // Calculate oldest pending document age
+        let oldestPendingAge = null;
+        if (pendingDocs.length > 0) {
+          const oldestDoc = pendingDocs.reduce((oldest, doc) => 
+            (doc.createdAt && (!oldest.createdAt || doc.createdAt < oldest.createdAt)) ? doc : oldest
+          );
+          if (oldestDoc.createdAt) {
+            oldestPendingAge = Math.floor((Date.now() - new Date(oldestDoc.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+          }
+        }
+        
+        // Get transporter info if assigned
+        let transporterName = null;
+        if (driver.transporterId) {
+          const transporter = await storage.getTransporter(driver.transporterId).catch(() => null);
+          transporterName = transporter?.companyName || null;
+        }
+        
+        result.push({
+          id: driver.id,
+          name: driver.name,
+          phone: driver.phone,
+          email: driver.email,
+          transporterId: driver.transporterId,
+          transporterName,
+          isSelfDriver: driver.isSelfDriver,
+          documentsComplete: driver.documentsComplete,
+          createdAt: driver.createdAt,
+          totalDocuments: driverDocs.length,
+          pendingDocuments: pendingDocs.length,
+          verifiedDocuments: verifiedDocs.length,
+          rejectedDocuments: rejectedDocs.length,
+          oldestPendingDocumentAge: oldestPendingAge,
+          documents: driverDocs
+        });
+      }
+      
+      // Sort: pending docs first, then by oldest pending age
+      result.sort((a, b) => {
+        if (a.pendingDocuments > 0 && b.pendingDocuments === 0) return -1;
+        if (a.pendingDocuments === 0 && b.pendingDocuments > 0) return 1;
+        if (a.oldestPendingDocumentAge !== null && b.oldestPendingDocumentAge !== null) {
+          return b.oldestPendingDocumentAge - a.oldestPendingDocumentAge;
+        }
+        return 0;
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error("[admin] verification/drivers failed:", error);
+      res.json([]);
+    }
+  });
+  
+  // GET /api/admin/verification/vehicles - Get vehicles needing verification
+  app.get("/api/admin/verification/vehicles", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const allVehicles = await storage.getAllVehicles();
+      const result = [];
+      
+      for (const vehicle of allVehicles) {
+        const docs = await storage.getVehicleDocuments(vehicle.id).catch(() => []);
+        const pendingDocs = docs.filter(d => d.status === "pending");
+        const verifiedDocs = docs.filter(d => d.status === "verified");
+        const rejectedDocs = docs.filter(d => d.status === "rejected");
+        
+        // Calculate oldest pending document age
+        let oldestPendingAge = null;
+        if (pendingDocs.length > 0) {
+          const oldestDoc = pendingDocs.reduce((oldest, doc) => 
+            (doc.createdAt && (!oldest.createdAt || doc.createdAt < oldest.createdAt)) ? doc : oldest
+          );
+          if (oldestDoc.createdAt) {
+            oldestPendingAge = Math.floor((Date.now() - new Date(oldestDoc.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+          }
+        }
+        
+        // Get transporter info
+        let transporterName = null;
+        if (vehicle.transporterId) {
+          const transporter = await storage.getTransporter(vehicle.transporterId).catch(() => null);
+          transporterName = transporter?.companyName || null;
+        }
+        
+        result.push({
+          id: vehicle.id,
+          plateNumber: vehicle.plateNumber,
+          type: vehicle.type,
+          model: vehicle.model,
+          capacity: vehicle.capacity,
+          status: vehicle.status,
+          transporterId: vehicle.transporterId,
+          transporterName,
+          createdAt: vehicle.createdAt,
+          totalDocuments: docs.length,
+          pendingDocuments: pendingDocs.length,
+          verifiedDocuments: verifiedDocs.length,
+          rejectedDocuments: rejectedDocs.length,
+          oldestPendingDocumentAge: oldestPendingAge,
+          documents: docs
+        });
+      }
+      
+      // Sort: pending docs first, then by oldest pending age
+      result.sort((a, b) => {
+        if (a.pendingDocuments > 0 && b.pendingDocuments === 0) return -1;
+        if (a.pendingDocuments === 0 && b.pendingDocuments > 0) return 1;
+        if (a.oldestPendingDocumentAge !== null && b.oldestPendingDocumentAge !== null) {
+          return b.oldestPendingDocumentAge - a.oldestPendingDocumentAge;
+        }
+        return 0;
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error("[admin] verification/vehicles failed:", error);
+      res.json([]);
+    }
+  });
+
   // ============== PLATFORM SETTINGS (Super Admin Only) ==============
 
   app.get("/api/admin/platform-settings", requireAuth, async (req: Request, res: Response) => {
