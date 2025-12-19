@@ -98,6 +98,8 @@ export interface IStorage {
   createRide(ride: InsertRide): Promise<Ride>;
   updateRideStatus(id: string, status: string): Promise<void>;
   assignRideToDriver(rideId: string, driverId: string, vehicleId: string): Promise<void>;
+  markRidePickupComplete(rideId: string): Promise<void>;
+  markRideDeliveryComplete(rideId: string): Promise<void>;
   
   // Bids
   getBid(id: string): Promise<Bid | undefined>;
@@ -414,6 +416,20 @@ export class DatabaseStorage implements IStorage {
       assignedDriverId: driverId,
       assignedVehicleId: vehicleId,
       status: "active"
+    }).where(eq(rides.id, rideId));
+  }
+
+  async markRidePickupComplete(rideId: string): Promise<void> {
+    await db.update(rides).set({ 
+      pickupCompleted: true,
+      pickupCompletedAt: new Date()
+    }).where(eq(rides.id, rideId));
+  }
+
+  async markRideDeliveryComplete(rideId: string): Promise<void> {
+    await db.update(rides).set({ 
+      deliveryCompleted: true,
+      deliveryCompletedAt: new Date()
     }).where(eq(rides.id, rideId));
   }
 

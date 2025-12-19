@@ -129,6 +129,10 @@ export const rides = pgTable("rides", {
   acceptedByUserId: varchar("accepted_by_user_id").references(() => users.id),
   acceptedAt: timestamp("accepted_at"),
   isSelfAssigned: boolean("is_self_assigned").default(false),
+  pickupCompleted: boolean("pickup_completed").default(false),
+  pickupCompletedAt: timestamp("pickup_completed_at"),
+  deliveryCompleted: boolean("delivery_completed").default(false),
+  deliveryCompletedAt: timestamp("delivery_completed_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

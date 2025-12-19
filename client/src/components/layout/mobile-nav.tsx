@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Home, Clock, Wallet, User } from "lucide-react";
+import { Home, Truck, Wallet, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function MobileNav() {
@@ -7,7 +7,7 @@ export function MobileNav() {
 
   const navItems = [
     { href: "/driver", icon: Home, label: "Home" },
-    { href: "/driver/rides", icon: Clock, label: "Rides" },
+    { href: "/driver/rides", icon: Truck, label: "My Trips" },
     { href: "/driver/earnings", icon: Wallet, label: "Earnings" },
     { href: "/driver/profile", icon: User, label: "Profile" },
   ];

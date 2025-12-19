@@ -1390,6 +1390,126 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // Driver: Mark pickup complete
+  app.patch("/api/rides/:id/pickup-complete", async (req, res) => {
+    const sessionUser = getCurrentUser(req);
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const ride = await storage.getRide(req.params.id);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      // Check if driver is assigned to this ride
+      const driverId = resolveDriverIdentity(sessionUser);
+      if (ride.assignedDriverId !== driverId) {
+        return res.status(403).json({ error: "Not authorized for this ride" });
+      }
+      
+      await storage.markRidePickupComplete(req.params.id);
+      res.json({ success: true, message: "Pickup marked as complete" });
+    } catch (error) {
+      console.error("Mark pickup complete error:", error);
+      res.status(400).json({ error: "Failed to update pickup status" });
+    }
+  });
+
+  // Driver: Mark delivery complete
+  app.patch("/api/rides/:id/delivery-complete", async (req, res) => {
+    const sessionUser = getCurrentUser(req);
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const ride = await storage.getRide(req.params.id);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      // Check if driver is assigned to this ride
+      const driverId = resolveDriverIdentity(sessionUser);
+      if (ride.assignedDriverId !== driverId) {
+        return res.status(403).json({ error: "Not authorized for this ride" });
+      }
+      
+      await storage.markRideDeliveryComplete(req.params.id);
+      res.json({ success: true, message: "Delivery marked as complete" });
+    } catch (error) {
+      console.error("Mark delivery complete error:", error);
+      res.status(400).json({ error: "Failed to update delivery status" });
+    }
+  });
+
+  // Driver: Start trip (change status from assigned to active)
+  app.patch("/api/rides/:id/start", async (req, res) => {
+    const sessionUser = getCurrentUser(req);
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const ride = await storage.getRide(req.params.id);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      // Check if driver is assigned to this ride
+      const driverId = resolveDriverIdentity(sessionUser);
+      if (ride.assignedDriverId !== driverId) {
+        return res.status(403).json({ error: "Not authorized for this ride" });
+      }
+      
+      if (ride.status !== "assigned") {
+        return res.status(400).json({ error: "Trip cannot be started from current status" });
+      }
+      
+      await storage.updateRideStatus(req.params.id, "active");
+      res.json({ success: true, message: "Trip started" });
+    } catch (error) {
+      console.error("Start trip error:", error);
+      res.status(400).json({ error: "Failed to start trip" });
+    }
+  });
+
+  // Driver: Complete trip
+  app.patch("/api/rides/:id/complete", async (req, res) => {
+    const sessionUser = getCurrentUser(req);
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const ride = await storage.getRide(req.params.id);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      // Check if driver is assigned to this ride
+      const driverId = resolveDriverIdentity(sessionUser);
+      if (ride.assignedDriverId !== driverId) {
+        return res.status(403).json({ error: "Not authorized for this ride" });
+      }
+      
+      if (ride.status !== "active") {
+        return res.status(400).json({ error: "Only active trips can be completed" });
+      }
+      
+      await storage.updateRideStatus(req.params.id, "completed");
+      res.json({ success: true, message: "Trip completed" });
+    } catch (error) {
+      console.error("Complete trip error:", error);
+      res.status(400).json({ error: "Failed to complete trip" });
+    }
+  });
+
   // Get marketplace rides for transporter with match scores
   app.get("/api/transporter/marketplace", marketplaceLimiter, async (req, res) => {
     const sessionUser = getCurrentUser(req);

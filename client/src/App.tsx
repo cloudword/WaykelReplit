@@ -18,6 +18,8 @@ import DriverProfile from "@/pages/driver-profile";
 import ActiveRide from "@/pages/active-ride";
 import BookRide from "@/pages/book-ride";
 import DriverAddVehicle from "@/pages/driver-add-vehicle";
+import DriverTripDetails from "@/pages/driver/trip-details";
+import DriverTripDocuments from "@/pages/driver/trip-documents";
 
 import Notifications from "@/pages/notifications";
 import AdminDashboard from "@/pages/admin/dashboard";
@@ -68,6 +70,8 @@ function Router() {
       <Route path="/driver/active-ride/:id" component={ActiveRide} />
       <Route path="/driver/book-ride" component={BookRide} />
       <Route path="/driver/add-vehicle" component={DriverAddVehicle} />
+      <Route path="/driver/trip/:id" component={DriverTripDetails} />
+      <Route path="/trips/:tripId/documents" component={DriverTripDocuments} />
       <Route path="/driver/notifications" component={Notifications} />
 
       {/* Transporter Admin Panel Routes */}
