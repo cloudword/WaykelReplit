@@ -92,6 +92,13 @@ export const api = {
       });
       return res.json();
     },
+    acceptTrip: async (id: string) => {
+      const res = await fetch(`${API_BASE}/rides/${id}/accept`, {
+        method: "POST",
+        credentials: "include",
+      });
+      return res.json();
+    },
     startTrip: async (id: string) => {
       const res = await fetch(`${API_BASE}/rides/${id}/start`, {
         method: "PATCH",

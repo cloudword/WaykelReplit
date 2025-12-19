@@ -16,7 +16,8 @@ import {
   CheckCircle2,
   Camera,
   Truck,
-  IndianRupee
+  IndianRupee,
+  CheckCheck
 } from "lucide-react";
 import { api } from "@/lib/api";
 import NotificationBell from "@/components/notifications/NotificationBell";
@@ -38,6 +39,7 @@ interface Trip {
   weight: string;
   pickupCompleted?: boolean;
   deliveryCompleted?: boolean;
+  acceptedAt?: string;
 }
 
 function getStatusLabel(status: string): string {
@@ -60,8 +62,9 @@ function getStatusColor(status: string): string {
   }
 }
 
-function CurrentTripCard({ trip, onStartTrip, onMarkPickup, onMarkDelivery, onUploadProof, onNavigate }: {
+function CurrentTripCard({ trip, onAcceptTrip, onStartTrip, onMarkPickup, onMarkDelivery, onUploadProof, onNavigate }: {
   trip: Trip;
+  onAcceptTrip: () => void;
   onStartTrip: () => void;
   onMarkPickup: () => void;
   onMarkDelivery: () => void;
@@ -70,6 +73,7 @@ function CurrentTripCard({ trip, onStartTrip, onMarkPickup, onMarkDelivery, onUp
 }) {
   const isAssigned = trip.status === "assigned";
   const isActive = trip.status === "active";
+  const isAccepted = !!trip.acceptedAt;
   const pickupDone = trip.pickupCompleted;
   const deliveryDone = trip.deliveryCompleted;
 
@@ -140,7 +144,18 @@ function CurrentTripCard({ trip, onStartTrip, onMarkPickup, onMarkDelivery, onUp
 
         {/* Trip Actions */}
         <div className="space-y-2">
-          {isAssigned && (
+          {isAssigned && !isAccepted && (
+            <Button 
+              className="w-full h-14 text-base gap-2 bg-primary hover:bg-primary/90"
+              onClick={onAcceptTrip}
+              data-testid="button-accept-trip"
+            >
+              <CheckCheck className="h-5 w-5" />
+              Accept Trip
+            </Button>
+          )}
+
+          {isAssigned && isAccepted && (
             <Button 
               className="w-full h-14 text-base gap-2 bg-emerald-600 hover:bg-emerald-700"
               onClick={onStartTrip}
@@ -255,6 +270,24 @@ export default function DriverDashboard() {
   const upcomingTrips = trips.filter(t => t.status === "assigned" && t.id !== currentTrip?.id);
   const completedTrips = trips.filter(t => t.status === "completed");
 
+  const handleAcceptTrip = async () => {
+    if (!currentTrip) return;
+    try {
+      const result = await api.rides.acceptTrip(currentTrip.id);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      setTrips(prev => prev.map(t => 
+        t.id === currentTrip.id ? { ...t, acceptedAt: new Date().toISOString() } : t
+      ));
+      toast.success("Trip accepted! You can now start the trip.");
+    } catch (error) {
+      console.error("Failed to accept trip:", error);
+      toast.error("Failed to accept trip");
+    }
+  };
+
   const handleStartTrip = async () => {
     if (!currentTrip) return;
     try {
@@ -356,6 +389,7 @@ export default function DriverDashboard() {
             {currentTrip ? (
               <CurrentTripCard
                 trip={currentTrip}
+                onAcceptTrip={handleAcceptTrip}
                 onStartTrip={handleStartTrip}
                 onMarkPickup={handleMarkPickup}
                 onMarkDelivery={handleMarkDelivery}

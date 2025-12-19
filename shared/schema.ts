@@ -68,6 +68,7 @@ export const transporters = pgTable("transporters", {
   verifiedAt: timestamp("verified_at"),
   verifiedBy: varchar("verified_by").references(() => users.id),
   ownerOperatorVehicleId: varchar("owner_operator_vehicle_id"),
+  executionPolicy: text("execution_policy").$type<"SELF_ONLY" | "ASSIGNED_DRIVER_ONLY" | "ANY_DRIVER">().default("ASSIGNED_DRIVER_ONLY"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -110,7 +111,7 @@ export const rides = pgTable("rides", {
   pickupTime: text("pickup_time").notNull(),
   dropTime: text("drop_time"),
   date: text("date").notNull(),
-  status: text("status").notNull().$type<"pending" | "active" | "completed" | "cancelled" | "scheduled" | "bid_placed" | "assigned">().default("pending"),
+  status: text("status").notNull().$type<"pending" | "bidding" | "accepted" | "assigned" | "active" | "pickup_done" | "delivery_done" | "completed" | "cancelled" | "scheduled">().default("pending"),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   distance: text("distance").notNull(),
   cargoType: text("cargo_type").notNull(),
@@ -133,6 +134,12 @@ export const rides = pgTable("rides", {
   pickupCompletedAt: timestamp("pickup_completed_at"),
   deliveryCompleted: boolean("delivery_completed").default(false),
   deliveryCompletedAt: timestamp("delivery_completed_at"),
+  finalPrice: decimal("final_price", { precision: 10, scale: 2 }),
+  platformFee: decimal("platform_fee", { precision: 10, scale: 2 }),
+  transporterEarning: decimal("transporter_earning", { precision: 10, scale: 2 }),
+  platformFeePercent: decimal("platform_fee_percent", { precision: 5, scale: 2 }),
+  paymentStatus: text("payment_status").$type<"pending" | "invoiced" | "paid" | "settled" | "disputed" | "refunded">().default("pending"),
+  financialLockedAt: timestamp("financial_locked_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -155,6 +162,38 @@ export const bids = pgTable("bids", {
 export const insertBidSchema = createInsertSchema(bids).omit({ id: true, createdAt: true });
 export type InsertBid = z.infer<typeof insertBidSchema>;
 export type Bid = typeof bids.$inferSelect;
+
+// Ledger entries for trip economics
+export const LEDGER_ENTRY_TYPES = [
+  "trip_revenue",
+  "platform_fee",
+  "transporter_payout",
+  "customer_payment",
+  "refund",
+  "adjustment",
+  "incentive",
+  "penalty"
+] as const;
+export type LedgerEntryType = typeof LEDGER_ENTRY_TYPES[number];
+
+export const ledgerEntries = pgTable("ledger_entries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  rideId: varchar("ride_id").references(() => rides.id).notNull(),
+  transporterId: varchar("transporter_id").references(() => transporters.id),
+  entryType: text("entry_type").notNull().$type<LedgerEntryType>(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  description: text("description"),
+  referenceId: varchar("reference_id"),
+  referenceType: text("reference_type"),
+  balanceBefore: decimal("balance_before", { precision: 12, scale: 2 }),
+  balanceAfter: decimal("balance_after", { precision: 12, scale: 2 }),
+  createdById: varchar("created_by_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertLedgerEntrySchema = createInsertSchema(ledgerEntries).omit({ id: true, createdAt: true });
+export type InsertLedgerEntry = z.infer<typeof insertLedgerEntrySchema>;
+export type LedgerEntry = typeof ledgerEntries.$inferSelect;
 
 // Document types enum
 export const DOCUMENT_TYPES = [
@@ -203,6 +242,16 @@ export const insertDocumentSchema = createInsertSchema(documents).omit({ id: tru
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type Document = typeof documents.$inferSelect;
 
+// Notification type enums for domain model
+export const NOTIFICATION_TYPES = ["trip", "bid", "document", "account", "system"] as const;
+export type NotificationType = typeof NOTIFICATION_TYPES[number];
+
+export const ACTION_TYPES = ["info", "action_required", "success", "warning"] as const;
+export type ActionType = typeof ACTION_TYPES[number];
+
+export const NOTIFICATION_ENTITY_TYPES = ["trip", "bid", "document"] as const;
+export type NotificationEntityType = typeof NOTIFICATION_ENTITY_TYPES[number];
+
 // Notifications table for booking alerts
 export const notifications = pgTable("notifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -216,6 +265,11 @@ export const notifications = pgTable("notifications", {
   isRead: boolean("is_read").default(false),
   matchScore: integer("match_score"),
   matchReason: text("match_reason"),
+  notificationType: text("notification_type").$type<NotificationType>(),
+  actionType: text("action_type").$type<ActionType>(),
+  entityType: text("entity_type").$type<NotificationEntityType>(),
+  entityId: varchar("entity_id"),
+  deepLink: text("deep_link"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

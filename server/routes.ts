@@ -20,6 +20,9 @@ import {
   uploadLimiter,
   heavyOperationLimiter
 } from "./rate-limiter";
+import { createRoleAwareNotification, createSimpleNotification } from "./notifications";
+import { assertRideTransition, RideTransitionError, isValidStatus, type RideStatus } from "./rideLifecycle";
+import { lockTripFinancialsAtomic, computeTripFinancials } from "./tripFinancials";
 
 // JWT Configuration
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "waykel-jwt-secret-change-in-production";
@@ -168,6 +171,59 @@ const resolveDriverIdentity = (user: {
     canAccessDriverRoutes: false,
     canAccessTransporterRoutes: false,
   };
+};
+
+// Execution Policy Types
+type ExecutionPolicy = "SELF_ONLY" | "ASSIGNED_DRIVER_ONLY" | "ANY_DRIVER";
+
+// Helper to validate driver assignment based on transporter's execution policy
+interface ExecutionPolicyCheck {
+  allowed: boolean;
+  error?: string;
+}
+
+const checkExecutionPolicy = async (
+  transporter: { id: string; executionPolicy?: ExecutionPolicy | null; isOwnerOperator?: boolean; ownerDriverUserId?: string | null },
+  driverId: string
+): Promise<ExecutionPolicyCheck> => {
+  // Get effective policy (default based on isOwnerOperator if not set)
+  const effectivePolicy: ExecutionPolicy = transporter.executionPolicy || 
+    (transporter.isOwnerOperator ? "SELF_ONLY" : "ASSIGNED_DRIVER_ONLY");
+  
+  // Fetch the driver info
+  const driver = await storage.getUser(driverId);
+  if (!driver) {
+    return { allowed: false, error: "Driver not found" };
+  }
+  
+  switch (effectivePolicy) {
+    case "SELF_ONLY":
+      // Only the transporter owner (self-driver) can execute
+      // Check if driver is the owner-operator of this transporter
+      const isOwnerOperator = transporter.ownerDriverUserId === driverId || 
+        (driver.isSelfDriver && driver.transporterId === transporter.id);
+      if (!isOwnerOperator) {
+        return { allowed: false, error: "This transporter only allows self-execution. Owner must be the driver." };
+      }
+      return { allowed: true };
+      
+    case "ASSIGNED_DRIVER_ONLY":
+      // The driver must belong to this transporter (or be the owner-operator)
+      if (driver.transporterId !== transporter.id && transporter.ownerDriverUserId !== driverId) {
+        return { allowed: false, error: "Driver must belong to this transporter" };
+      }
+      return { allowed: true };
+      
+    case "ANY_DRIVER":
+      // Any driver under the transporter can execute (or the owner-operator)
+      if (driver.transporterId !== transporter.id && transporter.ownerDriverUserId !== driverId) {
+        return { allowed: false, error: "Driver must belong to this transporter" };
+      }
+      return { allowed: true };
+      
+    default:
+      return { allowed: true };
+  }
 };
 
 // Helper to get current user from either session or token
@@ -1046,13 +1102,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
 
-      // Update bid status
-      const updatedBid = await storage.updateBidStatus(bidId, "accepted");
+      // Compute financials before atomic operation
+      const financials = computeTripFinancials(bid.amount);
       
-      // Update ride with assigned driver/transporter
-      await storage.updateRideStatus(bid.rideId, "confirmed");
+      // Atomically: update bid, ride, close bidding, lock financials, create ledger, reject other bids
+      await storage.acceptBidAtomic({
+        bidId,
+        rideId: bid.rideId,
+        transporterId: bid.transporterId || null,
+        acceptedByUserId: user.id,
+        financials: {
+          finalPrice: financials.finalPrice.toString(),
+          platformFee: financials.platformFee.toString(),
+          transporterEarning: financials.transporterEarning.toString(),
+          platformFeePercent: financials.platformFeePercent.toString()
+        }
+      });
       
-      res.json(updatedBid);
+      res.json({ success: true, message: "Bid accepted successfully", financials });
     } catch (error) {
       console.error("Failed to accept bid:", error);
       res.status(500).json({ error: "Failed to accept bid" });
@@ -1359,13 +1426,30 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.patch("/api/rides/:id/status", async (req, res) => {
     const sessionUser = getCurrentUser(req);
     
-    // Only super admin can update ride status
     if (!sessionUser || !sessionUser.isSuperAdmin) {
       return res.status(403).json({ error: "Only administrators can update ride status" });
     }
     
     try {
       const { status } = req.body;
+      const ride = await storage.getRide(req.params.id);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      try {
+        assertRideTransition(ride.status, status, ride.id);
+      } catch (e) {
+        if (e instanceof RideTransitionError) {
+          return res.status(400).json({ 
+            error: "Invalid status transition", 
+            from: ride.status, 
+            to: status 
+          });
+        }
+        throw e;
+      }
+      
       await storage.updateRideStatus(req.params.id, status);
       res.json({ success: true });
     } catch (error) {
@@ -1376,16 +1460,61 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.patch("/api/rides/:id/assign", async (req, res) => {
     const sessionUser = getCurrentUser(req);
     
-    // Only super admin can assign drivers
-    if (!sessionUser || !sessionUser.isSuperAdmin) {
-      return res.status(403).json({ error: "Only administrators can assign drivers" });
+    // Only super admin or transporter can assign drivers
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    const isSuperAdmin = sessionUser.isSuperAdmin;
+    const isTransporter = sessionUser.role === "transporter";
+    
+    if (!isSuperAdmin && !isTransporter) {
+      return res.status(403).json({ error: "Only administrators or transporters can assign drivers" });
     }
     
     try {
       const { driverId, vehicleId } = req.body;
+      
+      if (!driverId || !vehicleId) {
+        return res.status(400).json({ error: "driverId and vehicleId are required" });
+      }
+      
+      const ride = await storage.getRide(req.params.id);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+      
+      try {
+        assertRideTransition(ride.status, "assigned", ride.id);
+      } catch (e) {
+        if (e instanceof RideTransitionError) {
+          return res.status(400).json({ 
+            error: "Cannot assign driver from current status", 
+            from: ride.status, 
+            to: "assigned" 
+          });
+        }
+        throw e;
+      }
+      
+      if (isTransporter && !isSuperAdmin) {
+        if (ride.transporterId !== sessionUser.transporterId) {
+          return res.status(403).json({ error: "You can only assign drivers to your own trips" });
+        }
+        
+        const transporter = await storage.getTransporter(sessionUser.transporterId!);
+        if (transporter) {
+          const policyCheck = await checkExecutionPolicy(transporter, driverId);
+          if (!policyCheck.allowed) {
+            return res.status(403).json({ error: policyCheck.error || "Driver assignment not allowed by transporter policy" });
+          }
+        }
+      }
+      
       await storage.assignRideToDriver(req.params.id, driverId, vehicleId);
       res.json({ success: true });
     } catch (error) {
+      console.error("Failed to assign driver:", error);
       res.status(400).json({ error: "Failed to assign driver" });
     }
   });
@@ -1404,10 +1533,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(404).json({ error: "Ride not found" });
       }
       
-      // Check if driver is assigned to this ride
-      const driverId = resolveDriverIdentity(sessionUser);
-      if (ride.assignedDriverId !== driverId) {
+      const identity = resolveDriverIdentity(sessionUser);
+      if (ride.assignedDriverId !== identity.driverId) {
         return res.status(403).json({ error: "Not authorized for this ride" });
+      }
+      
+      try {
+        assertRideTransition(ride.status, "pickup_done", ride.id);
+      } catch (e) {
+        if (e instanceof RideTransitionError) {
+          return res.status(400).json({ 
+            error: "Cannot mark pickup complete from current status", 
+            from: ride.status, 
+            to: "pickup_done" 
+          });
+        }
+        throw e;
       }
       
       await storage.markRidePickupComplete(req.params.id);
@@ -1432,10 +1573,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(404).json({ error: "Ride not found" });
       }
       
-      // Check if driver is assigned to this ride
-      const driverId = resolveDriverIdentity(sessionUser);
-      if (ride.assignedDriverId !== driverId) {
+      const identity = resolveDriverIdentity(sessionUser);
+      if (ride.assignedDriverId !== identity.driverId) {
         return res.status(403).json({ error: "Not authorized for this ride" });
+      }
+      
+      try {
+        assertRideTransition(ride.status, "delivery_done", ride.id);
+      } catch (e) {
+        if (e instanceof RideTransitionError) {
+          return res.status(400).json({ 
+            error: "Cannot mark delivery complete from current status", 
+            from: ride.status, 
+            to: "delivery_done" 
+          });
+        }
+        throw e;
       }
       
       await storage.markRideDeliveryComplete(req.params.id);
@@ -1460,14 +1613,32 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(404).json({ error: "Ride not found" });
       }
       
-      // Check if driver is assigned to this ride
-      const driverId = resolveDriverIdentity(sessionUser);
-      if (ride.assignedDriverId !== driverId) {
+      const identity = resolveDriverIdentity(sessionUser);
+      if (ride.assignedDriverId !== identity.driverId) {
         return res.status(403).json({ error: "Not authorized for this ride" });
       }
       
-      if (ride.status !== "assigned") {
-        return res.status(400).json({ error: "Trip cannot be started from current status" });
+      try {
+        assertRideTransition(ride.status, "active", ride.id);
+      } catch (e) {
+        if (e instanceof RideTransitionError) {
+          return res.status(400).json({ 
+            error: "Trip cannot be started from current status", 
+            from: ride.status, 
+            to: "active" 
+          });
+        }
+        throw e;
+      }
+      
+      if (ride.transporterId && identity.driverId) {
+        const transporter = await storage.getTransporter(ride.transporterId);
+        if (transporter) {
+          const policyCheck = await checkExecutionPolicy(transporter, identity.driverId);
+          if (!policyCheck.allowed) {
+            return res.status(403).json({ error: policyCheck.error || "Trip start not allowed by transporter policy" });
+          }
+        }
       }
       
       await storage.updateRideStatus(req.params.id, "active");
@@ -1475,6 +1646,57 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (error) {
       console.error("Start trip error:", error);
       res.status(400).json({ error: "Failed to start trip" });
+    }
+  });
+
+  // Driver: Accept trip (confirms driver will execute the assigned trip)
+  app.post("/api/rides/:id/accept", async (req, res) => {
+    const sessionUser = getCurrentUser(req);
+    
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      const ride = await storage.getRide(req.params.id);
+      if (!ride) {
+        return res.status(404).json({ error: "Trip not found" });
+      }
+      
+      // Check if driver is assigned to this ride
+      const identity = resolveDriverIdentity(sessionUser);
+      if (!identity.canAccessDriverRoutes) {
+        return res.status(403).json({ error: "Driver access required" });
+      }
+      if (ride.assignedDriverId !== identity.driverId) {
+        return res.status(403).json({ error: "You are not assigned to this trip" });
+      }
+      
+      if (ride.status !== "assigned") {
+        return res.status(400).json({ error: "Trip cannot be accepted from current status" });
+      }
+      
+      // Check if already accepted
+      if (ride.acceptedAt) {
+        return res.status(400).json({ error: "Trip has already been accepted" });
+      }
+      
+      // Enforce execution policy before accepting trip
+      if (ride.transporterId && identity.driverId) {
+        const transporter = await storage.getTransporter(ride.transporterId);
+        if (transporter) {
+          const policyCheck = await checkExecutionPolicy(transporter, identity.driverId);
+          if (!policyCheck.allowed) {
+            return res.status(403).json({ error: policyCheck.error || "Trip acceptance not allowed by transporter policy" });
+          }
+        }
+      }
+      
+      await storage.driverAcceptTrip(req.params.id, identity.driverId!);
+      res.json({ success: true, message: "Trip accepted successfully" });
+    } catch (error) {
+      console.error("Accept trip error:", error);
+      res.status(400).json({ error: "Failed to accept trip" });
     }
   });
 
@@ -1492,14 +1714,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(404).json({ error: "Ride not found" });
       }
       
-      // Check if driver is assigned to this ride
-      const driverId = resolveDriverIdentity(sessionUser);
-      if (ride.assignedDriverId !== driverId) {
+      const identity = resolveDriverIdentity(sessionUser);
+      if (ride.assignedDriverId !== identity.driverId) {
         return res.status(403).json({ error: "Not authorized for this ride" });
       }
       
-      if (ride.status !== "active") {
-        return res.status(400).json({ error: "Only active trips can be completed" });
+      try {
+        assertRideTransition(ride.status, "completed", ride.id);
+      } catch (e) {
+        if (e instanceof RideTransitionError) {
+          return res.status(400).json({ 
+            error: "Trip cannot be completed from current status", 
+            from: ride.status, 
+            to: "completed" 
+          });
+        }
+        throw e;
       }
       
       await storage.updateRideStatus(req.params.id, "completed");
@@ -1913,21 +2143,40 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       
       const bid = await storage.createBid(data);
       
-      // Update ride status to bid_placed
-      await storage.updateRideStatus(data.rideId, "bid_placed");
+      if (ride.status === "pending") {
+        try {
+          assertRideTransition(ride.status, "bidding", ride.id);
+          await storage.updateRideStatus(data.rideId, "bidding");
+        } catch (e) {
+          if (e instanceof RideTransitionError) {
+            console.warn(`[Bid] Could not transition ride ${ride.id} to bidding from ${ride.status}`);
+          } else {
+            throw e;
+          }
+        }
+      }
       
       // Notify the customer that a bid was placed on their trip
       try {
         if (ride.createdById) {
           const transporter = sessionUser.transporterId ? await storage.getTransporter(sessionUser.transporterId) : null;
           const transporterName = transporter?.companyName || sessionUser.name || "A transporter";
-          await storage.createNotification({
+          await createRoleAwareNotification({
             recipientId: ride.createdById,
-            type: "bid_placed",
-            title: "New Bid Received",
-            message: `${transporterName} placed a bid of ₹${data.amount} on your trip from ${ride.pickupLocation} to ${ride.dropLocation}`,
+            recipientRole: "customer",
+            eventType: "bid_created",
+            notificationType: "bid",
+            actionType: "action_required",
+            entityType: "bid",
+            entityId: bid.id,
             rideId: ride.id,
             bidId: bid.id,
+            context: {
+              transporterName,
+              bidAmount: data.amount,
+              pickupLocation: ride.pickupLocation,
+              dropLocation: ride.dropLocation
+            }
           });
         }
       } catch (notifyError) {
@@ -1956,19 +2205,59 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (status === "accepted") {
         const bid = await storage.getBid(req.params.id);
         if (bid) {
+          const ride = await storage.getRide(bid.rideId);
+          if (!ride) {
+            return res.status(404).json({ error: "Ride not found" });
+          }
+          
+          try {
+            assertRideTransition(ride.status, "assigned", ride.id);
+          } catch (e) {
+            if (e instanceof RideTransitionError) {
+              return res.status(400).json({ 
+                error: "Cannot assign driver from current ride status", 
+                from: ride.status, 
+                to: "assigned" 
+              });
+            }
+            throw e;
+          }
+          
           await storage.assignRideToDriver(bid.rideId, bid.userId, bid.vehicleId);
           
-          // Notify driver
-          const ride = await storage.getRide(bid.rideId);
-          if (ride) {
-            await storage.createNotification({
-              recipientId: bid.userId,
-              recipientTransporterId: bid.transporterId || undefined,
-              type: "bid_accepted",
-              title: "Bid Accepted!",
-              message: `Your bid for trip from ${ride.pickupLocation} to ${ride.dropLocation} has been accepted.`,
-              rideId: bid.rideId,
-              bidId: bid.id,
+          const transporter = bid.transporterId ? await storage.getTransporter(bid.transporterId) : null;
+          const contextData = {
+            bidAmount: bid.amount,
+            pickupLocation: ride.pickupLocation,
+            dropLocation: ride.dropLocation,
+            transporterName: transporter?.companyName || "Transporter"
+          };
+          
+          await createRoleAwareNotification({
+            recipientId: bid.userId,
+            recipientTransporterId: bid.transporterId || undefined,
+            recipientRole: "transporter",
+            eventType: "bid_accepted",
+            notificationType: "bid",
+            actionType: "success",
+            entityType: "trip",
+            entityId: ride.id,
+            rideId: bid.rideId,
+            bidId: bid.id,
+            context: contextData
+          });
+          
+          if (ride.createdById) {
+            await createRoleAwareNotification({
+              recipientId: ride.createdById,
+              recipientRole: "customer",
+              eventType: "bid_accepted",
+              notificationType: "trip",
+              actionType: "info",
+              entityType: "trip",
+              entityId: ride.id,
+              rideId: ride.id,
+              context: contextData
             });
           }
         }
@@ -2238,12 +2527,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       try {
         const transporterUsers = await storage.getUsersByTransporter(req.params.id);
         for (const user of transporterUsers) {
-          await storage.createNotification({
+          await createRoleAwareNotification({
             recipientId: user.id,
             recipientTransporterId: req.params.id,
-            type: "system",
-            title: "Account Approved!",
-            message: `Congratulations! Your transporter account "${transporter.companyName}" has been approved. You can now place bids on available trips.`,
+            recipientRole: "transporter",
+            eventType: "transporter_approved",
+            notificationType: "account",
+            actionType: "success",
+            context: { companyName: transporter.companyName }
           });
         }
       } catch (notifyError) {
@@ -2317,12 +2608,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       try {
         const transporterUsers = await storage.getUsersByTransporter(req.params.id);
         for (const user of transporterUsers) {
-          await storage.createNotification({
+          await createRoleAwareNotification({
             recipientId: user.id,
             recipientTransporterId: req.params.id,
-            type: "system",
-            title: "Account Verification Rejected",
-            message: `Your transporter account "${transporter.companyName}" verification was rejected. Reason: ${reason.trim()}. Please update your documents and resubmit.`,
+            recipientRole: "transporter",
+            eventType: "transporter_rejected",
+            notificationType: "account",
+            actionType: "warning",
+            context: { companyName: transporter.companyName, reason: reason.trim() }
           });
         }
       } catch (notifyError) {
@@ -3653,27 +3946,47 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
       
-      // Update bid status to accepted
-      await storage.updateBidStatus(bid.id, "accepted");
+      // Compute financials before atomic operation
+      const financials = computeTripFinancials(bid.amount);
       
-      // Update ride with accepted bid and transporter, and close bidding
-      await storage.updateRideAcceptedBid(ride.id, bid.id, bid.transporterId || "");
+      // Atomically: update bid, ride, close bidding, lock financials, create ledger, reject other bids
+      await storage.acceptBidAtomic({
+        bidId: bid.id,
+        rideId: ride.id,
+        transporterId: bid.transporterId || null,
+        acceptedByUserId: sessionUser.id,
+        financials: {
+          finalPrice: financials.finalPrice.toString(),
+          platformFee: financials.platformFee.toString(),
+          transporterEarning: financials.transporterEarning.toString(),
+          platformFeePercent: financials.platformFeePercent.toString()
+        }
+      });
       
-      // Close bidding and record who accepted
-      await storage.closeBidding(ride.id, sessionUser.id);
-      
-      // Assign driver and vehicle if available
-      if (bid.userId && bid.vehicleId) {
-        await storage.assignRideToDriver(ride.id, bid.userId, bid.vehicleId);
+      // Post-acceptance: Assign driver if policy allows (non-critical, outside transaction)
+      if (bid.userId && bid.vehicleId && bid.transporterId) {
+        const transporter = await storage.getTransporter(bid.transporterId);
+        if (transporter) {
+          const policyCheck = await checkExecutionPolicy(transporter, bid.userId);
+          if (policyCheck.allowed) {
+            try {
+              assertRideTransition("accepted", "assigned", ride.id);
+              await storage.assignRideToDriver(ride.id, bid.userId, bid.vehicleId);
+            } catch (e) {
+              if (e instanceof RideTransitionError) {
+                console.warn(`[BidAccept] Could not transition ride ${ride.id} to assigned`);
+              } else {
+                throw e;
+              }
+            }
+          }
+        }
       }
       
-      // Reject all other pending bids for this ride
+      // Send notifications (non-critical, outside transaction)
       const allBids = await storage.getRideBids(ride.id);
       for (const otherBid of allBids) {
-        if (otherBid.id !== bid.id && otherBid.status === "pending") {
-          await storage.updateBidStatus(otherBid.id, "rejected");
-          
-          // Notify rejected bidders that bidding is closed
+        if (otherBid.id !== bid.id && otherBid.status === "rejected") {
           if (otherBid.userId) {
             await storage.createNotification({
               recipientId: otherBid.userId,
