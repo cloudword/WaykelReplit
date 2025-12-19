@@ -22,6 +22,7 @@ import {
 } from "./rate-limiter";
 import { createRoleAwareNotification, createSimpleNotification } from "./notifications";
 import { assertRideTransition, RideTransitionError, isValidStatus, type RideStatus } from "./rideLifecycle";
+import { lockTripFinancialsAtomic, computeTripFinancials } from "./tripFinancials";
 
 // JWT Configuration
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "waykel-jwt-secret-change-in-production";
@@ -1101,13 +1102,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
 
-      // Update bid status
-      const updatedBid = await storage.updateBidStatus(bidId, "accepted");
+      // Compute financials before atomic operation
+      const financials = computeTripFinancials(bid.amount);
       
-      // Update ride with assigned driver/transporter
-      await storage.updateRideStatus(bid.rideId, "confirmed");
+      // Atomically: update bid, ride, close bidding, lock financials, create ledger, reject other bids
+      await storage.acceptBidAtomic({
+        bidId,
+        rideId: bid.rideId,
+        transporterId: bid.transporterId || null,
+        acceptedByUserId: user.id,
+        financials: {
+          finalPrice: financials.finalPrice.toString(),
+          platformFee: financials.platformFee.toString(),
+          transporterEarning: financials.transporterEarning.toString(),
+          platformFeePercent: financials.platformFeePercent.toString()
+        }
+      });
       
-      res.json(updatedBid);
+      res.json({ success: true, message: "Bid accepted successfully", financials });
     } catch (error) {
       console.error("Failed to accept bid:", error);
       res.status(500).json({ error: "Failed to accept bid" });
@@ -3934,27 +3946,35 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
       
-      // Update bid status to accepted
-      await storage.updateBidStatus(bid.id, "accepted");
+      // Compute financials before atomic operation
+      const financials = computeTripFinancials(bid.amount);
       
-      // Update ride with accepted bid and transporter, and close bidding
-      await storage.updateRideAcceptedBid(ride.id, bid.id, bid.transporterId || "");
+      // Atomically: update bid, ride, close bidding, lock financials, create ledger, reject other bids
+      await storage.acceptBidAtomic({
+        bidId: bid.id,
+        rideId: ride.id,
+        transporterId: bid.transporterId || null,
+        acceptedByUserId: sessionUser.id,
+        financials: {
+          finalPrice: financials.finalPrice.toString(),
+          platformFee: financials.platformFee.toString(),
+          transporterEarning: financials.transporterEarning.toString(),
+          platformFeePercent: financials.platformFeePercent.toString()
+        }
+      });
       
-      // Close bidding and record who accepted
-      await storage.closeBidding(ride.id, sessionUser.id);
-      
-      // Assign driver and vehicle if available, but enforce execution policy
+      // Post-acceptance: Assign driver if policy allows (non-critical, outside transaction)
       if (bid.userId && bid.vehicleId && bid.transporterId) {
         const transporter = await storage.getTransporter(bid.transporterId);
         if (transporter) {
           const policyCheck = await checkExecutionPolicy(transporter, bid.userId);
           if (policyCheck.allowed) {
             try {
-              assertRideTransition(ride.status, "assigned", ride.id);
+              assertRideTransition("accepted", "assigned", ride.id);
               await storage.assignRideToDriver(ride.id, bid.userId, bid.vehicleId);
             } catch (e) {
               if (e instanceof RideTransitionError) {
-                console.warn(`[BidAccept] Could not transition ride ${ride.id} to assigned from ${ride.status}`);
+                console.warn(`[BidAccept] Could not transition ride ${ride.id} to assigned`);
               } else {
                 throw e;
               }
@@ -3963,13 +3983,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
       
-      // Reject all other pending bids for this ride
+      // Send notifications (non-critical, outside transaction)
       const allBids = await storage.getRideBids(ride.id);
       for (const otherBid of allBids) {
-        if (otherBid.id !== bid.id && otherBid.status === "pending") {
-          await storage.updateBidStatus(otherBid.id, "rejected");
-          
-          // Notify rejected bidders that bidding is closed
+        if (otherBid.id !== bid.id && otherBid.status === "rejected") {
           if (otherBid.userId) {
             await storage.createNotification({
               recipientId: otherBid.userId,

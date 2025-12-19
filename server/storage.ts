@@ -1,6 +1,6 @@
 import { 
   users, vehicles, rides, bids, transporters, documents, notifications, apiLogs,
-  roles, userRoles, savedAddresses, driverApplications,
+  roles, userRoles, savedAddresses, driverApplications, ledgerEntries,
   type User, type InsertUser,
   type Vehicle, type InsertVehicle,
   type Ride, type InsertRide,
@@ -12,7 +12,8 @@ import {
   type Role, type InsertRole,
   type UserRole, type InsertUserRole,
   type SavedAddress, type InsertSavedAddress,
-  type DriverApplication, type InsertDriverApplication
+  type DriverApplication, type InsertDriverApplication,
+  type LedgerEntry, type InsertLedgerEntry
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, or, sql, gte, inArray, not } from "drizzle-orm";
@@ -101,6 +102,19 @@ export interface IStorage {
   driverAcceptTrip(rideId: string, driverId: string): Promise<void>;
   markRidePickupComplete(rideId: string): Promise<void>;
   markRideDeliveryComplete(rideId: string): Promise<void>;
+  updateRideFinancials(rideId: string, financials: {
+    finalPrice: string;
+    platformFee: string;
+    transporterEarning: string;
+    platformFeePercent: string;
+    financialLockedAt: Date;
+  }): Promise<void>;
+  updateRidePaymentStatus(rideId: string, paymentStatus: string): Promise<void>;
+  
+  // Ledger
+  createLedgerEntry(entry: InsertLedgerEntry): Promise<LedgerEntry>;
+  getRideLedgerEntries(rideId: string): Promise<LedgerEntry[]>;
+  getTransporterLedgerEntries(transporterId: string): Promise<LedgerEntry[]>;
   
   // Bids
   getBid(id: string): Promise<Bid | undefined>;
@@ -139,6 +153,19 @@ export interface IStorage {
   verifyTransporter(id: string, verifiedById: string): Promise<void>;
   getVehiclesByTypeAndCapacity(vehicleType: string | null, minCapacityKg: number | null): Promise<Vehicle[]>;
   updateRideAcceptedBid(rideId: string, bidId: string, transporterId: string): Promise<void>;
+  closeBidding(rideId: string, acceptedByUserId: string): Promise<void>;
+  acceptBidAtomic(params: {
+    bidId: string;
+    rideId: string;
+    transporterId: string | null;
+    acceptedByUserId: string;
+    financials: {
+      finalPrice: string;
+      platformFee: string;
+      transporterEarning: string;
+      platformFeePercent: string;
+    };
+  }): Promise<void>;
   
   // API Logs
   createApiLog(log: InsertApiLog): Promise<ApiLog>;
@@ -441,6 +468,42 @@ export class DatabaseStorage implements IStorage {
     }).where(eq(rides.id, rideId));
   }
 
+  async updateRideFinancials(rideId: string, financials: {
+    finalPrice: string;
+    platformFee: string;
+    transporterEarning: string;
+    platformFeePercent: string;
+    financialLockedAt: Date;
+  }): Promise<void> {
+    await db.update(rides).set({
+      finalPrice: financials.finalPrice,
+      platformFee: financials.platformFee,
+      transporterEarning: financials.transporterEarning,
+      platformFeePercent: financials.platformFeePercent,
+      financialLockedAt: financials.financialLockedAt
+    }).where(eq(rides.id, rideId));
+  }
+
+  async updateRidePaymentStatus(rideId: string, paymentStatus: string): Promise<void> {
+    await db.update(rides).set({
+      paymentStatus: paymentStatus as any
+    }).where(eq(rides.id, rideId));
+  }
+
+  // Ledger
+  async createLedgerEntry(entry: InsertLedgerEntry): Promise<LedgerEntry> {
+    const [ledgerEntry] = await db.insert(ledgerEntries).values(entry).returning();
+    return ledgerEntry;
+  }
+
+  async getRideLedgerEntries(rideId: string): Promise<LedgerEntry[]> {
+    return await db.select().from(ledgerEntries).where(eq(ledgerEntries.rideId, rideId)).orderBy(desc(ledgerEntries.createdAt));
+  }
+
+  async getTransporterLedgerEntries(transporterId: string): Promise<LedgerEntry[]> {
+    return await db.select().from(ledgerEntries).where(eq(ledgerEntries.transporterId, transporterId)).orderBy(desc(ledgerEntries.createdAt));
+  }
+
   // Bids
   async getBid(id: string): Promise<Bid | undefined> {
     const [bid] = await db.select().from(bids).where(eq(bids.id, id));
@@ -740,6 +803,81 @@ export class DatabaseStorage implements IStorage {
       acceptedByUserId: acceptedByUserId,
       acceptedAt: new Date()
     }).where(eq(rides.id, rideId));
+  }
+
+  async acceptBidAtomic(params: {
+    bidId: string;
+    rideId: string;
+    transporterId: string | null;
+    acceptedByUserId: string;
+    financials: {
+      finalPrice: string;
+      platformFee: string;
+      transporterEarning: string;
+      platformFeePercent: string;
+    };
+  }): Promise<void> {
+    const { bidId, rideId, transporterId, acceptedByUserId, financials } = params;
+    const now = new Date();
+
+    await db.transaction(async (tx) => {
+      await tx.update(bids).set({ status: "accepted" }).where(eq(bids.id, bidId));
+
+      await tx.update(rides).set({
+        acceptedBidId: bidId,
+        transporterId: transporterId || undefined,
+        biddingStatus: "closed",
+        acceptedByUserId: acceptedByUserId,
+        acceptedAt: now,
+        status: "accepted",
+        finalPrice: financials.finalPrice,
+        platformFee: financials.platformFee,
+        transporterEarning: financials.transporterEarning,
+        platformFeePercent: financials.platformFeePercent,
+        financialLockedAt: now
+      }).where(eq(rides.id, rideId));
+
+      const entries = [
+        {
+          rideId,
+          transporterId: transporterId || undefined,
+          entryType: "trip_revenue" as const,
+          amount: financials.finalPrice,
+          description: `Trip revenue from customer`,
+          referenceType: "ride",
+          createdById: acceptedByUserId
+        },
+        {
+          rideId,
+          transporterId: transporterId || undefined,
+          entryType: "platform_fee" as const,
+          amount: (-parseFloat(financials.platformFee)).toString(),
+          description: `Platform fee (${financials.platformFeePercent}%)`,
+          referenceType: "ride",
+          createdById: acceptedByUserId
+        },
+        {
+          rideId,
+          transporterId: transporterId || undefined,
+          entryType: "transporter_payout" as const,
+          amount: financials.transporterEarning,
+          description: `Transporter earning after platform fee`,
+          referenceType: "ride",
+          createdById: acceptedByUserId
+        }
+      ];
+
+      for (const entry of entries) {
+        await tx.insert(ledgerEntries).values(entry);
+      }
+
+      const allBids = await tx.select().from(bids).where(eq(bids.rideId, rideId));
+      for (const otherBid of allBids) {
+        if (otherBid.id !== bidId && otherBid.status === "pending") {
+          await tx.update(bids).set({ status: "rejected" }).where(eq(bids.id, otherBid.id));
+        }
+      }
+    });
   }
 
   async selfAssignRide(rideId: string, transporterId: string, driverId: string, vehicleId: string): Promise<void> {
