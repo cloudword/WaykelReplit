@@ -170,6 +170,65 @@ const resolveDriverIdentity = (user: {
   };
 };
 
+// Execution Policy Types
+type ExecutionPolicy = "SELF_ONLY" | "ASSIGNED_DRIVER_ONLY" | "ANY_DRIVER";
+
+// Helper to validate driver assignment based on transporter's execution policy
+interface ExecutionPolicyCheck {
+  allowed: boolean;
+  error?: string;
+}
+
+const checkExecutionPolicy = async (
+  transporter: { id: string; executionPolicy?: ExecutionPolicy | null; isOwnerOperator?: boolean },
+  driverId: string,
+  sessionUser: { id: string; isSelfDriver?: boolean; transporterId?: string }
+): Promise<ExecutionPolicyCheck> => {
+  // Get effective policy (default based on isOwnerOperator if not set)
+  const effectivePolicy: ExecutionPolicy = transporter.executionPolicy || 
+    (transporter.isOwnerOperator ? "SELF_ONLY" : "ASSIGNED_DRIVER_ONLY");
+  
+  switch (effectivePolicy) {
+    case "SELF_ONLY":
+      // Only the transporter owner (self-driver) can execute
+      if (!sessionUser.isSelfDriver || sessionUser.id !== driverId) {
+        return { allowed: false, error: "This transporter only allows self-execution. Owner must be the driver." };
+      }
+      return { allowed: true };
+      
+    case "ASSIGNED_DRIVER_ONLY":
+      // Only the specifically assigned driver can execute
+      // The driver must belong to this transporter
+      const driver = await storage.getUser(driverId);
+      if (!driver) {
+        return { allowed: false, error: "Driver not found" };
+      }
+      if (driver.transporterId !== transporter.id && driverId !== sessionUser.id) {
+        return { allowed: false, error: "Driver must belong to this transporter" };
+      }
+      return { allowed: true };
+      
+    case "ANY_DRIVER":
+      // Any driver under the transporter can execute
+      const anyDriver = await storage.getUser(driverId);
+      if (!anyDriver) {
+        return { allowed: false, error: "Driver not found" };
+      }
+      // Self-driver is always allowed
+      if (sessionUser.isSelfDriver && sessionUser.id === driverId) {
+        return { allowed: true };
+      }
+      // Check if driver belongs to transporter
+      if (anyDriver.transporterId !== transporter.id) {
+        return { allowed: false, error: "Driver must belong to this transporter" };
+      }
+      return { allowed: true };
+      
+    default:
+      return { allowed: true };
+  }
+};
+
 // Helper to get current user from either session or token
 const getCurrentUser = (req: Request) => {
   return req.session?.user || req.tokenUser;
