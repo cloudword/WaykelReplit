@@ -160,10 +160,11 @@ export default function NotificationBell() {
 
       {open && (
         <div 
-          className="fixed right-4 top-16 w-80 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-[60] max-h-[70vh] overflow-y-auto"
+          className="fixed right-4 top-16 w-80 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-[60] flex flex-col"
+          style={{ maxHeight: 'min(70vh, 500px)' }}
           data-testid="notification-dropdown"
         >
-          <div className="p-3 border-b font-semibold flex justify-between items-center">
+          <div className="p-3 border-b font-semibold flex justify-between items-center flex-shrink-0">
             <span>Notifications</span>
             {notifications.length > 0 && (
               <button 
@@ -176,28 +177,30 @@ export default function NotificationBell() {
             )}
           </div>
 
-          {notifications.length === 0 && (
-            <div className="p-4 text-center text-gray-500" data-testid="no-notifications">
-              No notifications
-            </div>
-          )}
-
-          {notifications.map(n => (
-            <div
-              key={n.id}
-              onClick={() => handleNotificationClick(n)}
-              className={`p-3 border-b cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${
-                n.isRead ? "opacity-60" : "bg-blue-50 dark:bg-blue-900/20"
-              }`}
-              data-testid={`notification-item-${n.id}`}
-            >
-              <div className="font-medium text-sm">{n.title}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">{n.message}</div>
-              <div className="text-xs text-gray-400 mt-1">
-                {n.createdAt ? new Date(n.createdAt).toLocaleString() : ""}
+          <div className="overflow-y-auto flex-1 min-h-0">
+            {notifications.length === 0 && (
+              <div className="p-4 text-center text-gray-500" data-testid="no-notifications">
+                No notifications
               </div>
-            </div>
-          ))}
+            )}
+
+            {notifications.map(n => (
+              <div
+                key={n.id}
+                onClick={() => handleNotificationClick(n)}
+                className={`p-3 border-b cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                  n.isRead ? "opacity-60" : "bg-blue-50 dark:bg-blue-900/20"
+                }`}
+                data-testid={`notification-item-${n.id}`}
+              >
+                <div className="font-medium text-sm">{n.title}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{n.message}</div>
+                <div className="text-xs text-gray-400 mt-1">
+                  {n.createdAt ? new Date(n.createdAt).toLocaleString() : ""}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
