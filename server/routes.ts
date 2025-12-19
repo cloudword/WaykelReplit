@@ -5157,7 +5157,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     smsMode: z.enum(["shadow", "live"]).optional(),
     smsProvider: z.enum(["msg91"]).nullable().optional(),
     smsTemplates: z.record(z.string(), z.string()).optional()
-  }).strict();
+  }).passthrough();
 
   app.patch("/api/admin/platform-settings", requireAuth, async (req: Request, res: Response) => {
     try {

@@ -533,13 +533,14 @@ export default function PlatformSettingsPage() {
                 
                 <div className="space-y-3">
                   {SMS_TEMPLATE_KEYS.map((template) => (
-                    <div key={template.key} className="grid grid-cols-1 md:grid-cols-2 gap-2 items-start p-3 border rounded-lg">
-                      <div>
+                    <div key={template.key} className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 border rounded-lg">
+                      <div className="flex-1 min-w-0">
                         <Label className="text-sm font-medium">{template.label}</Label>
                         <p className="text-xs text-muted-foreground">{template.description}</p>
                         <code className="text-xs bg-gray-100 px-1 rounded">{template.key}</code>
                       </div>
                       <Input
+                        className="sm:w-48 flex-shrink-0"
                         placeholder="e.g., 110716xxxxxxx"
                         value={smsTemplates[template.key] || ""}
                         onChange={(e) => setSmsTemplates(prev => ({
