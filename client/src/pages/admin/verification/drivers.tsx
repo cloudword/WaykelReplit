@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Search, User, CheckCircle, XCircle, Loader2, Eye, Clock, FileText, RefreshCw, ExternalLink, AlertTriangle, Building2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { API_BASE } from "@/lib/api";
 
 interface Document {
   id: string;
@@ -53,7 +54,7 @@ export default function VerificationDrivers() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/admin/verification/drivers", { credentials: "include" });
+      const response = await fetch(`${API_BASE}/admin/verification/drivers`, { credentials: "include" });
       if (!response.ok) throw new Error("Failed to fetch");
       const data = await response.json();
       setDrivers(Array.isArray(data) ? data : []);
@@ -71,7 +72,7 @@ export default function VerificationDrivers() {
   const handleApproveDocument = async (docId: string) => {
     setProcessingDocId(docId);
     try {
-      const response = await fetch(`/api/documents/${docId}/status`, {
+      const response = await fetch(`${API_BASE}/documents/${docId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -91,7 +92,7 @@ export default function VerificationDrivers() {
     if (!rejectingDocId || !rejectionReason.trim()) return;
     setProcessingDocId(rejectingDocId);
     try {
-      const response = await fetch(`/api/documents/${rejectingDocId}/status`, {
+      const response = await fetch(`${API_BASE}/documents/${rejectingDocId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -115,7 +116,7 @@ export default function VerificationDrivers() {
       return;
     }
     try {
-      const response = await fetch("/api/spaces/signed-url", {
+      const response = await fetch(`${API_BASE}/spaces/signed-url`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

@@ -23,6 +23,7 @@ The Waykel platform is built with a mobile-first, role-based approach, ensuring 
 -   **Technology Stack**: React, Vite, Wouter (for lightweight routing), TailwindCSS, and shadcn/ui for accessible and customizable components.
 -   **Design Patterns**: Single-page application (SPA) with role-based routing (`/driver/*`, `/transporter/*`, `/admin/*`, `/customer/*`) and a strong emphasis on mobile-first responsive design.
 -   **Key Decisions**: Wouter was chosen for its minimal footprint, and shadcn/ui components are integrated directly into the codebase for full control.
+-   **API Base URL**: All API calls MUST use `API_BASE` from `@/lib/api`. In production, frontend and backend are on different subdomains (admin.waykel.com vs api.waykel.com), so relative `/api/*` URLs will fail. Always use `fetch(\`${API_BASE}/...\`)` with `credentials: "include"`.
 
 **Backend:**
 -   **Technology Stack**: Node.js, Express.js, and TypeScript.
@@ -121,6 +122,13 @@ The Waykel platform is built with a mobile-first, role-based approach, ensuring 
 -   **Storage Page**: `/admin/storage` - Super Admin only page to browse and manage DigitalOcean Spaces files
 -   **API Endpoints**: `GET /api/admin/storage`, `GET /api/admin/storage/file`, `DELETE /api/admin/storage/file`, `GET /api/admin/storage/directories`
 -   **Features**: Directory navigation, file preview, signed URL generation, file deletion
+
+**Admin Verification Inbox:**
+-   **Pages**: `/admin/verification/transporters`, `/admin/verification/drivers`, `/admin/verification/vehicles`
+-   **API Endpoints**: `GET /api/admin/verification/transporters`, `GET /api/admin/verification/drivers`, `GET /api/admin/verification/vehicles`
+-   **Features**: Lists entities with pending documents, document counts, oldest pending age, inline document preview, approve/reject actions
+-   **Sorting**: Entities with pending documents appear first, sorted by oldest pending document age
+-   **Actions**: Uses existing document approval (`PATCH /api/documents/:id/status`) and transporter approval (`POST /api/transporters/:id/approve|reject`) APIs
 
 **Document Upload System:**
 -   Direct file uploads are supported for driver and vehicle documents, storing them in cloud storage with private visibility and role-based access control.

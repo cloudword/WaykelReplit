@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Search, Building2, CheckCircle, XCircle, Loader2, Eye, Clock, FileText, RefreshCw, ExternalLink, AlertTriangle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { API_BASE } from "@/lib/api";
 
 interface Document {
   id: string;
@@ -56,7 +57,7 @@ export default function VerificationTransporters() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/admin/verification/transporters", { credentials: "include" });
+      const response = await fetch(`${API_BASE}/admin/verification/transporters`, { credentials: "include" });
       if (!response.ok) throw new Error("Failed to fetch");
       const data = await response.json();
       setTransporters(Array.isArray(data) ? data : []);
@@ -74,7 +75,7 @@ export default function VerificationTransporters() {
   const handleApproveDocument = async (docId: string) => {
     setProcessingDocId(docId);
     try {
-      const response = await fetch(`/api/documents/${docId}/status`, {
+      const response = await fetch(`${API_BASE}/documents/${docId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -98,7 +99,7 @@ export default function VerificationTransporters() {
     if (!rejectingDocId || !rejectionReason.trim()) return;
     setProcessingDocId(rejectingDocId);
     try {
-      const response = await fetch(`/api/documents/${rejectingDocId}/status`, {
+      const response = await fetch(`${API_BASE}/documents/${rejectingDocId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -119,7 +120,7 @@ export default function VerificationTransporters() {
   const handleApproveTransporter = async (id: string) => {
     setApprovingTransporterId(id);
     try {
-      const response = await fetch(`/api/transporters/${id}/approve`, {
+      const response = await fetch(`${API_BASE}/transporters/${id}/approve`, {
         method: "POST",
         credentials: "include"
       });
@@ -137,7 +138,7 @@ export default function VerificationTransporters() {
   const handleRejectTransporter = async () => {
     if (!rejectingTransporterId || !transporterRejectionReason.trim()) return;
     try {
-      const response = await fetch(`/api/transporters/${rejectingTransporterId}/reject`, {
+      const response = await fetch(`${API_BASE}/transporters/${rejectingTransporterId}/reject`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -160,7 +161,7 @@ export default function VerificationTransporters() {
       return;
     }
     try {
-      const response = await fetch("/api/spaces/signed-url", {
+      const response = await fetch(`${API_BASE}/spaces/signed-url`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

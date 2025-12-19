@@ -17,6 +17,7 @@ import {
   Image as ImageIcon
 } from "lucide-react";
 import { toast } from "sonner";
+import { API_BASE } from "@/lib/api";
 
 interface TripDocument {
   id: string;
@@ -44,7 +45,7 @@ export default function DriverTripDocuments() {
   const loadDocuments = async () => {
     if (!tripId) return;
     try {
-      const res = await fetch(`/api/trips/${tripId}/documents`, {
+      const res = await fetch(`${API_BASE}/trips/${tripId}/documents`, {
         credentials: "include",
       });
       const data = await res.json();
@@ -64,7 +65,7 @@ export default function DriverTripDocuments() {
 
     setUploading(true);
     try {
-      const urlRes = await fetch(`/api/trips/${tripId}/documents/upload-url`, {
+      const urlRes = await fetch(`${API_BASE}/trips/${tripId}/documents/upload-url`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -87,7 +88,7 @@ export default function DriverTripDocuments() {
         body: file,
       });
 
-      const docRes = await fetch(`/api/trips/${tripId}/documents`, {
+      const docRes = await fetch(`${API_BASE}/trips/${tripId}/documents`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

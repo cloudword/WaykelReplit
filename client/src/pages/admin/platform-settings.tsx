@@ -11,6 +11,7 @@ import { Settings, Save, DollarSign, AlertCircle, Calculator, Plus, Trash2, Mess
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { API_BASE } from "@/lib/api";
 
 interface TierConfig {
   amount: number;
@@ -54,13 +55,13 @@ interface FeePreview {
 }
 
 async function fetchSettings(): Promise<PlatformSettings> {
-  const res = await fetch("/api/admin/platform-settings", { credentials: "include" });
+  const res = await fetch(`${API_BASE}/admin/platform-settings`, { credentials: "include" });
   if (!res.ok) throw new Error("Failed to fetch settings");
   return res.json();
 }
 
 async function updateSettings(data: Partial<PlatformSettings>): Promise<PlatformSettings> {
-  const res = await fetch("/api/admin/platform-settings", {
+  const res = await fetch(`${API_BASE}/admin/platform-settings`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -71,7 +72,7 @@ async function updateSettings(data: Partial<PlatformSettings>): Promise<Platform
 }
 
 async function previewFee(amount: number): Promise<FeePreview> {
-  const res = await fetch(`/api/admin/platform-settings/preview/${amount}`, { credentials: "include" });
+  const res = await fetch(`${API_BASE}/admin/platform-settings/preview/${amount}`, { credentials: "include" });
   if (!res.ok) throw new Error("Failed to preview fee");
   return res.json();
 }
