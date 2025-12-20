@@ -2310,6 +2310,159 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // PHASE F: Transporter drivers management
+  // GET /api/transporter/drivers - Get all drivers for current transporter
+  app.get("/api/transporter/drivers", requireAuth, async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    const isAdmin = user.isSuperAdmin || user.role === "admin";
+    
+    try {
+      if (isAdmin) {
+        // Admin can optionally filter by transporterId
+        const { transporterId } = req.query;
+        if (transporterId) {
+          const drivers = await storage.getTransporterDrivers(transporterId as string);
+          const driversWithoutPasswords = drivers.map(({ password, ...d }) => d);
+          return res.json(driversWithoutPasswords);
+        }
+        // Admin without filter - return empty (use /api/drivers for all)
+        return res.json([]);
+      }
+      
+      // Non-admin: must have transporterId
+      if (!user.transporterId) {
+        return res.status(403).json({ error: "You must be associated with a transporter" });
+      }
+      
+      const drivers = await storage.getTransporterDrivers(user.transporterId);
+      const driversWithoutPasswords = drivers.map(({ password, ...d }) => d);
+      res.json(driversWithoutPasswords);
+    } catch (error) {
+      console.error("[GET /api/transporter/drivers] Error:", error);
+      // PHASE G/H: Return empty array, never throw on empty
+      res.json([]);
+    }
+  });
+
+  // POST /api/transporter/drivers - Create a new driver for current transporter
+  // PHASE F: Driver creation with auto-attached transporterId
+  app.post("/api/transporter/drivers", requireAuth, async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    const isAdmin = user.isSuperAdmin || user.role === "admin";
+    
+    try {
+      // Get transporterId from session (not from payload for non-admins)
+      const transporterId = isAdmin 
+        ? (req.body.transporterId || user.transporterId)
+        : user.transporterId;
+      
+      if (!transporterId) {
+        return res.status(403).json({ 
+          error: "You must be associated with a transporter to add drivers" 
+        });
+      }
+      
+      const { name, phone, password, email } = req.body;
+      
+      // Validate required fields
+      if (!name || !phone || !password) {
+        return res.status(400).json({ 
+          error: "Missing required fields",
+          details: "name, phone, and password are required"
+        });
+      }
+      
+      // Normalize phone number
+      let normalizedPhone: string;
+      try {
+        normalizedPhone = normalizePhone(phone);
+      } catch (e: any) {
+        return res.status(400).json({ error: e.message });
+      }
+      
+      // Check if phone already exists
+      const existingUser = await storage.getUserByPhone(normalizedPhone);
+      if (existingUser) {
+        return res.status(400).json({ error: "A user with this phone number already exists" });
+      }
+      
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+      
+      // Create driver user with auto-attached transporterId
+      const driver = await storage.createUser({
+        name,
+        phone: normalizedPhone,
+        password: hashedPassword,
+        email: email || null,
+        role: "driver",
+        transporterId,
+        documentsComplete: false,
+        profileComplete: false,
+      });
+      
+      // Return driver without password
+      const { password: _, ...driverWithoutPassword } = driver;
+      res.status(201).json(driverWithoutPassword);
+    } catch (error: any) {
+      console.error("[POST /api/transporter/drivers] Error:", error);
+      res.status(400).json({ error: error?.message || "Failed to create driver" });
+    }
+  });
+
+  // PHASE E: Get transporter's active vehicles for bidding
+  // GET /api/transporter/vehicles/active - Returns only active vehicles for bid selection
+  app.get("/api/transporter/vehicles/active", requireAuth, async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      if (!user.transporterId) {
+        return res.status(403).json({ error: "You must be associated with a transporter" });
+      }
+      
+      const vehicles = await storage.getTransporterVehicles(user.transporterId);
+      // PHASE E: Only return active vehicles for bidding
+      const activeVehicles = vehicles.filter(v => v.status === "active");
+      res.json(activeVehicles);
+    } catch (error) {
+      console.error("[GET /api/transporter/vehicles/active] Error:", error);
+      res.json([]);
+    }
+  });
+
+  // GET /api/transporter/vehicles - Get all vehicles for current transporter (including pending)
+  // PHASE D: Show ALL vehicles including pending ones
+  app.get("/api/transporter/vehicles", requireAuth, async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    try {
+      if (!user.transporterId) {
+        return res.status(403).json({ error: "You must be associated with a transporter" });
+      }
+      
+      // Return ALL vehicles - pending, active, inactive
+      const vehicles = await storage.getTransporterVehicles(user.transporterId);
+      res.json(vehicles);
+    } catch (error) {
+      console.error("[GET /api/transporter/vehicles] Error:", error);
+      res.json([]);
+    }
+  });
+
   // Bid routes
   app.get("/api/bids", async (req, res) => {
     const sessionUser = getCurrentUser(req);
@@ -2354,6 +2507,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // POST /api/bids - PHASE A/C: Ownership enforcement + Verification gates
   app.post("/api/bids", bidLimiter, async (req, res) => {
     const sessionUser = getCurrentUser(req);
     
@@ -2365,9 +2519,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const data = insertBidSchema.parse(req.body);
       
-      // Verify transporter is placing bid with their own transporterId
-      if (!sessionUser.isSuperAdmin && sessionUser.transporterId !== data.transporterId) {
-        return res.status(403).json({ error: "Cannot place bids for another transporter" });
+      // PHASE A: OWNERSHIP ENFORCEMENT - Auto-attach transporterId from session
+      // Never accept transporterId from frontend payload for non-admins
+      const effectiveTransporterId = sessionUser.isSuperAdmin 
+        ? (data.transporterId || sessionUser.transporterId)
+        : sessionUser.transporterId;
+      
+      if (!effectiveTransporterId) {
+        return res.status(403).json({ error: "You must be associated with a transporter to place bids" });
       }
       
       // Check if bidding is still open for this ride
@@ -2384,12 +2543,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ error: "This trip has been self-assigned and is not open for bidding." });
       }
       
-      // Check if transporter is verified (status = active) before allowing bids
-      if (!sessionUser.isSuperAdmin && sessionUser.transporterId) {
-        const transporter = await storage.getTransporter(sessionUser.transporterId);
+      // PHASE C: VERIFICATION GATES - Comprehensive checks before allowing bid
+      if (!sessionUser.isSuperAdmin) {
+        const transporter = await storage.getTransporter(effectiveTransporterId);
         if (!transporter) {
           return res.status(403).json({ error: "Transporter account not found." });
         }
+        
+        // Gate 1: Transporter status must be active
         if (transporter.status !== "active") {
           const statusMessages: Record<string, string> = {
             pending_verification: "Your account is pending document verification. Please upload all required documents.",
@@ -2400,9 +2561,53 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           const message = statusMessages[transporter.status || "pending_verification"] || "Your account must be verified before you can place bids.";
           return res.status(403).json({ error: message });
         }
+        
+        // Gate 2: Transporter documents must be complete
+        if (!transporter.documentsComplete) {
+          return res.status(403).json({ 
+            error: "Your transporter documents are incomplete. Please upload all required documents before bidding." 
+          });
+        }
+        
+        // Gate 3: Must have at least 1 active/verified vehicle
+        const vehicles = await storage.getTransporterVehicles(effectiveTransporterId);
+        const activeVehicles = vehicles.filter(v => v.status === "active");
+        if (activeVehicles.length === 0) {
+          return res.status(403).json({ 
+            error: "You need at least one verified vehicle before you can place bids. Please add and verify a vehicle." 
+          });
+        }
+        
+        // Gate 4: Must have at least 1 verified driver (or be a self-driver)
+        const transporterDrivers = await storage.getTransporterDrivers(effectiveTransporterId);
+        const isSelfDriver = sessionUser.isSelfDriver === true;
+        if (transporterDrivers.length === 0 && !isSelfDriver) {
+          return res.status(403).json({ 
+            error: "You need at least one driver assigned to your transporter before you can place bids." 
+          });
+        }
+        
+        // PHASE E: Verify the selected vehicle belongs to this transporter and is active
+        const selectedVehicle = vehicles.find(v => v.id === data.vehicleId);
+        if (!selectedVehicle) {
+          return res.status(403).json({ 
+            error: "The selected vehicle does not belong to your transporter." 
+          });
+        }
+        if (selectedVehicle.status !== "active") {
+          return res.status(403).json({ 
+            error: "The selected vehicle is not active. Only verified active vehicles can be used for bidding." 
+          });
+        }
       }
       
-      const bid = await storage.createBid(data);
+      // Create bid with enforced transporterId from session
+      const bidData = {
+        ...data,
+        transporterId: effectiveTransporterId,
+        userId: sessionUser.id,
+      };
+      const bid = await storage.createBid(bidData);
       
       if (ride.status === "pending") {
         try {
@@ -2420,7 +2625,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // Notify the customer that a bid was placed on their trip
       try {
         if (ride.createdById) {
-          const transporter = sessionUser.transporterId ? await storage.getTransporter(sessionUser.transporterId) : null;
+          const transporter = effectiveTransporterId ? await storage.getTransporter(effectiveTransporterId) : null;
           const transporterName = transporter?.companyName || sessionUser.name || "A transporter";
           await createRoleAwareNotification({
             recipientId: ride.createdById,
@@ -2613,32 +2818,41 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Vehicle routes
   // GET /api/vehicles - Auth required, users can view their own or transporter's
+  // PHASE B/D: Auto-scope based on role, show ALL vehicles including pending
   app.get("/api/vehicles", requireAuth, async (req, res) => {
     const { userId, transporterId } = req.query;
     const user = getCurrentUser(req)!;
     const isAdmin = user.isSuperAdmin || user.role === "admin";
+    const isTransporter = user.role === "transporter";
     
     try {
       let result: any[] = [];
-      if (userId) {
-        if (!isAdmin && userId !== user.id) {
-          return res.status(403).json({ error: "You can only view your own vehicles" });
+      
+      // PHASE B: Query scoping based on role
+      if (isAdmin) {
+        // Admin can query by any filter
+        if (userId) {
+          result = await storage.getUserVehicles(userId as string);
+        } else if (transporterId) {
+          result = await storage.getTransporterVehicles(transporterId as string);
+        } else {
+          // Admin with no filter gets empty - use /api/vehicles/all for all
+          result = [];
         }
-        result = await storage.getUserVehicles(userId as string);
-      } else if (transporterId) {
-        if (!isAdmin && transporterId !== user.transporterId) {
-          return res.status(403).json({ error: "You can only view your own transporter vehicles" });
-        }
-        result = await storage.getTransporterVehicles(transporterId as string);
+      } else if (isTransporter && user.transporterId) {
+        // PHASE D: Transporters see ALL their transporter vehicles (including pending)
+        result = await storage.getTransporterVehicles(user.transporterId);
       } else {
-        // No filter - return empty for non-admins
-        if (!isAdmin) {
-          return res.status(400).json({ error: "Please specify userId or transporterId filter" });
-        }
+        // Drivers: Only see their own assigned vehicles (least privilege)
+        result = await storage.getUserVehicles(user.id);
       }
-      res.json(result);
+      
+      // PHASE G: Always return array, never throw on empty
+      res.json(result || []);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch vehicles" });
+      console.error("[GET /api/vehicles] Error:", error);
+      // PHASE H: Return empty array on error instead of 500
+      res.json([]);
     }
   });
 
@@ -2653,13 +2867,50 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // POST /api/vehicles - Driver or transporter only
+  // PHASE A: Auto-attach transporterId from session, never trust frontend
   app.post("/api/vehicles", requireDriverOrTransporter, async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
     try {
       const data = insertVehicleSchema.parse(req.body);
-      const vehicle = await storage.createVehicle(data);
+      
+      // OWNERSHIP ENFORCEMENT: Auto-attach transporterId from session
+      // Never accept transporterId from frontend payload for non-admins
+      const isAdmin = user.isSuperAdmin || user.role === "admin";
+      
+      let vehicleData = { ...data };
+      if (!isAdmin) {
+        // Force transporterId from session
+        if (!user.transporterId) {
+          return res.status(403).json({ 
+            error: "You must be associated with a transporter to add vehicles" 
+          });
+        }
+        vehicleData.transporterId = user.transporterId;
+        
+        // If transporter is creating vehicle for a driver, allow specifying userId
+        // But if no userId provided, default to current user
+        if (!vehicleData.userId) {
+          vehicleData.userId = user.id;
+        } else {
+          // Validate that the specified userId belongs to this transporter
+          const targetUser = await storage.getUser(vehicleData.userId);
+          if (!targetUser || targetUser.transporterId !== user.transporterId) {
+            return res.status(403).json({ 
+              error: "You can only assign vehicles to drivers in your transporter" 
+            });
+          }
+        }
+      }
+      
+      const vehicle = await storage.createVehicle(vehicleData);
       res.status(201).json(vehicle);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid vehicle data" });
+    } catch (error: any) {
+      console.error("[POST /api/vehicles] Error:", error);
+      res.status(400).json({ error: error?.message || "Invalid vehicle data" });
     }
   });
 
