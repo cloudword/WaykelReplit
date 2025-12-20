@@ -5380,7 +5380,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }));
         
         // Get drivers for this transporter
-        const drivers = await storage.getTransporterDrivers(transporter.id).catch(() => []);
+        const drivers = await storage.getUsersByTransporterAndRole(transporter.id, "driver").catch(() => []);
         const driversWithDocs = await Promise.all(drivers.map(async (driver) => {
           const allDriverDocs = await storage.getUserDocuments(driver.id).catch(() => []);
           const driverDocs = allDriverDocs.filter(d => d.entityType === "driver");
