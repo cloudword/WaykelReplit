@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Users, Phone, Mail, Search, FileText, CheckCircle, Clock, AlertCircle, Copy, Key } from "lucide-react";
+import { Plus, Users, Phone, Mail, Search, FileText, CheckCircle, Clock, AlertCircle, Copy, Key, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
@@ -18,6 +18,9 @@ export default function TransporterDrivers() {
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showCredentialsDialog, setShowCredentialsDialog] = useState(false);
+  const [showResetPasswordDialog, setShowResetPasswordDialog] = useState(false);
+  const [resetPasswordDriver, setResetPasswordDriver] = useState<any>(null);
+  const [newPasswordResult, setNewPasswordResult] = useState<string | null>(null);
   const [credentials, setCredentials] = useState<{ phone: string; password: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [newDriver, setNewDriver] = useState({
@@ -93,6 +96,28 @@ export default function TransporterDrivers() {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success("Copied to clipboard!");
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPasswordDriver) return;
+    
+    try {
+      const result = await api.transporters.resetDriverPassword(resetPasswordDriver.id);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        setNewPasswordResult(result.newPassword);
+        toast.success("Password reset successfully!");
+      }
+    } catch (error) {
+      toast.error("Failed to reset password");
+    }
+  };
+
+  const openResetPasswordDialog = (driver: any) => {
+    setResetPasswordDriver(driver);
+    setNewPasswordResult(null);
+    setShowResetPasswordDialog(true);
   };
 
   const filteredDrivers = drivers.filter(driver => 
@@ -250,6 +275,97 @@ export default function TransporterDrivers() {
           </DialogContent>
         </Dialog>
 
+        {/* Reset Password Dialog */}
+        <Dialog open={showResetPasswordDialog} onOpenChange={setShowResetPasswordDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <RotateCcw className="h-5 w-5 text-blue-600" />
+                Reset Driver Password
+              </DialogTitle>
+            </DialogHeader>
+            {resetPasswordDriver && (
+              <div className="space-y-4">
+                {!newPasswordResult ? (
+                  <>
+                    <p className="text-sm text-gray-600">
+                      Generate a new password for <strong>{resetPasswordDriver.name}</strong>?
+                    </p>
+                    <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                      The driver will need to use the new password to log in.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        className="flex-1"
+                        onClick={() => setShowResetPasswordDialog(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        className="flex-1"
+                        onClick={handleResetPassword}
+                        data-testid="button-confirm-reset-password"
+                      >
+                        Generate New Password
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-gray-600">
+                      New password for <strong>{resetPasswordDriver.name}</strong>:
+                    </p>
+                    <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-gray-500">Phone</p>
+                          <p className="font-mono font-semibold">{resetPasswordDriver.phone}</p>
+                        </div>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => copyToClipboard(resetPasswordDriver.phone)}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-gray-500">New Password</p>
+                          <p className="font-mono font-semibold text-lg">{newPasswordResult}</p>
+                        </div>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={() => copyToClipboard(newPasswordResult)}
+                          data-testid="button-copy-new-password"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                      This is the only time the new password will be shown. Please save or share it now.
+                    </p>
+                    <Button 
+                      className="w-full" 
+                      onClick={() => {
+                        setShowResetPasswordDialog(false);
+                        setResetPasswordDriver(null);
+                        setNewPasswordResult(null);
+                      }}
+                      data-testid="button-close-reset-password"
+                    >
+                      Done
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
         {loading ? (
           <div className="text-center py-12 text-gray-500">
             <p>Loading drivers...</p>
@@ -287,6 +403,19 @@ export default function TransporterDrivers() {
                           <span className="text-xs text-gray-500">Rating: {driver.rating}/5</span>
                         </div>
                       )}
+                      {/* Reset Password Button */}
+                      <div className="mt-3">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openResetPasswordDialog(driver)}
+                          className="w-full text-xs"
+                          data-testid={`button-reset-password-${driver.id}`}
+                        >
+                          <Key className="h-3 w-3 mr-1" />
+                          Reset Password
+                        </Button>
+                      </div>
                       {/* Driver Documents */}
                       {getDriverDocuments(driver.id).length > 0 && (
                         <div className="mt-3 pt-3 border-t border-gray-100">
