@@ -1452,6 +1452,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Ride routes - with role-based access control
+  // POLLING-SAFE: Idempotent, no side effects, safe for 30s refresh
+  // Covers: customer/trips (customer role), transporter/rides (transporter role)
   app.get("/api/rides", async (req, res) => {
     const { status, driverId, transporterId, createdById } = req.query;
     const sessionUser = getCurrentUser(req);
@@ -1508,9 +1510,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
       
+      // Cache for 10s to reduce DB load during polling
+      res.set('Cache-Control', 'private, max-age=10');
       res.json(result);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch rides" });
+      // PHASE G/H: Return empty array on error for polling resilience
+      console.error("[GET /api/rides] Error:", error);
+      res.json([]);
     }
   });
 
@@ -2443,6 +2449,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // GET /api/transporter/vehicles - Get all vehicles for current transporter (including pending)
   // PHASE D: Show ALL vehicles including pending ones
+  // POLLING-SAFE: Idempotent, no side effects, safe for 30s refresh
   app.get("/api/transporter/vehicles", requireAuth, async (req, res) => {
     const user = getCurrentUser(req);
     if (!user) {
@@ -2456,6 +2463,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       
       // Return ALL vehicles - pending, active, inactive
       const vehicles = await storage.getTransporterVehicles(user.transporterId);
+      // Cache for 10s to reduce DB load during polling
+      res.set('Cache-Control', 'private, max-age=10');
       res.json(vehicles);
     } catch (error) {
       console.error("[GET /api/transporter/vehicles] Error:", error);
@@ -2464,6 +2473,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Bid routes
+  // POLLING-SAFE: Idempotent, no side effects, safe for 30s refresh
   app.get("/api/bids", async (req, res) => {
     const sessionUser = getCurrentUser(req);
     const { rideId, userId, transporterId } = req.query;
@@ -2501,9 +2511,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
       
+      // Cache for 10s to reduce DB load during polling
+      res.set('Cache-Control', 'private, max-age=10');
       res.json(result);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch bids" });
+      // PHASE G/H: Return empty array on error for polling resilience
+      console.error("[GET /api/bids] Error:", error);
+      res.json([]);
     }
   });
 
