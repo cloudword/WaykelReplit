@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,8 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Users, Phone, Mail, Search, FileText, CheckCircle, Clock, AlertCircle, Copy, Key, RotateCcw } from "lucide-react";
-import { api } from "@/lib/api";
+import { Plus, Users, Phone, Mail, Search, FileText, CheckCircle, Clock, AlertCircle, Copy, Key, RotateCcw, Upload, Loader2 } from "lucide-react";
+import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 
@@ -28,6 +28,9 @@ export default function TransporterDrivers() {
     phone: "",
     email: "",
   });
+  const [licenseFile, setLicenseFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const licenseInputRef = useRef<HTMLInputElement>(null);
   const [user] = useState<any>(() => {
     const stored = localStorage.getItem("currentUser");
     return stored ? JSON.parse(stored) : null;
@@ -71,7 +74,16 @@ export default function TransporterDrivers() {
 
   const handleAddDriver = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate driving license is uploaded
+    if (!licenseFile) {
+      toast.error("Driving License is mandatory. Please upload the license document.");
+      return;
+    }
+    
+    setIsSubmitting(true);
     try {
+      // Step 1: Create the driver
       const result = await api.transporters.addDriver({
         name: newDriver.name,
         phone: newDriver.phone,
@@ -80,16 +92,61 @@ export default function TransporterDrivers() {
       
       if (result.error) {
         toast.error(result.error);
-      } else {
-        // Show credentials dialog
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Step 2: Upload driving license for the newly created driver
+      // API returns driver directly with result.id
+      const driverId = result.id;
+      if (!driverId) {
+        console.error("No driver ID returned from API:", result);
+        toast.error("Driver created but could not upload license - no driver ID returned");
+        // Still close and show credentials
         setCredentials(result.credentials);
         setShowAddDialog(false);
         setShowCredentialsDialog(true);
         setNewDriver({ name: "", phone: "", email: "" });
+        setLicenseFile(null);
+        if (licenseInputRef.current) licenseInputRef.current.value = "";
         loadDrivers();
+        return;
       }
+      
+      const formData = new FormData();
+      formData.append("file", licenseFile);
+      formData.append("documentType", "driving_license");
+      formData.append("entityType", "driver");
+      formData.append("userId", driverId);
+      formData.append("transporterId", user.transporterId);
+      
+      const uploadRes = await fetch(`${API_BASE}/documents/upload`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      
+      if (!uploadRes.ok) {
+        const uploadErr = await uploadRes.json().catch(() => ({}));
+        console.error("License upload failed:", uploadErr);
+        toast.error("Driver created but license upload failed. Please upload from driver details.");
+      } else {
+        toast.success("Driver added with driving license!");
+      }
+      
+      // Show credentials dialog
+      setCredentials(result.credentials);
+      setShowAddDialog(false);
+      setShowCredentialsDialog(true);
+      setNewDriver({ name: "", phone: "", email: "" });
+      setLicenseFile(null);
+      if (licenseInputRef.current) licenseInputRef.current.value = "";
+      loadDrivers();
     } catch (error) {
+      console.error("Add driver error:", error);
       toast.error("Failed to add driver");
+    } finally {
+      setIsSubmitting(false);
     }
   };
   
@@ -198,6 +255,52 @@ export default function TransporterDrivers() {
                     data-testid="input-driver-email"
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="license-upload" className="flex items-center gap-1">
+                    Driving License <span className="text-red-500">*</span>
+                  </Label>
+                  <div 
+                    className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+                      licenseFile ? "border-green-500 bg-green-50" : "border-gray-300 hover:border-blue-400"
+                    }`}
+                    onClick={() => licenseInputRef.current?.click()}
+                  >
+                    <input
+                      ref={licenseInputRef}
+                      type="file"
+                      id="license-upload"
+                      accept="image/*,.pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.size > 10 * 1024 * 1024) {
+                            toast.error("File size must be less than 10MB");
+                            return;
+                          }
+                          setLicenseFile(file);
+                        }
+                      }}
+                      data-testid="input-license-upload"
+                    />
+                    {licenseFile ? (
+                      <div className="flex items-center justify-center gap-2 text-green-700">
+                        <CheckCircle className="h-5 w-5" />
+                        <span className="text-sm font-medium">{licenseFile.name}</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 text-gray-500">
+                        <Upload className="h-8 w-8" />
+                        <span className="text-sm">Click to upload Driving License</span>
+                        <span className="text-xs text-muted-foreground">PDF or Image (max 10MB)</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-amber-600">
+                    Driving license is mandatory for driver verification
+                  </p>
+                </div>
+                
                 <div className="p-3 bg-blue-50 rounded-lg">
                   <div className="flex items-center gap-2 text-sm text-blue-700">
                     <Key className="h-4 w-4" />
@@ -205,8 +308,20 @@ export default function TransporterDrivers() {
                   </div>
                   <p className="text-xs text-blue-600 mt-1">Login credentials will be shown after adding the driver</p>
                 </div>
-                <Button type="submit" className="w-full" data-testid="button-submit-driver">
-                  Add Driver
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={isSubmitting || !licenseFile}
+                  data-testid="button-submit-driver"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Adding Driver...
+                    </>
+                  ) : (
+                    "Add Driver"
+                  )}
                 </Button>
               </form>
             </DialogContent>

@@ -414,6 +414,14 @@ export const insertDriverApplicationSchema = createInsertSchema(driverApplicatio
 export type InsertDriverApplication = z.infer<typeof insertDriverApplicationSchema>;
 export type DriverApplication = typeof driverApplications.$inferSelect;
 
+// Document requirement configuration type
+export type DocumentRequirementConfig = {
+  type: string;
+  label: string;
+  required: boolean;
+  description?: string;
+};
+
 // Platform Settings (singleton table for monetization control)
 export const platformSettings = pgTable("platform_settings", {
   id: varchar("id").primaryKey().default("default"),
@@ -432,6 +440,24 @@ export const platformSettings = pgTable("platform_settings", {
   smsMode: text("sms_mode").$type<"shadow" | "live">().default("shadow"),
   smsProvider: text("sms_provider").$type<"msg91" | null>().default(null),
   smsTemplates: json("sms_templates").$type<Record<string, string>>().default({}),
+  businessDocRequirements: json("business_doc_requirements").$type<DocumentRequirementConfig[]>().default([
+    { type: "business_registration", label: "Business Registration", required: true, description: "GST Certificate or MSME Certificate" },
+    { type: "gst_certificate", label: "GST Certificate", required: false },
+    { type: "pan_card", label: "PAN Card", required: false },
+  ]),
+  vehicleDocRequirements: json("vehicle_doc_requirements").$type<DocumentRequirementConfig[]>().default([
+    { type: "rc", label: "Registration Certificate (RC)", required: true, description: "Vehicle registration document" },
+    { type: "insurance", label: "Insurance", required: false },
+    { type: "permit", label: "Permit", required: false },
+    { type: "fitness", label: "Fitness Certificate", required: false },
+    { type: "pollution", label: "Pollution Certificate", required: false },
+  ]),
+  driverDocRequirements: json("driver_doc_requirements").$type<DocumentRequirementConfig[]>().default([
+    { type: "driving_license", label: "Driving License", required: true, description: "Valid driving license" },
+    { type: "aadhar", label: "Aadhar Card", required: false },
+    { type: "pan", label: "PAN Card", required: false },
+    { type: "photo", label: "Photo", required: false },
+  ]),
   updatedByAdminId: varchar("updated_by_admin_id").references(() => users.id),
   updatedAt: timestamp("updated_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
