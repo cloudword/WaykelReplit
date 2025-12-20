@@ -123,11 +123,23 @@ The Waykel platform is built with a mobile-first, role-based approach, ensuring 
 -   **API Endpoints**: `GET /api/admin/storage`, `GET /api/admin/storage/file`, `DELETE /api/admin/storage/file`, `GET /api/admin/storage/directories`
 -   **Features**: Directory navigation, file preview, signed URL generation, file deletion
 
-**Admin Verification Inbox:**
--   **Pages**: `/admin/verification/transporters`, `/admin/verification/drivers`, `/admin/verification/vehicles`
--   **API Endpoints**: `GET /api/admin/verification/transporters`, `GET /api/admin/verification/drivers`, `GET /api/admin/verification/vehicles`
--   **Features**: Lists entities with pending documents, document counts, oldest pending age, inline document preview, approve/reject actions
--   **Sorting**: Entities with pending documents appear first, sorted by oldest pending document age
+**Admin Verification Center:**
+-   **Main Page**: `/admin/verification` - Consolidated hierarchical verification page
+-   **Legacy Pages** (still available): `/admin/verification/transporters`, `/admin/verification/drivers`, `/admin/verification/vehicles`
+-   **API Endpoints**: 
+    - `GET /api/admin/verification/overview` - Hierarchical data with transporters → vehicles → drivers tree
+    - `GET /api/admin/verification/transporters`, `GET /api/admin/verification/drivers`, `GET /api/admin/verification/vehicles` (legacy)
+-   **Tree Structure**: Transporter card → Business Documents + Vehicles branch + Drivers branch (all collapsible)
+-   **Document Type Grouping**: Documents grouped by type with required/optional indicators
+    - **Vehicles**: RC (Required - red border), Insurance/Permit/Fitness/Pollution (Optional - blue border)
+    - **Drivers**: Driving License (Required - red border), Aadhar/PAN/Photo (Optional - blue border)
+    - **Transporters**: GST Certificate/Business Registration (Required), Trade License/Bank Details (Optional)
+-   **Visual Indicators**: 
+    - Missing required docs show "Not Uploaded" badge
+    - Pending docs show yellow "Pending Review" badge
+    - Verified docs show green "Verified" badge
+-   **Features**: Document preview, approve/reject buttons for pending documents, transporter approval/rejection
+-   **Sorting**: Transporters with most pending documents appear first
 -   **Actions**: Uses existing document approval (`PATCH /api/documents/:id/status`) and transporter approval (`POST /api/transporters/:id/approve|reject`) APIs
 
 **Document Upload System:**

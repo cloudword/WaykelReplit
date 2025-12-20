@@ -39,6 +39,7 @@ import AdminTrips from "@/pages/admin/trips";
 import AdminRoles from "@/pages/admin/roles";
 import AdminStorage from "@/pages/admin/storage";
 import AdminPlatformSettings from "@/pages/admin/platform-settings";
+import VerificationOverview from "@/pages/admin/verification/index";
 import VerificationTransporters from "@/pages/admin/verification/transporters";
 import VerificationDrivers from "@/pages/admin/verification/drivers";
 import VerificationVehicles from "@/pages/admin/verification/vehicles";
@@ -118,6 +119,7 @@ function Router() {
       <Route path="/admin/roles" component={AdminRoles} />
       <Route path="/admin/storage" component={AdminStorage} />
       <Route path="/admin/platform-settings" component={AdminPlatformSettings} />
+      <Route path="/admin/verification" component={VerificationOverview} />
       <Route path="/admin/verification/transporters" component={VerificationTransporters} />
       <Route path="/admin/verification/drivers" component={VerificationDrivers} />
       <Route path="/admin/verification/vehicles" component={VerificationVehicles} />
