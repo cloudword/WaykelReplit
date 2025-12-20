@@ -2472,6 +2472,143 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // ===== TRANSPORTER ONBOARDING API =====
+  
+  // GET /api/transporter/onboarding-status - Get current onboarding status
+  app.get("/api/transporter/onboarding-status", requireAuth, async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user || !user.transporterId) {
+      return res.status(403).json({ error: "Transporter access required" });
+    }
+    
+    try {
+      const status = await storage.getTransporterOnboardingStatus(user.transporterId);
+      if (!status) {
+        return res.status(404).json({ error: "Transporter not found" });
+      }
+      
+      // Calculate onboarding steps completion
+      const isBusiness = status.transporterType === "business";
+      const steps = {
+        businessVerification: {
+          required: isBusiness,
+          completed: isBusiness ? status.hasBusinessDocs : true,
+          label: "Business Verification",
+          description: isBusiness ? "Upload GST Certificate or MSME Certificate" : "Not required for individual transporters"
+        },
+        addVehicle: {
+          required: true,
+          completed: status.hasApprovedVehicle,
+          label: "Add Vehicle",
+          description: status.vehicleCount === 0 
+            ? "Add at least one vehicle with RC document" 
+            : status.hasApprovedVehicle 
+              ? `${status.approvedVehicleCount} vehicle(s) verified` 
+              : `${status.pendingVehicleDocCount} document(s) pending verification`
+        },
+        addDriver: {
+          required: true,
+          completed: status.hasApprovedDriver,
+          label: "Add Driver",
+          description: status.driverCount === 0 
+            ? "Add at least one driver with Driving License" 
+            : status.hasApprovedDriver 
+              ? `${status.approvedDriverCount} driver(s) verified` 
+              : `${status.pendingDriverDocCount} document(s) pending verification`
+        }
+      };
+      
+      // Calculate overall completion
+      const requiredSteps = Object.values(steps).filter(s => s.required);
+      const completedSteps = requiredSteps.filter(s => s.completed);
+      const allComplete = completedSteps.length === requiredSteps.length;
+      
+      res.json({
+        transporterType: status.transporterType,
+        onboardingStatus: status.onboardingStatus,
+        steps,
+        completedCount: completedSteps.length,
+        totalCount: requiredSteps.length,
+        isComplete: allComplete,
+        canBid: allComplete && status.onboardingStatus === "completed"
+      });
+    } catch (error) {
+      console.error("[GET /api/transporter/onboarding-status] Error:", error);
+      res.status(500).json({ error: "Failed to fetch onboarding status" });
+    }
+  });
+
+  // PUT /api/transporter/transporter-type - Set transporter type (business/individual)
+  app.put("/api/transporter/transporter-type", requireAuth, async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user || !user.transporterId) {
+      return res.status(403).json({ error: "Transporter access required" });
+    }
+    
+    try {
+      const { transporterType } = req.body;
+      if (!["business", "individual"].includes(transporterType)) {
+        return res.status(400).json({ error: "Invalid transporter type. Must be 'business' or 'individual'" });
+      }
+      
+      await storage.updateTransporterType(user.transporterId, transporterType);
+      res.json({ success: true, transporterType });
+    } catch (error) {
+      console.error("[PUT /api/transporter/transporter-type] Error:", error);
+      res.status(500).json({ error: "Failed to update transporter type" });
+    }
+  });
+
+  // POST /api/transporter/complete-onboarding - Mark onboarding as complete (after all steps done)
+  app.post("/api/transporter/complete-onboarding", requireAuth, async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user || !user.transporterId) {
+      return res.status(403).json({ error: "Transporter access required" });
+    }
+    
+    try {
+      const status = await storage.getTransporterOnboardingStatus(user.transporterId);
+      if (!status) {
+        return res.status(404).json({ error: "Transporter not found" });
+      }
+      
+      const isBusiness = status.transporterType === "business";
+      const businessDocOk = isBusiness ? status.hasBusinessDocs : true;
+      
+      if (!businessDocOk) {
+        return res.status(400).json({ error: "Business documents not verified yet" });
+      }
+      if (!status.hasApprovedVehicle) {
+        return res.status(400).json({ error: "No verified vehicle found. Please add a vehicle and wait for document verification." });
+      }
+      if (!status.hasApprovedDriver) {
+        return res.status(400).json({ error: "No verified driver found. Please add a driver and wait for document verification." });
+      }
+      
+      await storage.updateTransporterOnboardingStatus(user.transporterId, "completed");
+      res.json({ success: true, onboardingStatus: "completed" });
+    } catch (error) {
+      console.error("[POST /api/transporter/complete-onboarding] Error:", error);
+      res.status(500).json({ error: "Failed to complete onboarding" });
+    }
+  });
+
+  // GET /api/transporter/bidding-eligibility - Check if transporter can bid
+  app.get("/api/transporter/bidding-eligibility", requireAuth, async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user || !user.transporterId) {
+      return res.status(403).json({ error: "Transporter access required" });
+    }
+    
+    try {
+      const eligibility = await storage.getTransporterBiddingEligibility(user.transporterId);
+      res.json(eligibility);
+    } catch (error) {
+      console.error("[GET /api/transporter/bidding-eligibility] Error:", error);
+      res.status(500).json({ error: "Failed to check bidding eligibility" });
+    }
+  });
+
   // Bid routes
   // POLLING-SAFE: Idempotent, no side effects, safe for 30s refresh
   app.get("/api/bids", async (req, res) => {

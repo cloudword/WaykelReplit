@@ -218,6 +218,31 @@ export interface IStorage {
   incrementOtpAttempts(id: string): Promise<void>;
   markOtpVerified(id: string): Promise<void>;
   invalidateOtpCodes(phone: string, purpose: "login" | "forgot_password" | "verify_phone"): Promise<void>;
+  
+  // Onboarding
+  getTransporterOnboardingStatus(transporterId: string): Promise<{
+    transporterType: string;
+    onboardingStatus: string;
+    hasBusinessDocs: boolean;
+    hasApprovedVehicle: boolean;
+    hasApprovedDriver: boolean;
+    vehicleCount: number;
+    driverCount: number;
+    approvedVehicleCount: number;
+    approvedDriverCount: number;
+    pendingVehicleDocCount: number;
+    pendingDriverDocCount: number;
+  } | undefined>;
+  updateTransporterType(transporterId: string, transporterType: "business" | "individual"): Promise<void>;
+  updateTransporterOnboardingStatus(transporterId: string, status: "incomplete" | "completed"): Promise<void>;
+  updateVehicleDocumentStatus(vehicleId: string, status: "document_missing" | "verification_pending" | "approved" | "rejected"): Promise<void>;
+  updateDriverDocumentStatus(driverId: string, status: "document_missing" | "verification_pending" | "approved" | "rejected"): Promise<void>;
+  getTransporterBiddingEligibility(transporterId: string): Promise<{
+    canBid: boolean;
+    reason: string;
+    approvedVehicles: string[];
+    approvedDrivers: string[];
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1146,6 +1171,150 @@ export class DatabaseStorage implements IStorage {
         eq(otpCodes.verified, false)
       )
     );
+  }
+
+  // Onboarding methods
+  async getTransporterOnboardingStatus(transporterId: string): Promise<{
+    transporterType: string;
+    onboardingStatus: string;
+    hasBusinessDocs: boolean;
+    hasApprovedVehicle: boolean;
+    hasApprovedDriver: boolean;
+    vehicleCount: number;
+    driverCount: number;
+    approvedVehicleCount: number;
+    approvedDriverCount: number;
+    pendingVehicleDocCount: number;
+    pendingDriverDocCount: number;
+  } | undefined> {
+    const transporter = await this.getTransporter(transporterId);
+    if (!transporter) return undefined;
+
+    // Get all vehicles for this transporter
+    const transporterVehicles = await this.getTransporterVehicles(transporterId);
+    
+    // Get all drivers for this transporter
+    const transporterDrivers = await db.select().from(users)
+      .where(and(eq(users.transporterId, transporterId), eq(users.role, "driver")));
+
+    // Check for approved business documents (GST, MSME, etc.)
+    const businessDocs = await db.select().from(documents)
+      .where(and(
+        eq(documents.entityType, "transporter"),
+        eq(documents.entityId, transporterId),
+        eq(documents.status, "verified"),
+        not(eq(documents.status, "deleted"))
+      ));
+    
+    const hasBusinessDocs = businessDocs.length > 0;
+    
+    // Count approved vehicles (with verified RC document)
+    const approvedVehicles = transporterVehicles.filter(v => v.documentStatus === "approved");
+    
+    // Count approved drivers (with verified driving license)
+    const approvedDrivers = transporterDrivers.filter(d => d.documentStatus === "approved");
+    
+    // Count pending vehicle documents
+    const pendingVehicleDocs = await db.select().from(documents)
+      .where(and(
+        eq(documents.entityType, "vehicle"),
+        inArray(documents.entityId, transporterVehicles.map(v => v.id)),
+        eq(documents.status, "pending"),
+        not(eq(documents.status, "deleted"))
+      ));
+    
+    // Count pending driver documents
+    const pendingDriverDocs = await db.select().from(documents)
+      .where(and(
+        eq(documents.entityType, "driver"),
+        inArray(documents.entityId, transporterDrivers.map(d => d.id)),
+        eq(documents.status, "pending"),
+        not(eq(documents.status, "deleted"))
+      ));
+
+    return {
+      transporterType: transporter.transporterType || "business",
+      onboardingStatus: transporter.onboardingStatus || "incomplete",
+      hasBusinessDocs,
+      hasApprovedVehicle: approvedVehicles.length > 0,
+      hasApprovedDriver: approvedDrivers.length > 0,
+      vehicleCount: transporterVehicles.length,
+      driverCount: transporterDrivers.length,
+      approvedVehicleCount: approvedVehicles.length,
+      approvedDriverCount: approvedDrivers.length,
+      pendingVehicleDocCount: pendingVehicleDocs.length,
+      pendingDriverDocCount: pendingDriverDocs.length
+    };
+  }
+
+  async updateTransporterType(transporterId: string, transporterType: "business" | "individual"): Promise<void> {
+    await db.update(transporters).set({ transporterType }).where(eq(transporters.id, transporterId));
+  }
+
+  async updateTransporterOnboardingStatus(transporterId: string, status: "incomplete" | "completed"): Promise<void> {
+    await db.update(transporters).set({ onboardingStatus: status }).where(eq(transporters.id, transporterId));
+  }
+
+  async updateVehicleDocumentStatus(vehicleId: string, status: "document_missing" | "verification_pending" | "approved" | "rejected"): Promise<void> {
+    await db.update(vehicles).set({ 
+      documentStatus: status,
+      isActiveForBidding: status === "approved"
+    }).where(eq(vehicles.id, vehicleId));
+  }
+
+  async updateDriverDocumentStatus(driverId: string, status: "document_missing" | "verification_pending" | "approved" | "rejected"): Promise<void> {
+    await db.update(users).set({ 
+      documentStatus: status,
+      isActiveForBidding: status === "approved"
+    }).where(eq(users.id, driverId));
+  }
+
+  async getTransporterBiddingEligibility(transporterId: string): Promise<{
+    canBid: boolean;
+    reason: string;
+    approvedVehicles: string[];
+    approvedDrivers: string[];
+  }> {
+    const transporter = await this.getTransporter(transporterId);
+    if (!transporter) {
+      return { canBid: false, reason: "Transporter not found", approvedVehicles: [], approvedDrivers: [] };
+    }
+
+    if (transporter.status !== "active") {
+      return { canBid: false, reason: "Transporter account is not active. Please wait for admin approval.", approvedVehicles: [], approvedDrivers: [] };
+    }
+
+    if (transporter.onboardingStatus !== "completed") {
+      return { canBid: false, reason: "Please complete onboarding before placing bids.", approvedVehicles: [], approvedDrivers: [] };
+    }
+
+    // Get approved vehicles
+    const transporterVehicles = await this.getTransporterVehicles(transporterId);
+    const approvedVehicles = transporterVehicles.filter(v => v.documentStatus === "approved" && v.isActiveForBidding);
+
+    if (approvedVehicles.length === 0) {
+      return { canBid: false, reason: "No verified vehicles available. Please add a vehicle and upload required documents.", approvedVehicles: [], approvedDrivers: [] };
+    }
+
+    // Get approved drivers
+    const transporterDrivers = await db.select().from(users)
+      .where(and(
+        eq(users.transporterId, transporterId), 
+        eq(users.role, "driver"),
+        eq(users.documentStatus, "approved"),
+        eq(users.isActiveForBidding, true)
+      ));
+
+    if (transporterDrivers.length === 0) {
+      return { canBid: false, reason: "No verified drivers available. Please add a driver and upload required documents.", approvedVehicles: approvedVehicles.map(v => v.id), approvedDrivers: [] };
+    }
+
+    return {
+      canBid: true,
+      reason: "Eligible to bid",
+      approvedVehicles: approvedVehicles.map(v => v.id),
+      approvedDrivers: transporterDrivers.map(d => d.id)
+    };
   }
 }
 
