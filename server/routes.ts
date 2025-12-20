@@ -551,9 +551,34 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
         res.json({ ...userWithoutPassword, transporterId });
       });
-    } catch (error) {
-      console.error("Registration error:", error);
-      res.status(400).json({ error: "Invalid data" });
+    } catch (error: any) {
+      console.error("[auth/register] Registration error:", error);
+      
+      // Handle Zod validation errors
+      if (error?.name === 'ZodError' || error?.issues) {
+        const fieldErrors = error.issues?.map((issue: any) => ({
+          field: issue.path?.join('.') || 'unknown',
+          message: issue.message
+        })) || [];
+        return res.status(400).json({ 
+          error: "Validation failed",
+          details: fieldErrors.length > 0 
+            ? fieldErrors.map((e: any) => `${e.field}: ${e.message}`).join(', ')
+            : error.message
+        });
+      }
+      
+      // Handle database constraint errors
+      if (error?.code === '23505') {
+        if (error?.constraint?.includes('email')) {
+          return res.status(400).json({ error: "Email already registered" });
+        }
+        if (error?.constraint?.includes('phone')) {
+          return res.status(400).json({ error: "Phone number already registered" });
+        }
+      }
+      
+      res.status(400).json({ error: "Registration failed", details: error?.message || "Invalid data" });
     }
   });
 
