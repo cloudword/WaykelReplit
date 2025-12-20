@@ -179,16 +179,17 @@ const createSessionStore = () => {
 
 app.use(
   session({
-    name: "connect.sid",
+    name: "waykel.sid",
     secret: sessionSecret || require("crypto").randomBytes(32).toString("hex"),
     resave: false,
     saveUninitialized: false,
+    rolling: true, // Extend session on every request to prevent silent expiry
     proxy: true,
     store: createSessionStore(),
     cookie: {
       secure: isProduction, // Only require HTTPS in production
       httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days instead of 24 hours
       sameSite: needsCrossOriginCookies ? "none" : "lax",
       // Share cookie across waykel.com subdomains in production
       domain: isProduction ? ".waykel.com" : undefined,
