@@ -5213,6 +5213,99 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // ============== ADMIN VERIFICATION INBOX ==============
   
+  // GET /api/admin/verification/overview - Hierarchical verification data with tree structure
+  // Returns all transporters with their vehicles and drivers nested
+  app.get("/api/admin/verification/overview", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const allTransporters = await storage.getAllTransporters();
+      const result = [];
+      
+      for (const transporter of allTransporters) {
+        // Get transporter documents
+        const transporterDocs = await storage.getTransporterDocuments(transporter.id).catch(() => []);
+        
+        // Get vehicles for this transporter
+        const vehicles = await storage.getTransporterVehicles(transporter.id).catch(() => []);
+        const vehiclesWithDocs = await Promise.all(vehicles.map(async (vehicle) => {
+          const vehicleDocs = await storage.getVehicleDocuments(vehicle.id).catch(() => []);
+          return {
+            id: vehicle.id,
+            plateNumber: vehicle.plateNumber,
+            type: vehicle.type,
+            model: vehicle.model,
+            status: vehicle.status,
+            createdAt: vehicle.createdAt,
+            documents: vehicleDocs,
+            pendingDocuments: vehicleDocs.filter(d => d.status === "pending").length,
+            verifiedDocuments: vehicleDocs.filter(d => d.status === "verified").length,
+            rejectedDocuments: vehicleDocs.filter(d => d.status === "rejected").length,
+          };
+        }));
+        
+        // Get drivers for this transporter
+        const drivers = await storage.getTransporterDrivers(transporter.id).catch(() => []);
+        const driversWithDocs = await Promise.all(drivers.map(async (driver) => {
+          const allDriverDocs = await storage.getUserDocuments(driver.id).catch(() => []);
+          const driverDocs = allDriverDocs.filter(d => d.entityType === "driver");
+          return {
+            id: driver.id,
+            name: driver.name,
+            phone: driver.phone,
+            isSelfDriver: driver.isSelfDriver,
+            documentsComplete: driver.documentsComplete,
+            createdAt: driver.createdAt,
+            documents: driverDocs,
+            pendingDocuments: driverDocs.filter(d => d.status === "pending").length,
+            verifiedDocuments: driverDocs.filter(d => d.status === "verified").length,
+            rejectedDocuments: driverDocs.filter(d => d.status === "rejected").length,
+          };
+        }));
+        
+        // Calculate totals
+        const allPendingDocs = transporterDocs.filter(d => d.status === "pending").length +
+          vehiclesWithDocs.reduce((sum, v) => sum + v.pendingDocuments, 0) +
+          driversWithDocs.reduce((sum, d) => sum + d.pendingDocuments, 0);
+        
+        result.push({
+          id: transporter.id,
+          companyName: transporter.companyName,
+          ownerName: transporter.ownerName,
+          contact: transporter.contact,
+          email: transporter.email,
+          status: transporter.status,
+          isVerified: transporter.isVerified,
+          documentsComplete: transporter.documentsComplete,
+          createdAt: transporter.createdAt,
+          // Transporter's own documents
+          documents: transporterDocs,
+          pendingDocuments: transporterDocs.filter(d => d.status === "pending").length,
+          verifiedDocuments: transporterDocs.filter(d => d.status === "verified").length,
+          rejectedDocuments: transporterDocs.filter(d => d.status === "rejected").length,
+          // Nested entities
+          vehicles: vehiclesWithDocs,
+          drivers: driversWithDocs,
+          // Totals across all entities
+          totalPendingAcrossAll: allPendingDocs,
+          totalVehicles: vehiclesWithDocs.length,
+          totalDrivers: driversWithDocs.length,
+          activeVehicles: vehiclesWithDocs.filter(v => v.status === "active").length,
+        });
+      }
+      
+      // Sort: most pending docs first, then by company name
+      result.sort((a, b) => {
+        if (a.totalPendingAcrossAll > 0 && b.totalPendingAcrossAll === 0) return -1;
+        if (a.totalPendingAcrossAll === 0 && b.totalPendingAcrossAll > 0) return 1;
+        return b.totalPendingAcrossAll - a.totalPendingAcrossAll;
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error("[admin] verification/overview failed:", error);
+      res.json([]);
+    }
+  });
+  
   // GET /api/admin/verification/transporters - Get transporters needing verification
   app.get("/api/admin/verification/transporters", requireAdmin, async (req: Request, res: Response) => {
     try {

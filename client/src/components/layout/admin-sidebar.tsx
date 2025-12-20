@@ -35,9 +35,7 @@ const sections: NavSection[] = [
     title: "Verification",
     defaultExpanded: true,
     items: [
-      { href: "/admin/verification/transporters", icon: Building2, label: "Transporters" },
-      { href: "/admin/verification/drivers", icon: Users, label: "Drivers" },
-      { href: "/admin/verification/vehicles", icon: Truck, label: "Vehicles" },
+      { href: "/admin/verification", icon: ClipboardCheck, label: "Verification Center" },
     ],
   },
   {
