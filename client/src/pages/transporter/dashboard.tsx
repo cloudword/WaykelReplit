@@ -12,6 +12,7 @@ import {
 import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
+import { OnboardingTracker } from "@/components/onboarding-tracker";
 
 export default function TransporterDashboard() {
   const [_, setLocation] = useLocation();
@@ -364,6 +365,12 @@ export default function TransporterDashboard() {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {transporter && transporter.status === "active" && (
+          <div className="mb-6">
+            <OnboardingTracker />
+          </div>
         )}
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
