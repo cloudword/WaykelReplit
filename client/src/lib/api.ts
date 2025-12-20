@@ -2,6 +2,43 @@
 // In development (Replit), use relative /api path
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 
+// Safe fetch wrapper that never throws and always returns consistent shape
+export async function safeFetch<T = any>(
+  url: string, 
+  options: RequestInit = {}
+): Promise<{ data: T | null; error: string | null; ok: boolean }> {
+  try {
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+      credentials: "include",
+    });
+    
+    const data = await res.json().catch(() => ({}));
+    
+    if (!res.ok) {
+      const errorMessage = data?.error || data?.details || `Request failed with status ${res.status}`;
+      console.error(`[API] ${options.method || 'GET'} ${url} failed:`, errorMessage);
+      return { data: null, error: errorMessage, ok: false };
+    }
+    
+    return { data, error: null, ok: true };
+  } catch (err: any) {
+    console.error(`[API] ${options.method || 'GET'} ${url} error:`, err);
+    return { data: null, error: err?.message || "Network error", ok: false };
+  }
+}
+
+// Safe array helper - always returns an array even if API returns error/null
+export function ensureArray<T>(data: T | T[] | null | undefined): T[] {
+  if (Array.isArray(data)) return data;
+  if (data === null || data === undefined) return [];
+  return [data];
+}
+
 export const api = {
   auth: {
     register: async (data: any) => {
