@@ -615,8 +615,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
 
-      // Set session user directly without regenerate (more compatible with various session stores)
-      req.session.user = {
+      // Regenerate session to prevent session fixation attacks
+      // This creates a new session ID while preserving user data
+      const sessionData = {
         id: user.id,
         role: user.role,
         isSuperAdmin: user.isSuperAdmin || false,
@@ -624,13 +625,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         transporterId: user.transporterId || undefined,
       };
 
-      req.session.save((saveErr) => {
-        if (saveErr) {
-          console.error("Session save error during login:", saveErr);
-          return res.status(500).json({ error: "Session save error: " + (saveErr.message || "Failed to save session") });
+      // Try to regenerate session, fall back to direct assignment if regenerate fails
+      req.session.regenerate((regenerateErr) => {
+        if (regenerateErr) {
+          console.warn("Session regenerate warning (using fallback):", regenerateErr.message);
+          // Fallback: directly set session user
+          req.session.user = sessionData;
+        } else {
+          req.session.user = sessionData;
         }
-        const { password: _, ...userWithoutPassword } = user;
-        res.json(userWithoutPassword);
+
+        req.session.save((saveErr) => {
+          if (saveErr) {
+            console.error("Session save error during login:", saveErr);
+            return res.status(500).json({ error: "Session save error: " + (saveErr.message || "Failed to save session") });
+          }
+          const { password: _, ...userWithoutPassword } = user;
+          res.json(userWithoutPassword);
+        });
       });
     } catch (error) {
       res.status(400).json({ error: "Login failed" });
