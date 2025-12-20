@@ -3,6 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
 import { useEffect } from "react";
+import { startSessionHeartbeat, stopSessionHeartbeat } from "./lib/api";
 
 // Global error handler
 window.addEventListener('unhandledrejection', (event) => {
@@ -130,6 +131,19 @@ function Router() {
 }
 
 function App() {
+  // Start session heartbeat to keep sessions alive for active users
+  useEffect(() => {
+    // Only start heartbeat if not on auth pages
+    const currentPath = window.location.pathname;
+    if (!currentPath.includes('/auth') && currentPath !== '/' && !currentPath.includes('/forgot-password')) {
+      startSessionHeartbeat();
+    }
+    
+    return () => {
+      stopSessionHeartbeat();
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <Router />
