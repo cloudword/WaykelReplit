@@ -275,13 +275,50 @@ export const api = {
       return res.json();
     },
     addDriver: async (data: { name: string; phone: string; email?: string }) => {
+      // Generate a random 6-character password for the driver
+      const generatedPassword = Math.random().toString(36).slice(-6).toUpperCase() + 
+                                Math.floor(Math.random() * 90 + 10);
+      
       const res = await fetch(`${API_BASE}/transporter/drivers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          password: generatedPassword,
+        }),
       });
-      return res.json();
+      const result = await res.json();
+      
+      // If successful, add credentials to the response
+      if (!result.error && result.id) {
+        return {
+          ...result,
+          credentials: {
+            phone: data.phone,
+            password: generatedPassword,
+          },
+        };
+      }
+      return result;
+    },
+    resetDriverPassword: async (driverId: string) => {
+      // Generate a new random password
+      const newPassword = Math.random().toString(36).slice(-6).toUpperCase() + 
+                          Math.floor(Math.random() * 90 + 10);
+      
+      const res = await fetch(`${API_BASE}/users/${driverId}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ newPassword }),
+      });
+      const result = await res.json();
+      
+      if (!result.error) {
+        return { ...result, newPassword };
+      }
+      return result;
     },
   },
   drivers: {
