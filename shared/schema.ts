@@ -3,6 +3,23 @@ import { pgTable, text, varchar, integer, decimal, timestamp, boolean, json } fr
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Transporter types enum
+export const TRANSPORTER_TYPES = ["business", "individual"] as const;
+export type TransporterType = typeof TRANSPORTER_TYPES[number];
+
+// Onboarding status enum
+export const ONBOARDING_STATUS = ["incomplete", "completed"] as const;
+export type OnboardingStatus = typeof ONBOARDING_STATUS[number];
+
+// Document verification status enum (for vehicles/drivers onboarding)
+export const DOCUMENT_VERIFICATION_STATUS = [
+  "document_missing",
+  "verification_pending", 
+  "approved",
+  "rejected"
+] as const;
+export type DocumentVerificationStatus = typeof DOCUMENT_VERIFICATION_STATUS[number];
+
 // Vehicle types enum for matching
 export const VEHICLE_TYPES = [
   "mini_truck",
@@ -38,6 +55,9 @@ export const users = pgTable("users", {
   documentsComplete: boolean("documents_complete").default(false),
   profileComplete: boolean("profile_complete").default(false),
   isSelfDriver: boolean("is_self_driver").default(false),
+  // Document verification status for driver onboarding
+  documentStatus: text("document_status").$type<DocumentVerificationStatus>().default("document_missing"),
+  isActiveForBidding: boolean("is_active_for_bidding").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -69,6 +89,9 @@ export const transporters = pgTable("transporters", {
   verifiedBy: varchar("verified_by").references(() => users.id),
   ownerOperatorVehicleId: varchar("owner_operator_vehicle_id"),
   executionPolicy: text("execution_policy").$type<"SELF_ONLY" | "ASSIGNED_DRIVER_ONLY" | "ANY_DRIVER">().default("ASSIGNED_DRIVER_ONLY"),
+  // Onboarding fields
+  transporterType: text("transporter_type").$type<TransporterType>().default("business"),
+  onboardingStatus: text("onboarding_status").$type<OnboardingStatus>().default("incomplete"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -89,6 +112,9 @@ export const vehicles = pgTable("vehicles", {
   status: text("status").notNull().$type<"active" | "inactive" | "maintenance">().default("active"),
   currentLocation: text("current_location"),
   currentPincode: text("current_pincode"),
+  // Document verification status for onboarding
+  documentStatus: text("document_status").$type<DocumentVerificationStatus>().default("document_missing"),
+  isActiveForBidding: boolean("is_active_for_bidding").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -209,12 +235,15 @@ export const DOCUMENT_TYPES = [
   "permit",
   "pollution",
   "gst_certificate",
+  "msme_certificate",
+  "shop_act_license",
   "business_registration",
   "trade_license",
   "bank_details",
   "company_pan",
   "address_proof",
   "photo",
+  "police_verification",
 ] as const;
 export type DocumentType = typeof DOCUMENT_TYPES[number];
 
