@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Truck, Building2, User } from "lucide-react";
+import { Truck, Building2, User, Briefcase, UserCircle } from "lucide-react";
 
 export default function AuthPage() {
   const [_, setLocation] = useLocation();
@@ -20,6 +20,7 @@ export default function AuthPage() {
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
   const [signupRole, setSignupRole] = useState<"driver" | "transporter">("driver");
+  const [transporterType, setTransporterType] = useState<"business" | "individual">("individual");
   const [companyName, setCompanyName] = useState("");
   const [fleetSize, setFleetSize] = useState("");
   const [location, setLocationInput] = useState("");
@@ -57,11 +58,14 @@ export default function AuthPage() {
     setIsLoading(true);
     try {
       if (signupRole === "transporter") {
-        if (!companyName || !location) {
-          toast.error("Please fill in all company details");
+        // Simplified: Only require company name for business entities
+        const effectiveCompanyName = transporterType === "business" ? companyName : signupName;
+        if (transporterType === "business" && !companyName) {
+          toast.error("Please enter your company name");
           setIsLoading(false);
           return;
         }
+        
         // Backend creates transporter automatically during registration
         const user = await api.auth.register({
           name: signupName,
@@ -69,17 +73,24 @@ export default function AuthPage() {
           phone: signupPhone,
           password: signupPassword,
           role: "transporter",
-          companyName,
-          location,
-          city: location,
+          companyName: effectiveCompanyName,
+          transporterType, // Pass entity type to backend
+          location: location || "India", // Default location
+          city: location || "India",
           fleetSize: parseInt(fleetSize) || 1,
         });
         if (user.error) {
           toast.error(user.error);
         } else {
           localStorage.setItem("currentUser", JSON.stringify(user));
-          toast.success("Registration successful! You can now set up your profile, vehicles, and drivers. Document verification is required before you can post or receive trips.");
-          setLocation("/transporter");
+          // Business entities go to document upload first
+          if (transporterType === "business") {
+            toast.success("Registration successful! Please upload your business registration document to continue.");
+            setLocation("/transporter/documents?onboarding=true");
+          } else {
+            toast.success("Registration successful! Add a vehicle to start bidding.");
+            setLocation("/transporter");
+          }
         }
       } else {
         const user = await api.auth.register({
@@ -208,42 +219,48 @@ export default function AuthPage() {
 
                 {signupRole === "transporter" && (
                   <>
-                    <div className="space-y-2">
-                      <Label htmlFor="company-name">Company Name</Label>
-                      <Input 
-                        id="company-name" 
-                        placeholder="ABC Logistics Pvt Ltd" 
-                        required 
-                        value={companyName}
-                        onChange={(e) => setCompanyName(e.target.value)}
-                        data-testid="input-company-name"
-                      />
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">Entity Type:</Label>
+                      <RadioGroup 
+                        value={transporterType} 
+                        onValueChange={(v) => setTransporterType(v as "business" | "individual")}
+                        className="grid grid-cols-2 gap-2"
+                      >
+                        <div className={`flex items-center space-x-2 border rounded-lg p-3 cursor-pointer transition-colors ${transporterType === "individual" ? "border-primary bg-primary/5" : "border-gray-200"}`}>
+                          <RadioGroupItem value="individual" id="individual" />
+                          <Label htmlFor="individual" className="flex items-center gap-2 cursor-pointer">
+                            <UserCircle className="h-5 w-5" />
+                            <span>Individual</span>
+                          </Label>
+                        </div>
+                        <div className={`flex items-center space-x-2 border rounded-lg p-3 cursor-pointer transition-colors ${transporterType === "business" ? "border-primary bg-primary/5" : "border-gray-200"}`}>
+                          <RadioGroupItem value="business" id="business" />
+                          <Label htmlFor="business" className="flex items-center gap-2 cursor-pointer">
+                            <Briefcase className="h-5 w-5" />
+                            <span>Business</span>
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                      <p className="text-xs text-muted-foreground">
+                        {transporterType === "business" 
+                          ? "Business registration document required after signup" 
+                          : "No business documents required"}
+                      </p>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    
+                    {transporterType === "business" && (
                       <div className="space-y-2">
-                        <Label htmlFor="location">City/Location</Label>
+                        <Label htmlFor="company-name">Company Name</Label>
                         <Input 
-                          id="location" 
-                          placeholder="Mumbai" 
+                          id="company-name" 
+                          placeholder="ABC Logistics Pvt Ltd" 
                           required 
-                          value={location}
-                          onChange={(e) => setLocationInput(e.target.value)}
-                          data-testid="input-location"
+                          value={companyName}
+                          onChange={(e) => setCompanyName(e.target.value)}
+                          data-testid="input-company-name"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="fleet-size">Fleet Size</Label>
-                        <Input 
-                          id="fleet-size" 
-                          placeholder="5" 
-                          type="number"
-                          min="1"
-                          value={fleetSize}
-                          onChange={(e) => setFleetSize(e.target.value)}
-                          data-testid="input-fleet-size"
-                        />
-                      </div>
-                    </div>
+                    )}
                   </>
                 )}
 

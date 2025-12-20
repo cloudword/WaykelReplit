@@ -477,6 +477,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       
       // If registering as transporter, create a transporter record first
       if (data.role === "transporter") {
+        // Get transporter type (business or individual) from request
+        const transporterType = req.body.transporterType === "business" ? "business" : "individual";
+        
         const transporterData = {
           companyName: req.body.companyName || `${data.name}'s Transport`,
           ownerName: data.name,
@@ -487,6 +490,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           fleetSize: req.body.fleetSize || 1,
           status: "pending_approval" as const,
           isVerified: false,
+          transporterType, // Set entity type (business/individual)
+          onboardingStatus: "incomplete" as const,
         };
         
         const transporter = await storage.createTransporter(transporterData);
@@ -3834,6 +3839,31 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // Clear rejection reason when approving
       const reason = status === "verified" ? null : rejectionReason;
       await storage.updateDocumentStatus(req.params.id, status, adminUser.id, reason);
+      
+      // Update vehicle/driver documentStatus when their required docs are approved/rejected
+      if (document) {
+        const docType = document.type?.toLowerCase();
+        
+        // Vehicle RC document - update vehicle documentStatus
+        if (document.entityType === "vehicle" && document.vehicleId && 
+            (docType === "rc" || docType === "registration_certificate" || docType === "vehicle_rc")) {
+          if (status === "verified") {
+            await storage.updateVehicleDocumentStatus(document.vehicleId, "approved");
+          } else if (status === "rejected") {
+            await storage.updateVehicleDocumentStatus(document.vehicleId, "rejected");
+          }
+        }
+        
+        // Driver license document - update driver documentStatus
+        if (document.entityType === "driver" && document.userId &&
+            (docType === "driving_license" || docType === "license" || docType === "dl")) {
+          if (status === "verified") {
+            await storage.updateDriverDocumentStatus(document.userId, "approved");
+          } else if (status === "rejected") {
+            await storage.updateDriverDocumentStatus(document.userId, "rejected");
+          }
+        }
+      }
       
       // Notify the document uploader about status change
       if (document?.userId && (status === "verified" || status === "rejected")) {

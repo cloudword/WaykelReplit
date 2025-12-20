@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Settings, Save, DollarSign, AlertCircle, Calculator, Plus, Trash2, MessageSquare } from "lucide-react";
+import { Settings, Save, DollarSign, AlertCircle, Calculator, Plus, Trash2, MessageSquare, FileText, Truck, User, Building2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -16,6 +16,13 @@ import { API_BASE } from "@/lib/api";
 interface TierConfig {
   amount: number;
   percent: number;
+}
+
+interface DocumentRequirement {
+  type: string;
+  label: string;
+  required: boolean;
+  description?: string;
 }
 
 interface PlatformSettings {
@@ -30,9 +37,33 @@ interface PlatformSettings {
   smsMode: "shadow" | "live";
   smsProvider: "msg91" | null;
   smsTemplates: Record<string, string>;
+  businessDocRequirements: DocumentRequirement[];
+  vehicleDocRequirements: DocumentRequirement[];
+  driverDocRequirements: DocumentRequirement[];
   updatedByAdminId: string | null;
   updatedAt: string | null;
 }
+
+const DEFAULT_BUSINESS_DOCS: DocumentRequirement[] = [
+  { type: "business_registration", label: "Business Registration", required: true, description: "GST Certificate or MSME Certificate" },
+  { type: "gst_certificate", label: "GST Certificate", required: false },
+  { type: "pan_card", label: "PAN Card", required: false },
+];
+
+const DEFAULT_VEHICLE_DOCS: DocumentRequirement[] = [
+  { type: "rc", label: "Registration Certificate (RC)", required: true, description: "Vehicle registration document" },
+  { type: "insurance", label: "Insurance", required: false },
+  { type: "permit", label: "Permit", required: false },
+  { type: "fitness", label: "Fitness Certificate", required: false },
+  { type: "pollution", label: "Pollution Certificate", required: false },
+];
+
+const DEFAULT_DRIVER_DOCS: DocumentRequirement[] = [
+  { type: "driving_license", label: "Driving License", required: true, description: "Valid driving license" },
+  { type: "aadhar", label: "Aadhar Card", required: false },
+  { type: "pan", label: "PAN Card", required: false },
+  { type: "photo", label: "Photo", required: false },
+];
 
 const SMS_TEMPLATE_KEYS = [
   { key: "WAYKEL_OTP", label: "OTP", description: "Login/verification OTPs" },
@@ -97,6 +128,9 @@ export default function PlatformSettingsPage() {
   const [smsTemplates, setSmsTemplates] = useState<Record<string, string>>({});
   const [previewAmount, setPreviewAmount] = useState("10000");
   const [feePreview, setFeePreview] = useState<FeePreview | null>(null);
+  const [businessDocRequirements, setBusinessDocRequirements] = useState<DocumentRequirement[]>(DEFAULT_BUSINESS_DOCS);
+  const [vehicleDocRequirements, setVehicleDocRequirements] = useState<DocumentRequirement[]>(DEFAULT_VEHICLE_DOCS);
+  const [driverDocRequirements, setDriverDocRequirements] = useState<DocumentRequirement[]>(DEFAULT_DRIVER_DOCS);
 
   useEffect(() => {
     if (settings) {
@@ -110,6 +144,9 @@ export default function PlatformSettingsPage() {
       setSmsMode(settings.smsMode ?? "shadow");
       setSmsProvider(settings.smsProvider ?? null);
       setSmsTemplates(settings.smsTemplates ?? {});
+      setBusinessDocRequirements(settings.businessDocRequirements ?? DEFAULT_BUSINESS_DOCS);
+      setVehicleDocRequirements(settings.vehicleDocRequirements ?? DEFAULT_VEHICLE_DOCS);
+      setDriverDocRequirements(settings.driverDocRequirements ?? DEFAULT_DRIVER_DOCS);
     }
   }, [settings]);
 
@@ -135,8 +172,48 @@ export default function PlatformSettingsPage() {
       smsEnabled,
       smsMode,
       smsProvider,
-      smsTemplates
+      smsTemplates,
+      businessDocRequirements,
+      vehicleDocRequirements,
+      driverDocRequirements
     });
+  };
+
+  const toggleDocRequired = (
+    docList: DocumentRequirement[], 
+    setDocList: (docs: DocumentRequirement[]) => void, 
+    type: string
+  ) => {
+    setDocList(docList.map(doc => 
+      doc.type === type ? { ...doc, required: !doc.required } : doc
+    ));
+  };
+
+  const addDocument = (
+    docList: DocumentRequirement[], 
+    setDocList: (docs: DocumentRequirement[]) => void
+  ) => {
+    const newType = `custom_${Date.now()}`;
+    setDocList([...docList, { type: newType, label: "New Document", required: false }]);
+  };
+
+  const removeDocument = (
+    docList: DocumentRequirement[], 
+    setDocList: (docs: DocumentRequirement[]) => void,
+    type: string
+  ) => {
+    setDocList(docList.filter(doc => doc.type !== type));
+  };
+
+  const updateDocumentLabel = (
+    docList: DocumentRequirement[], 
+    setDocList: (docs: DocumentRequirement[]) => void,
+    type: string,
+    label: string
+  ) => {
+    setDocList(docList.map(doc => 
+      doc.type === type ? { ...doc, label } : doc
+    ));
   };
 
   const handlePreview = async () => {
@@ -197,9 +274,9 @@ export default function PlatformSettingsPage() {
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900" data-testid="text-page-title">
-              Monetization Control
+              Platform Settings
             </h1>
-            <p className="text-gray-500">Manage platform commission settings</p>
+            <p className="text-gray-500">Manage platform settings, commission, SMS, and document requirements</p>
           </div>
           <Button onClick={handleSave} disabled={mutation.isPending} data-testid="button-save-settings">
             <Save className="h-4 w-4 mr-2" />
@@ -563,6 +640,183 @@ export default function PlatformSettingsPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        <div className="mt-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4" data-testid="text-document-requirements-title">
+            Document Requirements Configuration
+          </h2>
+          <p className="text-gray-500 mb-6">Configure which documents are required for verification at each level</p>
+          
+          <div className="grid gap-6 md:grid-cols-3">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  Business Documents
+                </CardTitle>
+                <CardDescription>
+                  Required for business entity transporters
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {businessDocRequirements.map((doc) => (
+                  <div key={doc.type} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex-1">
+                      <Input
+                        value={doc.label}
+                        onChange={(e) => updateDocumentLabel(businessDocRequirements, setBusinessDocRequirements, doc.type, e.target.value)}
+                        className="font-medium mb-1"
+                        data-testid={`input-business-doc-${doc.type}`}
+                      />
+                      <p className="text-xs text-muted-foreground">{doc.type}</p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-2">
+                      <Badge variant={doc.required ? "destructive" : "secondary"}>
+                        {doc.required ? "Required" : "Optional"}
+                      </Badge>
+                      <Switch
+                        checked={doc.required}
+                        onCheckedChange={() => toggleDocRequired(businessDocRequirements, setBusinessDocRequirements, doc.type)}
+                        data-testid={`switch-business-doc-${doc.type}`}
+                      />
+                      {doc.type.startsWith("custom_") && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeDocument(businessDocRequirements, setBusinessDocRequirements, doc.type)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => addDocument(businessDocRequirements, setBusinessDocRequirements)}
+                  data-testid="button-add-business-doc"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Document Type
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Truck className="h-5 w-5" />
+                  Vehicle Documents
+                </CardTitle>
+                <CardDescription>
+                  Required when adding a vehicle
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {vehicleDocRequirements.map((doc) => (
+                  <div key={doc.type} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex-1">
+                      <Input
+                        value={doc.label}
+                        onChange={(e) => updateDocumentLabel(vehicleDocRequirements, setVehicleDocRequirements, doc.type, e.target.value)}
+                        className="font-medium mb-1"
+                        data-testid={`input-vehicle-doc-${doc.type}`}
+                      />
+                      <p className="text-xs text-muted-foreground">{doc.type}</p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-2">
+                      <Badge variant={doc.required ? "destructive" : "secondary"}>
+                        {doc.required ? "Required" : "Optional"}
+                      </Badge>
+                      <Switch
+                        checked={doc.required}
+                        onCheckedChange={() => toggleDocRequired(vehicleDocRequirements, setVehicleDocRequirements, doc.type)}
+                        data-testid={`switch-vehicle-doc-${doc.type}`}
+                      />
+                      {doc.type.startsWith("custom_") && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeDocument(vehicleDocRequirements, setVehicleDocRequirements, doc.type)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => addDocument(vehicleDocRequirements, setVehicleDocRequirements)}
+                  data-testid="button-add-vehicle-doc"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Document Type
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="h-5 w-5" />
+                  Driver Documents
+                </CardTitle>
+                <CardDescription>
+                  Required when adding a driver
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {driverDocRequirements.map((doc) => (
+                  <div key={doc.type} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex-1">
+                      <Input
+                        value={doc.label}
+                        onChange={(e) => updateDocumentLabel(driverDocRequirements, setDriverDocRequirements, doc.type, e.target.value)}
+                        className="font-medium mb-1"
+                        data-testid={`input-driver-doc-${doc.type}`}
+                      />
+                      <p className="text-xs text-muted-foreground">{doc.type}</p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-2">
+                      <Badge variant={doc.required ? "destructive" : "secondary"}>
+                        {doc.required ? "Required" : "Optional"}
+                      </Badge>
+                      <Switch
+                        checked={doc.required}
+                        onCheckedChange={() => toggleDocRequired(driverDocRequirements, setDriverDocRequirements, doc.type)}
+                        data-testid={`switch-driver-doc-${doc.type}`}
+                      />
+                      {doc.type.startsWith("custom_") && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeDocument(driverDocRequirements, setDriverDocRequirements, doc.type)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => addDocument(driverDocRequirements, setDriverDocRequirements)}
+                  data-testid="button-add-driver-doc"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Document Type
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {settings?.updatedAt && (

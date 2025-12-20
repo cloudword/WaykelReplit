@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Truck, Plus, Search, FileText, CheckCircle, Clock, AlertCircle } from "lucide-react";
-import { api } from "@/lib/api";
+import { Truck, Plus, Search, FileText, CheckCircle, Clock, AlertCircle, Upload, Loader2 } from "lucide-react";
+import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 
@@ -25,6 +25,9 @@ export default function TransporterVehicles() {
     model: "",
     capacity: "",
   });
+  const [rcFile, setRcFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const rcInputRef = useRef<HTMLInputElement>(null);
   const [user] = useState<any>(() => {
     const stored = localStorage.getItem("currentUser");
     return stored ? JSON.parse(stored) : null;
@@ -68,7 +71,16 @@ export default function TransporterVehicles() {
 
   const handleAddVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate RC document is uploaded
+    if (!rcFile) {
+      toast.error("RC (Registration Certificate) is mandatory. Please upload the RC document.");
+      return;
+    }
+    
+    setIsSubmitting(true);
     try {
+      // Step 1: Create the vehicle
       const result = await api.vehicles.create({
         type: newVehicle.type,
         plateNumber: newVehicle.plateNumber,
@@ -80,14 +92,55 @@ export default function TransporterVehicles() {
       
       if (result.error) {
         toast.error(result.error);
-      } else {
-        toast.success("Vehicle added successfully!");
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Step 2: Upload RC document for the newly created vehicle
+      // API returns vehicle directly with result.id
+      const vehicleId = result.id;
+      if (!vehicleId) {
+        console.error("No vehicle ID returned from API:", result);
+        toast.error("Vehicle created but could not upload RC - no vehicle ID returned");
         setShowAddDialog(false);
         setNewVehicle({ type: "", plateNumber: "", model: "", capacity: "" });
+        setRcFile(null);
+        if (rcInputRef.current) rcInputRef.current.value = "";
         loadVehicles();
+        return;
       }
+      
+      const formData = new FormData();
+      formData.append("file", rcFile);
+      formData.append("documentType", "rc");
+      formData.append("entityType", "vehicle");
+      formData.append("vehicleId", vehicleId);
+      formData.append("transporterId", user.transporterId);
+      
+      const uploadRes = await fetch(`${API_BASE}/documents/upload`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      
+      if (!uploadRes.ok) {
+        const uploadErr = await uploadRes.json().catch(() => ({}));
+        console.error("RC upload failed:", uploadErr);
+        toast.error("Vehicle created but RC upload failed. Please upload RC from vehicle details.");
+      } else {
+        toast.success("Vehicle added with RC document!");
+      }
+      
+      setShowAddDialog(false);
+      setNewVehicle({ type: "", plateNumber: "", model: "", capacity: "" });
+      setRcFile(null);
+      if (rcInputRef.current) rcInputRef.current.value = "";
+      loadVehicles();
     } catch (error) {
+      console.error("Add vehicle error:", error);
       toast.error("Failed to add vehicle");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -192,8 +245,68 @@ export default function TransporterVehicles() {
                     data-testid="input-capacity"
                   />
                 </div>
-                <Button type="submit" className="w-full" data-testid="button-submit-vehicle">
-                  Add Vehicle
+                
+                <div className="space-y-2">
+                  <Label htmlFor="rc-upload" className="flex items-center gap-1">
+                    RC Document <span className="text-red-500">*</span>
+                    <span className="text-xs text-muted-foreground">(Registration Certificate)</span>
+                  </Label>
+                  <div 
+                    className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+                      rcFile ? "border-green-500 bg-green-50" : "border-gray-300 hover:border-blue-400"
+                    }`}
+                    onClick={() => rcInputRef.current?.click()}
+                  >
+                    <input
+                      ref={rcInputRef}
+                      type="file"
+                      id="rc-upload"
+                      accept="image/*,.pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.size > 10 * 1024 * 1024) {
+                            toast.error("File size must be less than 10MB");
+                            return;
+                          }
+                          setRcFile(file);
+                        }
+                      }}
+                      data-testid="input-rc-upload"
+                    />
+                    {rcFile ? (
+                      <div className="flex items-center justify-center gap-2 text-green-700">
+                        <CheckCircle className="h-5 w-5" />
+                        <span className="text-sm font-medium">{rcFile.name}</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 text-gray-500">
+                        <Upload className="h-8 w-8" />
+                        <span className="text-sm">Click to upload RC document</span>
+                        <span className="text-xs text-muted-foreground">PDF or Image (max 10MB)</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-amber-600">
+                    RC is mandatory for vehicle verification
+                  </p>
+                </div>
+                
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={isSubmitting || !rcFile}
+                  data-testid="button-submit-vehicle"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Adding Vehicle...
+                    </>
+                  ) : (
+                    "Add Vehicle"
+                  )}
                 </Button>
               </form>
             </DialogContent>

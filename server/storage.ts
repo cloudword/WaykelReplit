@@ -1244,11 +1244,35 @@ export class DatabaseStorage implements IStorage {
     
     const hasBusinessDocs = businessDocs.length > 0;
     
-    // Count approved vehicles (with verified RC document)
-    const approvedVehicles = transporterVehicles.filter(v => v.documentStatus === "approved");
+    // Count approved vehicles - check documentStatus OR verified RC in documents table
+    const vehicleIdsWithVerifiedRC = transporterVehicles.length > 0 
+      ? (await db.select({ vehicleId: documents.vehicleId }).from(documents)
+          .where(and(
+            eq(documents.entityType, "vehicle"),
+            inArray(documents.vehicleId, transporterVehicles.map(v => v.id)),
+            eq(documents.status, "verified"),
+            sql`lower(${documents.type}) IN ('rc', 'registration_certificate', 'vehicle_rc')`
+          ))).map(d => d.vehicleId)
+      : [];
     
-    // Count approved drivers (with verified driving license)
-    const approvedDrivers = transporterDrivers.filter(d => d.documentStatus === "approved");
+    const approvedVehicles = transporterVehicles.filter(v => 
+      v.documentStatus === "approved" || vehicleIdsWithVerifiedRC.includes(v.id)
+    );
+    
+    // Count approved drivers - check documentStatus OR verified license in documents table
+    const driverIdsWithVerifiedLicense = transporterDrivers.length > 0
+      ? (await db.select({ userId: documents.userId }).from(documents)
+          .where(and(
+            eq(documents.entityType, "driver"),
+            inArray(documents.userId, transporterDrivers.map(d => d.id)),
+            eq(documents.status, "verified"),
+            sql`lower(${documents.type}) IN ('driving_license', 'license', 'dl')`
+          ))).map(d => d.userId)
+      : [];
+    
+    const approvedDrivers = transporterDrivers.filter(d => 
+      d.documentStatus === "approved" || driverIdsWithVerifiedLicense.includes(d.id)
+    );
     
     // Count pending vehicle documents
     const pendingVehicleDocs = await db.select().from(documents)
@@ -1324,24 +1348,49 @@ export class DatabaseStorage implements IStorage {
       return { canBid: false, reason: "Please complete onboarding before placing bids.", approvedVehicles: [], approvedDrivers: [] };
     }
 
-    // Get approved vehicles
+    // Get approved vehicles - check documentStatus OR verified RC in documents table
     const transporterVehicles = await this.getTransporterVehicles(transporterId);
-    const approvedVehicles = transporterVehicles.filter(v => v.documentStatus === "approved" && v.isActiveForBidding);
+    
+    const vehicleIdsWithVerifiedRC = transporterVehicles.length > 0 
+      ? (await db.select({ vehicleId: documents.vehicleId }).from(documents)
+          .where(and(
+            eq(documents.entityType, "vehicle"),
+            inArray(documents.vehicleId, transporterVehicles.map(v => v.id)),
+            eq(documents.status, "verified"),
+            sql`lower(${documents.type}) IN ('rc', 'registration_certificate', 'vehicle_rc')`
+          ))).map(d => d.vehicleId)
+      : [];
+    
+    const approvedVehicles = transporterVehicles.filter(v => 
+      v.documentStatus === "approved" || vehicleIdsWithVerifiedRC.includes(v.id)
+    );
 
     if (approvedVehicles.length === 0) {
       return { canBid: false, reason: "No verified vehicles available. Please add a vehicle and upload required documents.", approvedVehicles: [], approvedDrivers: [] };
     }
 
-    // Get approved drivers
+    // Get approved drivers - check documentStatus OR verified license in documents table
     const transporterDrivers = await db.select().from(users)
       .where(and(
         eq(users.transporterId, transporterId), 
-        eq(users.role, "driver"),
-        eq(users.documentStatus, "approved"),
-        eq(users.isActiveForBidding, true)
+        eq(users.role, "driver")
       ));
+    
+    const driverIdsWithVerifiedLicense = transporterDrivers.length > 0
+      ? (await db.select({ userId: documents.userId }).from(documents)
+          .where(and(
+            eq(documents.entityType, "driver"),
+            inArray(documents.userId, transporterDrivers.map(d => d.id)),
+            eq(documents.status, "verified"),
+            sql`lower(${documents.type}) IN ('driving_license', 'license', 'dl')`
+          ))).map(d => d.userId)
+      : [];
+    
+    const approvedDrivers = transporterDrivers.filter(d => 
+      d.documentStatus === "approved" || driverIdsWithVerifiedLicense.includes(d.id)
+    );
 
-    if (transporterDrivers.length === 0) {
+    if (approvedDrivers.length === 0) {
       return { canBid: false, reason: "No verified drivers available. Please add a driver and upload required documents.", approvedVehicles: approvedVehicles.map(v => v.id), approvedDrivers: [] };
     }
 
@@ -1349,7 +1398,7 @@ export class DatabaseStorage implements IStorage {
       canBid: true,
       reason: "Eligible to bid",
       approvedVehicles: approvedVehicles.map(v => v.id),
-      approvedDrivers: transporterDrivers.map(d => d.id)
+      approvedDrivers: approvedDrivers.map(d => d.id)
     };
   }
 }
