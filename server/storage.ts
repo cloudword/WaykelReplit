@@ -147,8 +147,10 @@ export interface IStorage {
   getUserNotifications(userId: string): Promise<Notification[]>;
   getTransporterNotifications(transporterId: string): Promise<Notification[]>;
   getUnreadNotifications(userId: string): Promise<Notification[]>;
+  getUnreadNotificationsForUserOrTransporter(userId: string, transporterId?: string): Promise<Notification[]>;
   markNotificationRead(id: string): Promise<void>;
   markAllNotificationsRead(userId: string): Promise<void>;
+  markAllNotificationsReadForUserOrTransporter(userId: string, transporterId?: string): Promise<void>;
   
   // Smart Matching
   findMatchingTransporters(ride: Ride): Promise<{transporter: Transporter; matchScore: number; matchReason: string; vehicles: Vehicle[]}[]>;
@@ -696,6 +698,26 @@ export class DatabaseStorage implements IStorage {
       and(eq(notifications.recipientId, userId), eq(notifications.isRead, false))
     ).orderBy(desc(notifications.createdAt));
   }
+  
+  // Get unread notifications for user OR their transporter (for transporter-scoped notifications)
+  async getUnreadNotificationsForUserOrTransporter(userId: string, transporterId?: string): Promise<Notification[]> {
+    if (transporterId) {
+      // Check both user-scoped AND transporter-scoped notifications
+      return await db.select().from(notifications).where(
+        and(
+          or(
+            eq(notifications.recipientId, userId),
+            eq(notifications.recipientTransporterId, transporterId)
+          ),
+          eq(notifications.isRead, false)
+        )
+      ).orderBy(desc(notifications.createdAt));
+    }
+    // Fallback to just user-scoped
+    return await db.select().from(notifications).where(
+      and(eq(notifications.recipientId, userId), eq(notifications.isRead, false))
+    ).orderBy(desc(notifications.createdAt));
+  }
 
   async markNotificationRead(id: string): Promise<void> {
     await db.update(notifications).set({ isRead: true }).where(eq(notifications.id, id));
@@ -703,6 +725,20 @@ export class DatabaseStorage implements IStorage {
 
   async markAllNotificationsRead(userId: string): Promise<void> {
     await db.update(notifications).set({ isRead: true }).where(eq(notifications.recipientId, userId));
+  }
+  
+  // Mark all notifications read for user OR their transporter
+  async markAllNotificationsReadForUserOrTransporter(userId: string, transporterId?: string): Promise<void> {
+    if (transporterId) {
+      await db.update(notifications).set({ isRead: true }).where(
+        or(
+          eq(notifications.recipientId, userId),
+          eq(notifications.recipientTransporterId, transporterId)
+        )
+      );
+    } else {
+      await db.update(notifications).set({ isRead: true }).where(eq(notifications.recipientId, userId));
+    }
   }
 
   // Smart Matching

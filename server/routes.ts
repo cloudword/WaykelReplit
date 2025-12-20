@@ -2343,7 +2343,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         // Admin can optionally filter by transporterId
         const { transporterId } = req.query;
         if (transporterId) {
-          const drivers = await storage.getTransporterDrivers(transporterId as string);
+          const drivers = await storage.getUsersByTransporterAndRole(transporterId as string, "driver");
           const driversWithoutPasswords = drivers.map(({ password, ...d }) => d);
           return res.json(driversWithoutPasswords);
         }
@@ -2356,7 +2356,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(403).json({ error: "You must be associated with a transporter" });
       }
       
-      const drivers = await storage.getTransporterDrivers(user.transporterId);
+      const drivers = await storage.getUsersByTransporterAndRole(user.transporterId, "driver");
       const driversWithoutPasswords = drivers.map(({ password, ...d }) => d);
       res.json(driversWithoutPasswords);
     } catch (error) {
@@ -2742,7 +2742,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
         
         // Gate 4: Must have at least 1 verified driver (or be a self-driver)
-        const transporterDrivers = await storage.getTransporterDrivers(effectiveTransporterId);
+        const transporterDrivers = await storage.getUsersByTransporterAndRole(effectiveTransporterId, "driver");
         const isSelfDriver = sessionUser.isSelfDriver === true;
         if (transporterDrivers.length === 0 && !isSelfDriver) {
           return res.status(403).json({ 
@@ -4543,6 +4543,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Notification routes
+  // FIX: Query both user-scoped AND transporter-scoped notifications
   app.get("/api/notifications", async (req, res) => {
     const sessionUser = getCurrentUser(req);
     
@@ -4554,10 +4555,31 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { unreadOnly } = req.query;
       let notifications;
       
+      // For transporters, get BOTH user and transporter-scoped notifications
       if (unreadOnly === "true") {
-        notifications = await storage.getUnreadNotifications(sessionUser.id);
+        notifications = await storage.getUnreadNotificationsForUserOrTransporter(
+          sessionUser.id, 
+          sessionUser.transporterId || undefined
+        );
       } else {
-        notifications = await storage.getUserNotifications(sessionUser.id);
+        // Get user notifications + transporter notifications if applicable
+        const userNotifications = await storage.getUserNotifications(sessionUser.id);
+        if (sessionUser.transporterId) {
+          const transporterNotifications = await storage.getTransporterNotifications(sessionUser.transporterId);
+          // Merge and deduplicate by ID
+          const allIds = new Set<string>();
+          notifications = [];
+          for (const n of [...userNotifications, ...transporterNotifications]) {
+            if (!allIds.has(n.id)) {
+              allIds.add(n.id);
+              notifications.push(n);
+            }
+          }
+          // Sort by createdAt descending
+          notifications.sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
+        } else {
+          notifications = userNotifications;
+        }
       }
       
       // Ensure we always return an array
@@ -4571,6 +4593,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // GET /api/notifications/unread-count - Fast count for UI badges
   // IMPORTANT: Must NEVER throw or return non-JSON - UI polls this frequently
+  // FIX: Query both user-scoped AND transporter-scoped notifications
   app.get("/api/notifications/unread-count", async (req, res) => {
     try {
       const sessionUser = getCurrentUser(req);
@@ -4580,7 +4603,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.json({ count: 0 });
       }
       
-      const unreadNotifications = await storage.getUnreadNotifications(sessionUser.id);
+      // For transporters, count BOTH user and transporter-scoped unread notifications
+      const unreadNotifications = await storage.getUnreadNotificationsForUserOrTransporter(
+        sessionUser.id,
+        sessionUser.transporterId || undefined
+      );
       res.json({ count: unreadNotifications.length });
     } catch (error) {
       console.error("[notifications] unread-count failed:", error);
@@ -4604,6 +4631,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // FIX: Mark all notifications read for user AND transporter
   app.patch("/api/notifications/mark-all-read", async (req, res) => {
     const sessionUser = getCurrentUser(req);
     
@@ -4612,7 +4640,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
     
     try {
-      await storage.markAllNotificationsRead(sessionUser.id);
+      await storage.markAllNotificationsReadForUserOrTransporter(
+        sessionUser.id,
+        sessionUser.transporterId || undefined
+      );
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ error: "Failed to mark all notifications as read" });
