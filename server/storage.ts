@@ -19,6 +19,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, or, sql, gte, inArray, not } from "drizzle-orm";
+import { generateEntityId } from "./utils/entityId";
 
 export function sanitizeRequestBody(body: any): any {
   if (!body || typeof body !== 'object') return body;
@@ -270,7 +271,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
+    const entityPrefix = insertUser.role === 'driver' ? 'D' : insertUser.role === 'customer' ? 'C' : null;
+    const entityId = entityPrefix ? generateEntityId(entityPrefix) : undefined;
+    const [user] = await db.insert(users).values({ ...insertUser, entityId }).returning();
     return user;
   }
 
@@ -376,7 +379,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTransporter(insertTransporter: InsertTransporter): Promise<Transporter> {
-    const [transporter] = await db.insert(transporters).values(insertTransporter).returning();
+    const entityId = generateEntityId('T');
+    const [transporter] = await db.insert(transporters).values({ ...insertTransporter, entityId }).returning();
     return transporter;
   }
 
@@ -428,7 +432,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createVehicle(insertVehicle: InsertVehicle): Promise<Vehicle> {
-    const [vehicle] = await db.insert(vehicles).values(insertVehicle).returning();
+    const entityId = generateEntityId('V');
+    const [vehicle] = await db.insert(vehicles).values({ ...insertVehicle, entityId }).returning();
     return vehicle;
   }
 
