@@ -112,6 +112,38 @@ export default function VerificationOverview() {
   const [rejectingTransporterId, setRejectingTransporterId] = useState<string | null>(null);
   const [transporterRejectionReason, setTransporterRejectionReason] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+
+  const handlePreviewDocument = async (doc: Document) => {
+    setLoadingPreview(true);
+    try {
+      const storagePath = doc.url;
+      if (!storagePath) {
+        toast.error("Document URL not available");
+        return;
+      }
+      
+      const response = await fetch(`${API_BASE}/spaces/signed-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ key: storagePath })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to get document URL");
+      }
+      
+      const data = await response.json();
+      setPreviewUrl(data.signedUrl);
+    } catch (error: any) {
+      console.error("Preview error:", error);
+      toast.error(error.message || "Failed to preview document");
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -397,7 +429,7 @@ export default function VerificationOverview() {
                     doc={doc}
                     onApprove={() => handleApproveDocument(doc.id)}
                     onReject={() => setRejectingDocId(doc.id)}
-                    onPreview={() => setPreviewUrl(doc.url)}
+                    onPreview={() => handlePreviewDocument(doc)}
                   />
                 ))}
               </div>
@@ -423,7 +455,7 @@ export default function VerificationOverview() {
                     doc={doc}
                     onApprove={() => handleApproveDocument(doc.id)}
                     onReject={() => setRejectingDocId(doc.id)}
-                    onPreview={() => setPreviewUrl(doc.url)}
+                    onPreview={() => handlePreviewDocument(doc)}
                   />
                 ))}
               </div>
@@ -446,7 +478,7 @@ export default function VerificationOverview() {
                     doc={doc}
                     onApprove={() => handleApproveDocument(doc.id)}
                     onReject={() => setRejectingDocId(doc.id)}
-                    onPreview={() => setPreviewUrl(doc.url)}
+                    onPreview={() => handlePreviewDocument(doc)}
                   />
                 ))}
               </div>
