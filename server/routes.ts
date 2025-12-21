@@ -253,6 +253,61 @@ const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
   next();
 };
 
+// Middleware to verify transporter session consistency
+// This provides defense-in-depth against stale session transporterId
+// For admins: Bypass (they use query params in handlers, not session transporterId)
+// For transporters: Verify session transporterId matches database and auto-fix mismatches
+const requireTransporterWithVerification = async (req: Request, res: Response, next: NextFunction) => {
+  const sessionUser = getCurrentUser(req);
+  if (!sessionUser?.id) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  
+  const isAdmin = sessionUser.isSuperAdmin || sessionUser.role === "admin";
+  
+  // Admins bypass this middleware - they access transporter data via query params
+  // The handlers already have logic to use query params for admins
+  if (isAdmin) {
+    return next();
+  }
+  
+  // For non-admins, must be transporter
+  if (sessionUser.role !== "transporter") {
+    return res.status(403).json({ error: "Transporter access required" });
+  }
+  
+  if (!sessionUser.transporterId) {
+    console.warn(`[SECURITY] Transporter user ${sessionUser.id} has no transporterId in session`);
+    return res.status(403).json({ error: "Transporter association required" });
+  }
+  
+  // CRITICAL SECURITY: Verify the session transporterId matches the database
+  // This prevents cross-tenant data leakage from stale sessions
+  try {
+    const dbUser = await storage.getUser(sessionUser.id);
+    if (!dbUser) {
+      console.warn(`[SECURITY] Session user ${sessionUser.id} not found in database`);
+      req.session.destroy(() => {});
+      return res.status(401).json({ error: "Session invalid - please log in again" });
+    }
+    
+    if (dbUser.transporterId !== sessionUser.transporterId) {
+      console.error(`[SECURITY ALERT] Session transporterId mismatch for user ${sessionUser.id}: session=${sessionUser.transporterId}, db=${dbUser.transporterId}`);
+      // Fix the session with correct data from database
+      req.session.user = {
+        ...sessionUser,
+        transporterId: dbUser.transporterId
+      };
+      // The getCurrentUser() call in handlers will now return the corrected value
+    }
+  } catch (error) {
+    console.error("[SECURITY] Failed to verify transporter session:", error);
+    // Allow request to proceed with session data in case of DB error
+  }
+  
+  next();
+};
+
 const requireDriverOrTransporter = (req: Request, res: Response, next: NextFunction) => {
   const user = getCurrentUser(req);
   if (!user?.id) {
@@ -630,16 +685,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         transporterId: user.transporterId || undefined,
       };
 
-      // Try to regenerate session, fall back to direct assignment if regenerate fails
+      // Regenerate session to prevent session fixation - CRITICAL for security
       req.session.regenerate((regenerateErr) => {
         if (regenerateErr) {
-          console.warn("Session regenerate warning (using fallback):", regenerateErr.message);
-          // Fallback: directly set session user
-          req.session.user = sessionData;
-        } else {
-          req.session.user = sessionData;
+          console.error("[SECURITY] Session regenerate failed, destroying old session:", regenerateErr.message);
+          // Destroy old session completely and create fresh
+          req.session.destroy((destroyErr) => {
+            if (destroyErr) {
+              console.error("[SECURITY] Failed to destroy session:", destroyErr.message);
+              return res.status(500).json({ error: "Session error - please try again" });
+            }
+            // Cannot set user on destroyed session - client must retry
+            return res.status(503).json({ error: "Session refresh required - please retry login" });
+          });
+          return;
         }
-
+        
+        req.session.user = sessionData;
         req.session.save((saveErr) => {
           if (saveErr) {
             console.error("Session save error during login:", saveErr);
@@ -2367,7 +2429,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // PHASE F: Transporter drivers management
   // GET /api/transporter/drivers - Get all drivers for current transporter
-  app.get("/api/transporter/drivers", requireAuth, async (req, res) => {
+  app.get("/api/transporter/drivers", requireAuth, requireTransporterWithVerification, async (req, res) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: "Authentication required" });
@@ -2405,7 +2467,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // POST /api/transporter/drivers - Create a new driver for current transporter
   // PHASE F: Driver creation with auto-attached transporterId
-  app.post("/api/transporter/drivers", requireAuth, async (req, res) => {
+  app.post("/api/transporter/drivers", requireAuth, requireTransporterWithVerification, async (req, res) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: "Authentication required" });
@@ -2475,7 +2537,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // PHASE E: Get transporter's active vehicles for bidding
   // GET /api/transporter/vehicles/active - Returns only active vehicles for bid selection
-  app.get("/api/transporter/vehicles/active", requireAuth, async (req, res) => {
+  app.get("/api/transporter/vehicles/active", requireAuth, requireTransporterWithVerification, async (req, res) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: "Authentication required" });
@@ -2499,7 +2561,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // GET /api/transporter/vehicles - Get all vehicles for current transporter (including pending)
   // PHASE D: Show ALL vehicles including pending ones
   // POLLING-SAFE: Idempotent, no side effects, safe for 30s refresh
-  app.get("/api/transporter/vehicles", requireAuth, async (req, res) => {
+  app.get("/api/transporter/vehicles", requireAuth, requireTransporterWithVerification, async (req, res) => {
     const user = getCurrentUser(req);
     if (!user) {
       return res.status(401).json({ error: "Authentication required" });
@@ -2524,15 +2586,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ===== TRANSPORTER ONBOARDING API =====
   
   // GET /api/transporter/onboarding-status - Get current onboarding status
-  app.get("/api/transporter/onboarding-status", requireAuth, async (req, res) => {
+  app.get("/api/transporter/onboarding-status", requireAuth, requireTransporterWithVerification, async (req, res) => {
     const user = getCurrentUser(req);
     if (!user || !user.transporterId) {
+      console.warn(`[GET /api/transporter/onboarding-status] User ${user?.id} has no transporterId in session`);
       return res.status(403).json({ error: "Transporter access required" });
     }
     
     try {
+      // STRICT ISOLATION: Always use session transporterId
+      console.log(`[GET /api/transporter/onboarding-status] Fetching status for transporter ${user.transporterId} (user: ${user.id})`);
+      
       const status = await storage.getTransporterOnboardingStatus(user.transporterId);
       if (!status) {
+        console.warn(`[GET /api/transporter/onboarding-status] Transporter ${user.transporterId} not found in database`);
         return res.status(404).json({ error: "Transporter not found" });
       }
       
@@ -2588,7 +2655,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // PUT /api/transporter/transporter-type - Set transporter type (business/individual)
-  app.put("/api/transporter/transporter-type", requireAuth, async (req, res) => {
+  app.put("/api/transporter/transporter-type", requireAuth, requireTransporterWithVerification, async (req, res) => {
     const user = getCurrentUser(req);
     if (!user || !user.transporterId) {
       return res.status(403).json({ error: "Transporter access required" });
@@ -2609,7 +2676,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // POST /api/transporter/complete-onboarding - Mark onboarding as complete (after all steps done)
-  app.post("/api/transporter/complete-onboarding", requireAuth, async (req, res) => {
+  app.post("/api/transporter/complete-onboarding", requireAuth, requireTransporterWithVerification, async (req, res) => {
     const user = getCurrentUser(req);
     if (!user || !user.transporterId) {
       return res.status(403).json({ error: "Transporter access required" });
@@ -2643,7 +2710,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // GET /api/transporter/bidding-eligibility - Check if transporter can bid
-  app.get("/api/transporter/bidding-eligibility", requireAuth, async (req, res) => {
+  app.get("/api/transporter/bidding-eligibility", requireAuth, requireTransporterWithVerification, async (req, res) => {
     const user = getCurrentUser(req);
     if (!user || !user.transporterId) {
       return res.status(403).json({ error: "Transporter access required" });
@@ -3020,7 +3087,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // GET /api/vehicles - Auth required, users can view their own or transporter's
   // PHASE B/D: Auto-scope based on role, show ALL vehicles including pending
   app.get("/api/vehicles", requireAuth, async (req, res) => {
-    const { userId, transporterId } = req.query;
+    const { userId, transporterId: queryTransporterId } = req.query;
     const user = getCurrentUser(req)!;
     const isAdmin = user.isSuperAdmin || user.role === "admin";
     const isTransporter = user.role === "transporter";
@@ -3028,20 +3095,58 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       let result: any[] = [];
       
+      // STRICT DATA ISOLATION: Log session info for debugging
+      console.log(`[GET /api/vehicles] User: ${user.id}, Role: ${user.role}, SessionTransporterId: ${user.transporterId}, QueryTransporterId: ${queryTransporterId}`);
+      
       // PHASE B: Query scoping based on role
       if (isAdmin) {
         // Admin can query by any filter
         if (userId) {
           result = await storage.getUserVehicles(userId as string);
-        } else if (transporterId) {
-          result = await storage.getTransporterVehicles(transporterId as string);
+        } else if (queryTransporterId) {
+          result = await storage.getTransporterVehicles(queryTransporterId as string);
         } else {
           // Admin with no filter gets empty - use /api/vehicles/all for all
           result = [];
         }
-      } else if (isTransporter && user.transporterId) {
-        // PHASE D: Transporters see ALL their transporter vehicles (including pending)
+      } else if (isTransporter) {
+        // STRICT ISOLATION: Transporters ONLY see their own vehicles
+        // Use session transporterId, never trust query parameters
+        if (!user.transporterId) {
+          console.warn(`[GET /api/vehicles] Transporter ${user.id} has no transporterId in session - returning empty`);
+          return res.json([]);
+        }
+        
+        // DEFENSE-IN-DEPTH: Verify session transporterId against database
+        try {
+          const dbUser = await storage.getUser(user.id);
+          if (!dbUser) {
+            console.warn(`[SECURITY] User ${user.id} not found in database`);
+            return res.json([]);
+          }
+          if (dbUser.transporterId !== user.transporterId) {
+            console.error(`[SECURITY ALERT] Session transporterId mismatch in /api/vehicles for user ${user.id}: session=${user.transporterId}, db=${dbUser.transporterId}`);
+            // Use database transporterId, update session
+            if (req.session?.user) {
+              req.session.user.transporterId = dbUser.transporterId;
+            }
+            // Query with correct transporterId
+            result = await storage.getTransporterVehicles(dbUser.transporterId!);
+            console.log(`[GET /api/vehicles] Returning ${result.length} vehicles for corrected transporter ${dbUser.transporterId}`);
+            return res.json(result || []);
+          }
+        } catch (verifyError) {
+          console.error(`[SECURITY] Failed to verify transporter in /api/vehicles:`, verifyError);
+          // Continue with session data in case of DB error
+        }
+        
+        // Cross-tenant check: if query param differs from session, log warning and use session
+        if (queryTransporterId && queryTransporterId !== user.transporterId) {
+          console.warn(`[GET /api/vehicles] SECURITY: Transporter ${user.id} tried to access transporterId ${queryTransporterId} but session has ${user.transporterId}`);
+        }
+        
         result = await storage.getTransporterVehicles(user.transporterId);
+        console.log(`[GET /api/vehicles] Returning ${result.length} vehicles for transporter ${user.transporterId}`);
       } else {
         // Drivers: Only see their own assigned vehicles (least privilege)
         result = await storage.getUserVehicles(user.id);
@@ -3364,30 +3469,73 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // GET /api/users - Admin only (or transporter can see their own users)
   app.get("/api/users", requireAuth, async (req, res) => {
     try {
-      const { transporterId, role } = req.query;
+      const { transporterId: queryTransporterId, role } = req.query;
       const user = getCurrentUser(req)!;
       const isAdmin = user.isSuperAdmin || user.role === "admin";
+      const isTransporter = user.role === "transporter";
+      
+      // STRICT DATA ISOLATION: Log session info for debugging
+      console.log(`[GET /api/users] User: ${user.id}, Role: ${user.role}, SessionTransporterId: ${user.transporterId}, QueryTransporterId: ${queryTransporterId}, RoleFilter: ${role}`);
       
       let users;
-      if (transporterId && role) {
-        if (!isAdmin && transporterId !== user.transporterId) {
-          return res.status(403).json({ error: "You can only view users from your own transporter" });
+      if (isAdmin) {
+        // Admin can query by any filter
+        if (queryTransporterId && role) {
+          users = await storage.getUsersByTransporterAndRole(queryTransporterId as string, role as string);
+        } else if (queryTransporterId) {
+          users = await storage.getUsersByTransporter(queryTransporterId as string);
+        } else {
+          users = await storage.getAllUsers();
         }
-        users = await storage.getUsersByTransporterAndRole(transporterId as string, role as string);
-      } else if (transporterId) {
-        if (!isAdmin && transporterId !== user.transporterId) {
-          return res.status(403).json({ error: "You can only view users from your own transporter" });
+      } else if (isTransporter) {
+        // STRICT ISOLATION: Transporters ONLY see their own users
+        // Use session transporterId, never trust query parameters
+        if (!user.transporterId) {
+          console.warn(`[GET /api/users] Transporter ${user.id} has no transporterId in session - returning empty`);
+          return res.json([]);
         }
-        users = await storage.getUsersByTransporter(transporterId as string);
+        
+        // DEFENSE-IN-DEPTH: Verify session transporterId against database
+        let verifiedTransporterId = user.transporterId;
+        try {
+          const dbUser = await storage.getUser(user.id);
+          if (!dbUser) {
+            console.warn(`[SECURITY] User ${user.id} not found in database`);
+            return res.json([]);
+          }
+          if (dbUser.transporterId !== user.transporterId) {
+            console.error(`[SECURITY ALERT] Session transporterId mismatch in /api/users for user ${user.id}: session=${user.transporterId}, db=${dbUser.transporterId}`);
+            // Use database transporterId, update session
+            if (req.session?.user) {
+              req.session.user.transporterId = dbUser.transporterId;
+            }
+            verifiedTransporterId = dbUser.transporterId!;
+          }
+        } catch (verifyError) {
+          console.error(`[SECURITY] Failed to verify transporter in /api/users:`, verifyError);
+          // Continue with session data in case of DB error
+        }
+        
+        // Cross-tenant check: if query param differs from session, log warning and use session
+        if (queryTransporterId && queryTransporterId !== verifiedTransporterId) {
+          console.warn(`[GET /api/users] SECURITY: Transporter ${user.id} tried to access transporterId ${queryTransporterId} but verified transporterId is ${verifiedTransporterId}`);
+        }
+        
+        if (role) {
+          users = await storage.getUsersByTransporterAndRole(verifiedTransporterId, role as string);
+        } else {
+          users = await storage.getUsersByTransporter(verifiedTransporterId);
+        }
+        console.log(`[GET /api/users] Returning ${users.length} users for transporter ${verifiedTransporterId}`);
       } else {
-        if (!isAdmin) {
-          return res.status(403).json({ error: "Admin access required to view all users" });
-        }
-        users = await storage.getAllUsers();
+        // Other roles: only see themselves
+        return res.json([]);
       }
+      
       const usersWithoutPasswords = users.map(({ password, ...u }) => u);
       res.json(usersWithoutPasswords);
     } catch (error) {
+      console.error("[GET /api/users] Error:", error);
       res.status(500).json({ error: "Failed to fetch users" });
     }
   });
@@ -5885,30 +6033,65 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ============== TRANSPORTER TRIP POSTING ==============
 
   // Create a trip with self-assign option
-  app.post("/api/transporter/trips", requireAuth, async (req: Request, res: Response) => {
+  app.post("/api/transporter/trips", requireAuth, requireTransporterWithVerification, async (req: Request, res: Response) => {
     try {
       const sessionUser = getCurrentUser(req);
+      const isAdmin = sessionUser.isSuperAdmin || sessionUser.role === "admin";
       
-      if (sessionUser.role !== "transporter" && !sessionUser.isSuperAdmin) {
+      if (sessionUser.role !== "transporter" && !isAdmin) {
         return res.status(403).json({ error: "Only transporters can post trips" });
       }
       
-      if (!sessionUser.transporterId && !sessionUser.isSuperAdmin) {
-        return res.status(400).json({ error: "No transporter associated with this user" });
+      // For transporters, verify transporterId exists and matches database
+      // For admins, they must provide transporterId in payload if doing self-assign
+      const { selfAssign, assignedDriverId, assignedVehicleId, transporterId: payloadTransporterId, ...rideData } = req.body;
+      
+      let verifiedTransporterId: string | undefined;
+      
+      if (isAdmin) {
+        // Admins must provide transporterId in payload if self-assigning
+        if (selfAssign && !payloadTransporterId) {
+          return res.status(400).json({ error: "Admins must specify transporterId in payload for self-assign" });
+        }
+        verifiedTransporterId = payloadTransporterId;
+      } else {
+        // For transporters, verify session transporterId against database
+        if (!sessionUser.transporterId) {
+          return res.status(400).json({ error: "No transporter associated with this user" });
+        }
+        
+        // Defense-in-depth: verify against database
+        try {
+          const dbUser = await storage.getUser(sessionUser.id);
+          if (!dbUser || !dbUser.transporterId) {
+            return res.status(400).json({ error: "User has no valid transporter association" });
+          }
+          if (dbUser.transporterId !== sessionUser.transporterId) {
+            console.error(`[SECURITY ALERT] Session transporterId mismatch in trip creation for user ${sessionUser.id}`);
+            // Update session with correct transporterId
+            if (req.session?.user) {
+              req.session.user.transporterId = dbUser.transporterId;
+            }
+          }
+          verifiedTransporterId = dbUser.transporterId;
+        } catch (verifyError) {
+          console.error(`[SECURITY] Failed to verify transporter in trip creation:`, verifyError);
+          verifiedTransporterId = sessionUser.transporterId;
+        }
       }
       
       // Check transporter verification
-      const transporter = await storage.getTransporter(sessionUser.transporterId);
-      if (transporter && !transporter.isVerified) {
-        return res.status(403).json({ error: "Transporter must be verified to post trips" });
+      if (verifiedTransporterId) {
+        const transporter = await storage.getTransporter(verifiedTransporterId);
+        if (transporter && !transporter.isVerified) {
+          return res.status(403).json({ error: "Transporter must be verified to post trips" });
+        }
       }
-      
-      const { selfAssign, assignedDriverId, assignedVehicleId, ...rideData } = req.body;
       
       const parseResult = insertRideSchema.safeParse({
         ...rideData,
         createdById: sessionUser.id,
-        transporterId: selfAssign ? sessionUser.transporterId : undefined,
+        transporterId: selfAssign ? verifiedTransporterId : undefined,
         assignedDriverId: selfAssign ? assignedDriverId : undefined,
         assignedVehicleId: selfAssign ? assignedVehicleId : undefined,
         status: selfAssign ? "assigned" : "pending",

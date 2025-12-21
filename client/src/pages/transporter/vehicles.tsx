@@ -267,17 +267,34 @@ export default function TransporterVehicles() {
                     data-testid="input-model"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="capacity">Capacity (in Kg)</Label>
-                  <Input 
-                    id="capacity" 
-                    type="number"
-                    placeholder="e.g., 5000"
-                    value={newVehicle.capacity}
-                    onChange={(e) => setNewVehicle({...newVehicle, capacity: e.target.value})}
-                    required
-                    data-testid="input-capacity"
-                  />
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2">
+                    <Label htmlFor="capacityValue">Capacity</Label>
+                    <Input 
+                      id="capacityValue" 
+                      type="number"
+                      placeholder={newVehicle.capacityUnit === "kg" ? "e.g., 5000" : "e.g., 5"}
+                      value={newVehicle.capacityValue}
+                      onChange={(e) => setNewVehicle({...newVehicle, capacityValue: e.target.value})}
+                      required
+                      data-testid="input-capacity"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="capacityUnit">Unit</Label>
+                    <Select 
+                      value={newVehicle.capacityUnit} 
+                      onValueChange={(v: WeightUnit) => setNewVehicle({...newVehicle, capacityUnit: v})}
+                    >
+                      <SelectTrigger id="capacityUnit" data-testid="select-capacity-unit">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="kg">Kg</SelectItem>
+                        <SelectItem value="tons">Tons</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 
                 <div className="space-y-2">
