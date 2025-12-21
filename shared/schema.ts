@@ -262,6 +262,7 @@ export type DocumentType = typeof DOCUMENT_TYPES[number];
 // Documents table
 export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entityId: text("entity_id"),
   userId: varchar("user_id").references(() => users.id),
   transporterId: varchar("transporter_id").references(() => transporters.id),
   vehicleId: varchar("vehicle_id").references(() => vehicles.id),

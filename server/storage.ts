@@ -156,6 +156,7 @@ export interface IStorage {
   getTripDocuments(tripId: string): Promise<Document[]>;
   getAllDocuments(): Promise<Document[]>;
   createDocument(document: InsertDocument): Promise<Document>;
+  replaceDocumentAtomically(oldDocumentId: string | undefined, insertDocument: InsertDocument, replacedById?: string | null): Promise<Document>;
   updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced" | "deleted", reviewedById?: string | null, rejectionReason?: string | null): Promise<void>;
   softDeleteDocument(id: string, deletedById: string): Promise<void>;
   findActiveDocumentByType(entityType: string, entityId: string, docType: string): Promise<Document | undefined>;
@@ -290,7 +291,7 @@ export class DatabaseStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const entityPrefix = insertUser.role === 'driver' ? 'D' : insertUser.role === 'customer' ? 'C' : null;
     const entityId = entityPrefix ? generateEntityId(entityPrefix) : undefined;
-    const [user] = await db.insert(users).values({ ...insertUser, entityId }).returning();
+    const [user] = await db.insert(users).values({ ...insertUser, entityId } as any).returning();
     return user;
   }
 
@@ -397,7 +398,7 @@ export class DatabaseStorage implements IStorage {
 
   async createTransporter(insertTransporter: InsertTransporter): Promise<Transporter> {
     const entityId = generateEntityId('T');
-    const [transporter] = await db.insert(transporters).values({ ...insertTransporter, entityId }).returning();
+    const [transporter] = await db.insert(transporters).values({ ...insertTransporter, entityId } as any).returning();
     return transporter;
   }
 
@@ -450,7 +451,7 @@ export class DatabaseStorage implements IStorage {
 
   async createVehicle(insertVehicle: InsertVehicle): Promise<Vehicle> {
     const entityId = generateEntityId('V');
-    const [vehicle] = await db.insert(vehicles).values({ ...insertVehicle, entityId }).returning();
+    const [vehicle] = await db.insert(vehicles).values({ ...insertVehicle, entityId } as any).returning();
     return vehicle;
   }
 
@@ -497,7 +498,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createRide(insertRide: InsertRide): Promise<Ride> {
-    const [ride] = await db.insert(rides).values(insertRide).returning();
+    const [ride] = await db.insert(rides).values(insertRide as any).returning();
     return ride;
   }
 
@@ -562,7 +563,7 @@ export class DatabaseStorage implements IStorage {
 
   // Ledger
   async createLedgerEntry(entry: InsertLedgerEntry): Promise<LedgerEntry> {
-    const [ledgerEntry] = await db.insert(ledgerEntries).values(entry).returning();
+    const [ledgerEntry] = await db.insert(ledgerEntries).values(entry as any).returning();
     return ledgerEntry;
   }
 
@@ -601,7 +602,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createBid(insertBid: InsertBid): Promise<Bid> {
-    const [bid] = await db.insert(bids).values(insertBid).returning();
+    const [bid] = await db.insert(bids).values(insertBid as any).returning();
     return bid;
   }
 
@@ -643,8 +644,33 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createDocument(insertDocument: InsertDocument): Promise<Document> {
-    const [document] = await db.insert(documents).values(insertDocument).returning();
+    const [document] = await db.insert(documents).values(insertDocument as any).returning();
     return document;
+  }
+
+  // Atomically create a new document and mark the old document (if any) as replaced.
+  // If oldDocumentId is undefined, behaves like createDocument.
+  async replaceDocumentAtomically(oldDocumentId: string | undefined, insertDocument: InsertDocument, replacedById?: string | null): Promise<Document> {
+    if (!oldDocumentId) {
+      const [document] = await db.insert(documents).values(insertDocument as any).returning();
+      return document;
+    }
+
+    const now = new Date();
+    const newDoc = await db.transaction(async (tx) => {
+      const [created] = await tx.insert(documents).values(insertDocument as any).returning();
+
+      await tx.update(documents).set({
+        status: "replaced",
+        replacedById: created.id,
+        reviewedBy: replacedById ?? null,
+        reviewedAt: now
+      }).where(eq(documents.id, oldDocumentId));
+
+      return created;
+    });
+
+    return newDoc;
   }
 
   async updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced" | "deleted", reviewedById?: string | null, rejectionReason?: string | null): Promise<void> {
@@ -703,7 +729,7 @@ export class DatabaseStorage implements IStorage {
 
   // Notifications
   async createNotification(insertNotification: InsertNotification): Promise<Notification> {
-    const [notification] = await db.insert(notifications).values(insertNotification).returning();
+    const [notification] = await db.insert(notifications).values(insertNotification as any).returning();
     return notification;
   }
 
@@ -986,6 +1012,8 @@ export class DatabaseStorage implements IStorage {
         }
       }
     });
+  }
+
   async acceptBidAtomically(rideId: string, bidId: string, acceptedByUserId: string): Promise<boolean> {
     // Atomically set the accepted bid and close bidding only if bidding is not already closed
     const updated = await db.update(rides).set({
@@ -1010,14 +1038,29 @@ export class DatabaseStorage implements IStorage {
   }
 
   // API Logs
-  async createApiLog(log: InsertApiLog): Promise<ApiLog | null> {
+  async createApiLog(log: InsertApiLog): Promise<ApiLog> {
     try {
-      const [apiLog] = await db.insert(apiLogs).values(log).returning();
+      const [apiLog] = await db.insert(apiLogs).values(log as any).returning();
       return apiLog;
     } catch (err) {
-      // Don't let API logging failures crash the app
+      // Don't let API logging failures crash the app; return a minimal fallback ApiLog
       console.error('[storage] Failed to create API log:', err instanceof Error ? err.message : 'Unknown error');
-      return null;
+      return {
+        id: '00000000-0000-0000-0000-000000000000',
+        method: log.method,
+        path: log.path,
+        statusCode: log.statusCode ?? null,
+        userId: log.userId ?? null,
+        userRole: log.userRole ?? null,
+        origin: log.origin ?? null,
+        userAgent: log.userAgent ?? null,
+        ipAddress: null,
+        requestBody: log.requestBody ?? null,
+        responseTime: null,
+        errorMessage: `logging failed: ${err instanceof Error ? err.message : String(err)}`,
+        isExternal: (log as any).isExternal ?? false,
+        createdAt: new Date()
+      } as ApiLog;
     }
   }
 
@@ -1050,12 +1093,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createRole(role: InsertRole): Promise<Role> {
-    const [newRole] = await db.insert(roles).values(role).returning();
+    const [newRole] = await db.insert(roles).values(role as any).returning();
     return newRole;
   }
 
   async updateRole(id: string, updates: Partial<InsertRole>): Promise<Role | undefined> {
-    const [updated] = await db.update(roles).set(updates).where(eq(roles.id, id)).returning();
+    const [updated] = await db.update(roles).set(updates as any).where(eq(roles.id, id)).returning();
     return updated || undefined;
   }
 
@@ -1111,12 +1154,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSavedAddress(address: InsertSavedAddress): Promise<SavedAddress> {
-    const [newAddress] = await db.insert(savedAddresses).values(address).returning();
+    const [newAddress] = await db.insert(savedAddresses).values(address as any).returning();
     return newAddress;
   }
 
   async updateSavedAddress(id: string, updates: Partial<InsertSavedAddress>): Promise<SavedAddress | undefined> {
-    const [updated] = await db.update(savedAddresses).set(updates).where(eq(savedAddresses.id, id)).returning();
+    const [updated] = await db.update(savedAddresses).set(updates as any).where(eq(savedAddresses.id, id)).returning();
     return updated || undefined;
   }
 
@@ -1144,12 +1187,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createDriverApplication(application: InsertDriverApplication): Promise<DriverApplication> {
-    const [newApplication] = await db.insert(driverApplications).values(application).returning();
+    const [newApplication] = await db.insert(driverApplications).values(application as any).returning();
     return newApplication;
   }
 
   async updateDriverApplication(id: string, updates: Partial<InsertDriverApplication>): Promise<DriverApplication | undefined> {
-    const [updated] = await db.update(driverApplications).set({ ...updates, updatedAt: new Date() }).where(eq(driverApplications.id, id)).returning();
+    const [updated] = await db.update(driverApplications).set({ ...updates, updatedAt: new Date() } as any).where(eq(driverApplications.id, id)).returning();
     return updated || undefined;
   }
 
@@ -1198,13 +1241,13 @@ export class DatabaseStorage implements IStorage {
       ...updates,
       updatedByAdminId,
       updatedAt: new Date()
-    }).where(eq(platformSettings.id, "default")).returning();
+    } as any).where(eq(platformSettings.id, "default")).returning();
     return updated;
   }
 
   // OTP Codes
   async createOtpCode(otp: InsertOtpCode): Promise<OtpCode> {
-    const [created] = await db.insert(otpCodes).values(otp).returning();
+    const [created] = await db.insert(otpCodes).values(otp as any).returning();
     return created;
   }
 

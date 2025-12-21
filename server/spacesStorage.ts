@@ -264,7 +264,7 @@ export function getSpacesStorage(): SpacesStorageService | null {
 
 export interface DocumentStorageContext {
   entityType: "driver" | "vehicle" | "transporter" | "customer" | "trip";
-  transporterId?: string;
+  transporterId?: string | null;
   vehicleId?: string;
   userId?: string;
   customerId?: string;
