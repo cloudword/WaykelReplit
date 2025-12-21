@@ -71,7 +71,9 @@ declare global {
         id: string;
         role: string;
         isSuperAdmin?: boolean;
-        transporterId?: string;
+        transporterId?: string | null;
+        isSelfDriver?: boolean;
+        name?: string;
       };
     }
   }
@@ -114,7 +116,7 @@ const resolveDriverIdentity = (user: {
   role: string;
   isSuperAdmin?: boolean;
   isSelfDriver?: boolean;
-  transporterId?: string;
+  transporterId?: string | null;
 }): DriverIdentity => {
   // Admin has full access
   if (user.isSuperAdmin || user.role === "admin") {
@@ -185,7 +187,7 @@ interface ExecutionPolicyCheck {
 }
 
 const checkExecutionPolicy = async (
-  transporter: { id: string; executionPolicy?: ExecutionPolicy | null; isOwnerOperator?: boolean; ownerDriverUserId?: string | null },
+  transporter: { id: string; executionPolicy?: ExecutionPolicy | null; isOwnerOperator?: boolean | null; ownerDriverUserId?: string | null },
   driverId: string
 ): Promise<ExecutionPolicyCheck> => {
   // Get effective policy (default based on isOwnerOperator if not set)
@@ -229,7 +231,7 @@ const checkExecutionPolicy = async (
 };
 
 // Helper to get current user from either session or token
-const getCurrentUser = (req: Request) => {
+const getCurrentUser = (req: Request): any => {
   return req.session?.user || req.tokenUser;
 };
 
@@ -296,7 +298,7 @@ const requireTransporterWithVerification = async (req: Request, res: Response, n
       // Fix the session with correct data from database
       req.session.user = {
         ...sessionUser,
-        transporterId: dbUser.transporterId
+        transporterId: dbUser.transporterId ?? undefined
       };
       // The getCurrentUser() call in handlers will now return the corrected value
     }
@@ -352,7 +354,7 @@ const requireAdminOrOwner = (getOwnerId: (req: Request) => string | undefined) =
 // Helper to check Spaces file access based on organized path structure
 async function checkSpacesFileAccess(
   key: string,
-  user: { id: string; role: string; transporterId?: string; isSuperAdmin?: boolean },
+  user: { id: string; role: string; transporterId?: string | null; isSuperAdmin?: boolean },
   storageInterface: typeof storage
 ): Promise<boolean> {
   // Normalize and validate key to prevent path traversal attacks
@@ -3128,10 +3130,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             console.error(`[SECURITY ALERT] Session transporterId mismatch in /api/vehicles for user ${user.id}: session=${user.transporterId}, db=${dbUser.transporterId}`);
             // Use database transporterId, update session
             if (req.session?.user) {
-              req.session.user.transporterId = dbUser.transporterId;
+              req.session.user.transporterId = dbUser.transporterId ?? undefined;
             }
             // Query with correct transporterId
-            result = await storage.getTransporterVehicles(dbUser.transporterId!);
+            result = await storage.getTransporterVehicles(dbUser.transporterId ?? undefined as any);
             console.log(`[GET /api/vehicles] Returning ${result.length} vehicles for corrected transporter ${dbUser.transporterId}`);
             return res.json(result || []);
           }
@@ -3507,9 +3509,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             console.error(`[SECURITY ALERT] Session transporterId mismatch in /api/users for user ${user.id}: session=${user.transporterId}, db=${dbUser.transporterId}`);
             // Use database transporterId, update session
             if (req.session?.user) {
-              req.session.user.transporterId = dbUser.transporterId;
+              req.session.user.transporterId = dbUser.transporterId ?? undefined;
             }
-            verifiedTransporterId = dbUser.transporterId!;
+            verifiedTransporterId = dbUser.transporterId ?? verifiedTransporterId;
           }
         } catch (verifyError) {
           console.error(`[SECURITY] Failed to verify transporter in /api/users:`, verifyError);
@@ -3831,15 +3833,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const entityId = data.entityType === "driver" ? data.userId :
                        data.entityType === "vehicle" ? data.vehicleId : data.transporterId;
       
+      let document;
+
       if (entityId) {
         const existingDoc = await storage.findActiveDocumentByType(data.entityType, entityId, data.type);
         if (existingDoc) {
-          // Mark the existing document as replaced
-          await storage.updateDocumentStatus(existingDoc.id, "replaced" as any, sessionUser.id, null);
+          // Atomically create the new document and mark the old one as replaced
+          document = await storage.replaceDocumentAtomically(existingDoc.id, data, sessionUser.id);
+        } else {
+          document = await storage.createDocument(data);
         }
+      } else {
+        document = await storage.createDocument(data);
       }
-      
-      const document = await storage.createDocument(data);
+
       res.status(201).json(document);
     } catch (error) {
       console.error("Document creation error:", error);
@@ -3973,14 +3980,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(503).json({ error: "No storage configured" });
       }
 
-      // If replacing (either explicitly or automatically), mark the old document as "replaced"
-      if (autoReplaceDocumentId) {
-        await storage.updateDocumentStatus(autoReplaceDocumentId, "replaced" as any, sessionUser.id, null);
-      }
-
-      // Create document record
+      // Create document record. If replacing, do it atomically to avoid invalidating the old doc prematurely.
       const docLabel = type.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-      const document = await storage.createDocument({
+      const newDocData = {
         type,
         url: fileUrl,
         entityType,
@@ -3990,7 +3992,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         expiryDate: expiryDate || undefined,
         documentName: docLabel,
         status: "pending",
-      });
+      };
+
+      let document;
+      if (autoReplaceDocumentId) {
+        document = await storage.replaceDocumentAtomically(autoReplaceDocumentId, newDocData as any, sessionUser.id);
+      } else {
+        document = await storage.createDocument(newDocData as any);
+      }
 
       res.status(201).json(document);
     } catch (error) {
@@ -4879,11 +4888,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(404).json({ error: "Ride not found" });
       }
       
-      // Check if bidding is already closed
-      if (ride.biddingStatus === "closed") {
-        return res.status(400).json({ error: "A bid has already been accepted for this trip" });
-      }
-      
       // Check authorization - super admin can accept any, customer can only accept on their rides
       const isSuperAdmin = sessionUser.isSuperAdmin;
       const isRideOwner = ride.createdById === sessionUser.id;
@@ -4891,7 +4895,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!isSuperAdmin && !isRideOwner) {
         return res.status(403).json({ error: "Only the ride owner or admin can accept bids" });
       }
-      
+
       // Verify transporter is still active/verified before accepting their bid
       if (bid.transporterId) {
         const transporter = await storage.getTransporter(bid.transporterId);
@@ -4901,6 +4905,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         if (transporter.status !== "active") {
           return res.status(400).json({ error: "This transporter's account is not verified. Cannot accept their bid." });
         }
+      }
+
+      // Atomically accept the bid: close bidding and set accepted bid only if bidding not already closed
+      const accepted = await storage.acceptBidAtomically(
+        ride.id,
+        bid.id,
+        sessionUser.id
+      );
+
+      if (!accepted) {
+        return res.status(409).json({ error: "Bidding already closed" });
       }
       
       // Compute financials with platform settings before atomic operation

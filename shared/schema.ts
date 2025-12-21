@@ -40,6 +40,7 @@ export type VehicleType = typeof VEHICLE_TYPES[number];
 // Users table (drivers, transporters, admins)
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entityId: text("entity_id").unique(),
   name: text("name").notNull(),
   username: text("username").unique(),
   email: text("email").unique(),
@@ -55,13 +56,12 @@ export const users = pgTable("users", {
   documentsComplete: boolean("documents_complete").default(false),
   profileComplete: boolean("profile_complete").default(false),
   isSelfDriver: boolean("is_self_driver").default(false),
-  // Document verification status for driver onboarding
   documentStatus: text("document_status").$type<DocumentVerificationStatus>().default("document_missing"),
   isActiveForBidding: boolean("is_active_for_bidding").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
+export const insertUserSchema = createInsertSchema(users).omit({ id: true, entityId: true, createdAt: true });
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
@@ -69,6 +69,7 @@ export type User = typeof users.$inferSelect;
 // Status flow: pending_verification -> pending_approval -> active (or rejected at any stage)
 export const transporters = pgTable("transporters", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entityId: text("entity_id").unique(),
   companyName: text("company_name").notNull(),
   ownerName: text("owner_name").notNull(),
   contact: text("contact").notNull(),
@@ -95,13 +96,14 @@ export const transporters = pgTable("transporters", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertTransporterSchema = createInsertSchema(transporters).omit({ id: true, createdAt: true });
+export const insertTransporterSchema = createInsertSchema(transporters).omit({ id: true, entityId: true, createdAt: true });
 export type InsertTransporter = z.infer<typeof insertTransporterSchema>;
 export type Transporter = typeof transporters.$inferSelect;
 
 // Vehicles table
 export const vehicles = pgTable("vehicles", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entityId: text("entity_id").unique(),
   userId: varchar("user_id").references(() => users.id),
   transporterId: varchar("transporter_id").references(() => transporters.id),
   type: text("type").notNull(),
@@ -125,7 +127,7 @@ export const vehicles = pgTable("vehicles", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertVehicleSchema = createInsertSchema(vehicles).omit({ id: true, createdAt: true });
+export const insertVehicleSchema = createInsertSchema(vehicles).omit({ id: true, entityId: true, createdAt: true });
 export type InsertVehicle = z.infer<typeof insertVehicleSchema>;
 export type Vehicle = typeof vehicles.$inferSelect;
 
@@ -260,6 +262,7 @@ export type DocumentType = typeof DOCUMENT_TYPES[number];
 // Documents table
 export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entityId: text("entity_id"),
   userId: varchar("user_id").references(() => users.id),
   transporterId: varchar("transporter_id").references(() => transporters.id),
   vehicleId: varchar("vehicle_id").references(() => vehicles.id),
