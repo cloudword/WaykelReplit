@@ -101,13 +101,14 @@ export default function TransporterVehicles() {
       const displayType = vehicleType?.name || newVehicle.type;
       
       // Step 1: Create the vehicle
+      // Note: capacityTons must be string (decimal in DB), capacityKg is integer
       const result = await api.vehicles.create({
         type: displayType,
         plateNumber: newVehicle.plateNumber,
         model: newVehicle.model,
         capacity: `${newVehicle.capacityValue} ${newVehicle.capacityUnit === "kg" ? "Kg" : "Tons"}`,
         capacityKg: capacityParsed.kg || null,
-        capacityTons: capacityParsed.tons || null,
+        capacityTons: capacityParsed.tons ? String(capacityParsed.tons) : null,
         vehicleCategory: newVehicle.vehicleCategory || null,
         vehicleTypeCode: newVehicle.vehicleTypeCode || null,
         bodyType: newVehicle.bodyType || null,

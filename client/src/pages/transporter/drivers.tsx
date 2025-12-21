@@ -113,16 +113,36 @@ export default function TransporterDrivers() {
         return;
       }
       
-      const formData = new FormData();
-      formData.append("file", licenseFile);
-      formData.append("documentType", "driving_license");
-      formData.append("entityType", "driver");
-      formData.append("userId", driverId);
-      formData.append("transporterId", user.transporterId);
+      // Convert file to base64 for the document upload API
+      const fileToBase64 = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = () => {
+            const result = reader.result as string;
+            // Remove the data URL prefix (e.g., "data:image/png;base64,")
+            const base64 = result.split(',')[1];
+            resolve(base64);
+          };
+          reader.onerror = reject;
+        });
+      };
+      
+      const fileData = await fileToBase64(licenseFile);
       
       const uploadRes = await fetch(`${API_BASE}/documents/upload`, {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fileData,
+          fileName: licenseFile.name,
+          contentType: licenseFile.type,
+          entityType: "driver",
+          type: "driving_license",
+          entityId: driverId,
+        }),
         credentials: "include",
       });
       
