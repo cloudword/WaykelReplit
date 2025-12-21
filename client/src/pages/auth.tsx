@@ -38,6 +38,8 @@ export default function AuthPage() {
       if (user.error) {
         toast.error(user.error);
       } else {
+        // Clear any stale user data before storing new user to prevent cross-tenant data leaks
+        localStorage.removeItem("currentUser");
         localStorage.setItem("currentUser", JSON.stringify(user));
         const role = user.role;
         if (role === "driver") setLocation("/driver");
