@@ -38,6 +38,7 @@ export function OnboardingTracker() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
   const [userNavigated, setUserNavigated] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Calculate suggested step based on completion status
   const getSuggestedStep = (data: OnboardingStatus) => {
@@ -76,9 +77,13 @@ export function OnboardingTracker() {
         }
         
         setStatus(data);
+        setError(null);
+      } else if (response.status === 500) {
+        setError("Unable to load onboarding status. Please refresh the page.");
       }
-    } catch (error) {
-      console.error("Failed to fetch onboarding status:", error);
+    } catch (err) {
+      console.error("Failed to fetch onboarding status:", err);
+      setError("Connection error. Please check your internet connection.");
     } finally {
       setLoading(false);
     }
@@ -119,6 +124,26 @@ export function OnboardingTracker() {
           <div className="animate-pulse space-y-4">
             <div className="h-4 bg-muted rounded w-1/3"></div>
             <div className="h-16 bg-muted rounded"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="border-red-200 bg-red-50" data-testid="onboarding-tracker-error">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-3 text-red-700">
+            <span className="text-sm">{error}</span>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => { setError(null); setLoading(true); fetchStatus(); }}
+              className="ml-auto"
+            >
+              Retry
+            </Button>
           </div>
         </CardContent>
       </Card>

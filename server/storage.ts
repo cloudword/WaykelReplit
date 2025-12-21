@@ -1274,23 +1274,27 @@ export class DatabaseStorage implements IStorage {
       d.documentStatus === "approved" || driverIdsWithVerifiedLicense.includes(d.id)
     );
     
-    // Count pending vehicle documents
-    const pendingVehicleDocs = await db.select().from(documents)
-      .where(and(
-        eq(documents.entityType, "vehicle"),
-        inArray(documents.entityId, transporterVehicles.map(v => v.id)),
-        eq(documents.status, "pending"),
-        not(eq(documents.status, "deleted"))
-      ));
+    // Count pending vehicle documents (guard against empty array for inArray)
+    const pendingVehicleDocs = transporterVehicles.length > 0 
+      ? await db.select().from(documents)
+        .where(and(
+          eq(documents.entityType, "vehicle"),
+          inArray(documents.entityId, transporterVehicles.map(v => v.id)),
+          eq(documents.status, "pending"),
+          not(eq(documents.status, "deleted"))
+        ))
+      : [];
     
-    // Count pending driver documents
-    const pendingDriverDocs = await db.select().from(documents)
-      .where(and(
-        eq(documents.entityType, "driver"),
-        inArray(documents.entityId, transporterDrivers.map(d => d.id)),
-        eq(documents.status, "pending"),
-        not(eq(documents.status, "deleted"))
-      ));
+    // Count pending driver documents (guard against empty array for inArray)
+    const pendingDriverDocs = transporterDrivers.length > 0 
+      ? await db.select().from(documents)
+        .where(and(
+          eq(documents.entityType, "driver"),
+          inArray(documents.entityId, transporterDrivers.map(d => d.id)),
+          eq(documents.status, "pending"),
+          not(eq(documents.status, "deleted"))
+        ))
+      : [];
 
     return {
       transporterType: transporter.transporterType || "business",
