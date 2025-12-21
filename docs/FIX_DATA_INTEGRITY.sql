@@ -17,7 +17,7 @@ SELECT 'Orphaned Bids', COUNT(*) FROM bids WHERE transporter_id IS NULL
 UNION ALL
 SELECT 'Orphaned Drivers', COUNT(*) FROM users WHERE role = 'driver' AND transporter_id IS NULL
 UNION ALL
-SELECT 'Rides without Customer', COUNT(*) FROM rides WHERE customer_id IS NULL;
+SELECT 'Rides without Creator', COUNT(*) FROM rides WHERE created_by_id IS NULL;
 
 -- List orphaned vehicles to review
 SELECT v.id, v.plate_number, v.type, v.user_id, u.name as user_name, u.transporter_id as user_transporter
@@ -63,7 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_vehicles_transporter_status ON vehicles(transport
 CREATE INDEX IF NOT EXISTS idx_bids_transporter_id ON bids(transporter_id);
 CREATE INDEX IF NOT EXISTS idx_bids_ride_id ON bids(ride_id);
 CREATE INDEX IF NOT EXISTS idx_bids_status ON bids(status);
-CREATE INDEX IF NOT EXISTS idx_rides_customer_id ON rides(customer_id);
+CREATE INDEX IF NOT EXISTS idx_rides_created_by_id ON rides(created_by_id);
 CREATE INDEX IF NOT EXISTS idx_rides_transporter_id ON rides(transporter_id);
 CREATE INDEX IF NOT EXISTS idx_rides_status ON rides(status);
 CREATE INDEX IF NOT EXISTS idx_users_transporter_role ON users(transporter_id, role);
@@ -113,7 +113,7 @@ WHERE EXISTS (
     SELECT 1 FROM documents d 
     WHERE d.vehicle_id = v.id 
     AND d.entity_type = 'vehicle'
-    AND LOWER(d.document_type) IN ('rc', 'registration_certificate', 'vehicle_rc')
+    AND LOWER(d.type) IN ('rc', 'registration_certificate', 'vehicle_rc')
     AND d.status = 'verified'
 );
 
@@ -125,7 +125,7 @@ AND EXISTS (
     SELECT 1 FROM documents d 
     WHERE d.user_id = u.id 
     AND d.entity_type = 'driver'
-    AND LOWER(d.document_type) IN ('driving_license', 'license', 'dl')
+    AND LOWER(d.type) IN ('driving_license', 'license', 'dl')
     AND d.status = 'verified'
 );
 
