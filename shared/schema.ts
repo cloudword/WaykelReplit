@@ -153,6 +153,7 @@ export const rides = pgTable("rides", {
   weightTons: decimal("weight_tons", { precision: 10, scale: 2 }),
   weightUnit: text("weight_unit").$type<"kg" | "tons">().default("kg"),
   requiredVehicleType: text("required_vehicle_type"),
+  requiredVehicleCategory: text("required_vehicle_category"),
   customerName: text("customer_name"),
   customerPhone: text("customer_phone"),
   incentive: decimal("incentive", { precision: 10, scale: 2 }),
