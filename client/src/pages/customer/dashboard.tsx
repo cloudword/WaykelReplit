@@ -206,15 +206,15 @@ export default function CustomerDashboard() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="any">Any Vehicle</SelectItem>
-                      <SelectItem value="Tata Ace">Tata Ace (0.5-1T)</SelectItem>
-                      <SelectItem value="Bolero">Bolero (1-2T)</SelectItem>
-                      <SelectItem value="Pickup">Pickup (1.5-2T)</SelectItem>
-                      <SelectItem value="14ft">14ft Container (3-5T)</SelectItem>
-                      <SelectItem value="17ft">17ft Container (5-7T)</SelectItem>
-                      <SelectItem value="20ft">20ft Container (7-10T)</SelectItem>
-                      <SelectItem value="22ft">22ft Container (10-15T)</SelectItem>
-                      <SelectItem value="32ft">32ft Container (15-25T)</SelectItem>
-                      <SelectItem value="Trailer">Trailer (25T+)</SelectItem>
+                      <SelectItem value="Tata Ace">Tata Ace (500-1000 Kg)</SelectItem>
+                      <SelectItem value="Bolero">Bolero (1000-2000 Kg)</SelectItem>
+                      <SelectItem value="Pickup">Pickup (1500-2000 Kg)</SelectItem>
+                      <SelectItem value="14ft">14ft Container (3000-5000 Kg)</SelectItem>
+                      <SelectItem value="17ft">17ft Container (5000-7000 Kg)</SelectItem>
+                      <SelectItem value="20ft">20ft Container (7000-10000 Kg)</SelectItem>
+                      <SelectItem value="22ft">22ft Container (10000-15000 Kg)</SelectItem>
+                      <SelectItem value="32ft">32ft Container (15000-25000 Kg)</SelectItem>
+                      <SelectItem value="Trailer">Trailer (25000+ Kg)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -231,11 +231,11 @@ export default function CustomerDashboard() {
                       <SelectValue placeholder="Select" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1-2 Ton">1-2 Ton</SelectItem>
-                      <SelectItem value="2-5 Ton">2-5 Ton</SelectItem>
-                      <SelectItem value="5-10 Ton">5-10 Ton</SelectItem>
-                      <SelectItem value="10-16 Ton">10-16 Ton</SelectItem>
-                      <SelectItem value="16+ Ton">16+ Ton</SelectItem>
+                      <SelectItem value="500-1000 Kg">500-1000 Kg</SelectItem>
+                      <SelectItem value="1000-2000 Kg">1000-2000 Kg</SelectItem>
+                      <SelectItem value="2000-5000 Kg">2000-5000 Kg</SelectItem>
+                      <SelectItem value="5000-10000 Kg">5000-10000 Kg</SelectItem>
+                      <SelectItem value="10000+ Kg">10000+ Kg</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

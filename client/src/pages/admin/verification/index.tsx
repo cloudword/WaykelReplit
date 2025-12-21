@@ -123,6 +123,12 @@ export default function VerificationOverview() {
         return;
       }
       
+      // If already a full URL (e.g., legacy documents), use directly
+      if (storagePath.startsWith("http://") || storagePath.startsWith("https://")) {
+        setPreviewUrl(storagePath);
+        return;
+      }
+      
       const response = await fetch(`${API_BASE}/spaces/signed-url`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

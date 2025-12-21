@@ -1,0 +1,220 @@
+Below is a production-grade, India-specific vehicle category & vehicle list, aligned with Indian logistics norms (RTO / GST / market usage) and what platforms like Porter, BlackBuck, Delhivery Freight, etc. use.
+
+I’m structuring this in layers so it’s easy to implement in DB + UI + pricing logic.
+
+1️⃣ Vehicle Category (Top-level)
+
+These are fixed enums. Do NOT allow free text.
+
+🚚 VEHICLE_CATEGORIES (India)
+
+Two Wheeler
+
+Three Wheeler
+
+Light Commercial Vehicle (LCV)
+
+Medium Commercial Vehicle (MCV)
+
+Heavy Commercial Vehicle (HCV)
+
+Special Purpose Vehicle (SPV)
+
+2️⃣ Vehicle Types / Listings (Under Each Category)
+
+This is the complete practical list for Indian geo.
+
+1️⃣ Two Wheeler
+
+Used for documents, parcels, hyperlocal delivery.
+
+Vehicle Type	Payload Capacity
+Bike / Scooter	Up to 40 kg
+2️⃣ Three Wheeler (Auto / Small Load)
+
+Used heavily in urban & semi-urban logistics.
+
+Vehicle Type	Payload
+Cargo Auto	500 – 700 kg
+E-Rickshaw (Cargo)	300 – 500 kg
+3️⃣ Light Commercial Vehicle (LCV)
+
+Most common category.
+
+Vehicle Type	Typical Payload
+Tata Ace / Chota Hathi	750 kg
+Mahindra Jeeto	600 kg
+Ashok Leyland Dost	1 – 1.25 ton
+Pickup 407 (Closed/Open)	1.5 – 2.5 ton
+Bolero Pickup	1.5 ton
+4️⃣ Medium Commercial Vehicle (MCV)
+
+Used for intercity and bulk movement.
+
+Vehicle Type	Payload
+Eicher 14 ft	3 – 4 ton
+Eicher 17 ft	4 – 5 ton
+Eicher 19 ft	5 – 7 ton
+Tata 1109 / 709	3 – 5 ton
+5️⃣ Heavy Commercial Vehicle (HCV)
+
+Long-haul freight.
+
+Vehicle Type	Payload
+20 ft Container	6 – 7 ton
+22 ft Container	7 – 8 ton
+24 ft Container	8 – 10 ton
+32 ft Single Axle	7 – 8 ton
+32 ft Multi Axle	15 – 18 ton
+Trailer (40 ft)	20 – 25 ton
+6️⃣ Special Purpose Vehicle (SPV)
+
+Optional but important for scale.
+
+Vehicle Type	Use Case
+Refrigerated Truck	Cold chain
+Tanker	Liquid transport
+Car Carrier	Vehicle transport
+Tipper / Dumper	Construction
+Flatbed Truck	Machinery
+Crane / Hydra	Heavy lifting
+3️⃣ Body Type (Independent Dimension – VERY IMPORTANT)
+
+Do NOT mix body type with vehicle type.
+
+BODY_TYPES
+
+Open
+
+Closed / Box
+
+Container
+
+Flatbed
+
+Refrigerated
+
+Tanker
+
+This allows:
+
+Same vehicle (14 ft) to have multiple body options
+
+Cleaner pricing rules
+
+4️⃣ Vehicle Length (Standardized)
+
+Use fixed selectable options.
+
+Length Label	Approx
+8 ft	Mini pickup
+10 ft	Tata Ace
+14 ft	407 / Eicher
+17 ft	MCV
+19 ft	MCV
+22 ft	Container
+24 ft	Container
+32 ft	HCV
+40 ft	Trailer
+5️⃣ Axle Type (Required for pricing)
+AXLE_TYPES
+
+Single Axle
+
+Multi Axle
+
+6️⃣ Fuel Type (Optional but useful)
+
+Diesel
+
+Petrol
+
+CNG
+
+Electric
+
+7️⃣ How this should appear in UI (IMPORTANT)
+Transporter – Add Vehicle Flow
+
+Step 1
+
+Vehicle Category (dropdown)
+
+Step 2
+
+Vehicle Type (filtered by category)
+
+Step 3
+
+Body Type
+
+Vehicle Length
+
+Axle Type
+
+Step 4
+
+RC Upload (mandatory)
+
+Customer – Book Trip Flow
+
+Customer should see friendly labels, not technical ones.
+
+Example:
+
+“14 ft Closed Truck (3–4 Tons)”
+
+Under the hood:
+
+{
+  "category": "LCV",
+  "vehicle_type": "Eicher 14 ft",
+  "body_type": "Closed",
+  "payload_capacity": 4000
+}
+
+8️⃣ Database Design (Recommended)
+vehicle_categories
+id | name | code
+
+vehicle_types
+id
+category_id
+name
+min_payload
+max_payload
+default_length
+
+body_types
+id | name
+
+vehicles
+vehicle_type_id
+body_type_id
+length_ft
+axle_type
+fuel_type
+
+9️⃣ Enforcement Rules (Critical)
+
+Transporter can select only from predefined lists
+
+Customer can only book from enabled vehicle types
+
+Pricing engine maps strictly to vehicle_type + body_type + length
+
+10️⃣ Why this list works for Waykel
+
+✔ Covers 95% Indian freight use cases
+✔ Scales from hyperlocal → long-haul
+✔ Prevents data inconsistency
+✔ Enables pricing automation
+✔ Works for B2B & SME customers
+
+11️⃣ Final Recommendation (LOCK THIS)
+
+Freeze categories & vehicle types
+
+Allow admin-only addition in future
+
+Never allow free-text vehicle entry

@@ -234,11 +234,11 @@ export default function TransporterVehicles() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="capacity">Capacity (in tons)</Label>
+                  <Label htmlFor="capacity">Capacity (in Kg)</Label>
                   <Input 
                     id="capacity" 
                     type="number"
-                    placeholder="e.g., 5"
+                    placeholder="e.g., 5000"
                     value={newVehicle.capacity}
                     onChange={(e) => setNewVehicle({...newVehicle, capacity: e.target.value})}
                     required
@@ -335,7 +335,7 @@ export default function TransporterVehicles() {
                       </div>
                       <div className="space-y-1 text-sm text-gray-600">
                         <p>{vehicle.model || vehicle.type}</p>
-                        <p>Type: {vehicle.type} {vehicle.capacity && `• ${vehicle.capacity} tons`}</p>
+                        <p>Type: {vehicle.type} {vehicle.capacity && `• ${/^\d+$/.test(vehicle.capacity) ? `${vehicle.capacity} Kg` : vehicle.capacity}`}</p>
                       </div>
                       {/* Vehicle Documents */}
                       {getVehicleDocuments(vehicle.id).length > 0 && (
