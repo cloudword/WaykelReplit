@@ -11,6 +11,10 @@ import { Truck, Plus, Search, FileText, CheckCircle, Clock, AlertCircle, Upload,
 import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
+import { 
+  VEHICLE_CATEGORIES, VEHICLE_TYPES, BODY_TYPES, VEHICLE_LENGTHS, AXLE_TYPES, FUEL_TYPES,
+  getVehicleTypesByCategory, parseWeightInput, WeightUnit, VehicleCategoryCode
+} from "@shared/vehicleData";
 
 export default function TransporterVehicles() {
   const [_, setLocation] = useLocation();
@@ -20,10 +24,17 @@ export default function TransporterVehicles() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [newVehicle, setNewVehicle] = useState({
+    vehicleCategory: "" as VehicleCategoryCode | "",
+    vehicleTypeCode: "",
     type: "",
     plateNumber: "",
     model: "",
-    capacity: "",
+    capacityValue: "",
+    capacityUnit: "kg" as WeightUnit,
+    bodyType: "",
+    lengthFt: "",
+    axleType: "",
+    fuelType: "",
   });
   const [rcFile, setRcFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -80,12 +91,29 @@ export default function TransporterVehicles() {
     
     setIsSubmitting(true);
     try {
+      // Calculate capacity in both units
+      const capacityParsed = newVehicle.capacityValue 
+        ? parseWeightInput(newVehicle.capacityValue, newVehicle.capacityUnit)
+        : { kg: 0, tons: 0 };
+      
+      // Get vehicle type name from code
+      const vehicleType = VEHICLE_TYPES.find(vt => vt.code === newVehicle.vehicleTypeCode);
+      const displayType = vehicleType?.name || newVehicle.type;
+      
       // Step 1: Create the vehicle
       const result = await api.vehicles.create({
-        type: newVehicle.type,
+        type: displayType,
         plateNumber: newVehicle.plateNumber,
         model: newVehicle.model,
-        capacity: newVehicle.capacity,
+        capacity: `${newVehicle.capacityValue} ${newVehicle.capacityUnit === "kg" ? "Kg" : "Tons"}`,
+        capacityKg: capacityParsed.kg || null,
+        capacityTons: capacityParsed.tons || null,
+        vehicleCategory: newVehicle.vehicleCategory || null,
+        vehicleTypeCode: newVehicle.vehicleTypeCode || null,
+        bodyType: newVehicle.bodyType || null,
+        lengthFt: newVehicle.lengthFt ? parseInt(newVehicle.lengthFt) : null,
+        axleType: newVehicle.axleType || null,
+        fuelType: newVehicle.fuelType || null,
         transporterId: user.transporterId,
         status: "active",
       });
@@ -103,7 +131,10 @@ export default function TransporterVehicles() {
         console.error("No vehicle ID returned from API:", result);
         toast.error("Vehicle created but could not upload RC - no vehicle ID returned");
         setShowAddDialog(false);
-        setNewVehicle({ type: "", plateNumber: "", model: "", capacity: "" });
+        setNewVehicle({ 
+          vehicleCategory: "", vehicleTypeCode: "", type: "", plateNumber: "", model: "", 
+          capacityValue: "", capacityUnit: "kg", bodyType: "", lengthFt: "", axleType: "", fuelType: "" 
+        });
         setRcFile(null);
         if (rcInputRef.current) rcInputRef.current.value = "";
         loadVehicles();
@@ -132,7 +163,10 @@ export default function TransporterVehicles() {
       }
       
       setShowAddDialog(false);
-      setNewVehicle({ type: "", plateNumber: "", model: "", capacity: "" });
+      setNewVehicle({ 
+        vehicleCategory: "", vehicleTypeCode: "", type: "", plateNumber: "", model: "", 
+        capacityValue: "", capacityUnit: "kg", bodyType: "", lengthFt: "", axleType: "", fuelType: "" 
+      });
       setRcFile(null);
       if (rcInputRef.current) rcInputRef.current.value = "";
       loadVehicles();

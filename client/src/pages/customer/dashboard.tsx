@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MapPin, Package, Truck, Calendar, Clock, Bell, User, Hash, Scale, Zap } from "lucide-react";
 import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
+import { VEHICLE_CATEGORIES, VEHICLE_TYPES, getVehicleTypeDisplay, parseWeightInput, WeightUnit } from "@shared/vehicleData";
 
 export default function CustomerDashboard() {
   const [_, setLocation] = useLocation();
@@ -24,7 +25,8 @@ export default function CustomerDashboard() {
     dropPincode: "",
     cargoType: "",
     weight: "",
-    weightKg: "",
+    weightValue: "",
+    weightUnit: "kg" as WeightUnit,
     requiredVehicleType: "",
     date: "",
     pickupTime: "",
@@ -38,6 +40,16 @@ export default function CustomerDashboard() {
     setIsLoading(true);
     
     try {
+      // Calculate weight in both units
+      const weightParsed = formData.weightValue 
+        ? parseWeightInput(formData.weightValue, formData.weightUnit)
+        : { kg: 0, tons: 0 };
+      
+      // Format display weight
+      const displayWeight = formData.weightValue 
+        ? `${formData.weightValue} ${formData.weightUnit === "kg" ? "Kg" : "Tons"}`
+        : formData.weight;
+      
       const rideData = {
         pickupLocation: formData.pickupLocation,
         dropLocation: formData.dropLocation,
@@ -50,8 +62,10 @@ export default function CustomerDashboard() {
         price: formData.budgetPrice || "0.00",
         distance: "TBD",
         cargoType: formData.cargoType,
-        weight: formData.weight,
-        weightKg: formData.weightKg ? parseInt(formData.weightKg) : null,
+        weight: displayWeight || formData.weight,
+        weightKg: weightParsed.kg || null,
+        weightTons: weightParsed.tons || null,
+        weightUnit: formData.weightUnit,
         requiredVehicleType: formData.requiredVehicleType || null,
         customerName: formData.customerName,
         customerPhone: formData.customerPhone,
@@ -206,53 +220,53 @@ export default function CustomerDashboard() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="any">Any Vehicle</SelectItem>
-                      <SelectItem value="Tata Ace">Tata Ace (500-1000 Kg)</SelectItem>
-                      <SelectItem value="Bolero">Bolero (1000-2000 Kg)</SelectItem>
-                      <SelectItem value="Pickup">Pickup (1500-2000 Kg)</SelectItem>
-                      <SelectItem value="14ft">14ft Container (3000-5000 Kg)</SelectItem>
-                      <SelectItem value="17ft">17ft Container (5000-7000 Kg)</SelectItem>
-                      <SelectItem value="20ft">20ft Container (7000-10000 Kg)</SelectItem>
-                      <SelectItem value="22ft">22ft Container (10000-15000 Kg)</SelectItem>
-                      <SelectItem value="32ft">32ft Container (15000-25000 Kg)</SelectItem>
-                      <SelectItem value="Trailer">Trailer (25000+ Kg)</SelectItem>
+                      {VEHICLE_CATEGORIES.map(cat => (
+                        <div key={cat.code}>
+                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted">{cat.name}</div>
+                          {VEHICLE_TYPES.filter(vt => vt.category === cat.code).map(vt => (
+                            <SelectItem key={vt.code} value={vt.code}>{getVehicleTypeDisplay(vt)}</SelectItem>
+                          ))}
+                        </div>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2 text-sm">
-                    <Scale className="h-4 w-4 text-amber-500" />
-                    Weight Category
-                  </Label>
-                  <Select onValueChange={(v) => setFormData({ ...formData, weight: v })}>
-                    <SelectTrigger data-testid="select-weight">
-                      <SelectValue placeholder="Select" />
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-sm">
+                  <Scale className="h-4 w-4 text-amber-500" />
+                  Load Weight
+                </Label>
+                <div className="flex gap-2">
+                  <Input 
+                    type="number"
+                    placeholder={formData.weightUnit === "kg" ? "e.g. 5000" : "e.g. 5"}
+                    value={formData.weightValue}
+                    onChange={(e) => setFormData({ ...formData, weightValue: e.target.value })}
+                    className="flex-1"
+                    data-testid="input-weight-value"
+                  />
+                  <Select 
+                    value={formData.weightUnit} 
+                    onValueChange={(v: WeightUnit) => setFormData({ ...formData, weightUnit: v })}
+                  >
+                    <SelectTrigger className="w-24" data-testid="select-weight-unit">
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="500-1000 Kg">500-1000 Kg</SelectItem>
-                      <SelectItem value="1000-2000 Kg">1000-2000 Kg</SelectItem>
-                      <SelectItem value="2000-5000 Kg">2000-5000 Kg</SelectItem>
-                      <SelectItem value="5000-10000 Kg">5000-10000 Kg</SelectItem>
-                      <SelectItem value="10000+ Kg">10000+ Kg</SelectItem>
+                      <SelectItem value="kg">Kg</SelectItem>
+                      <SelectItem value="tons">Tons</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2 text-sm">
-                    <Scale className="h-4 w-4 text-amber-600" />
-                    Exact Weight (Kg)
-                  </Label>
-                  <Input 
-                    type="number"
-                    placeholder="e.g. 5000"
-                    value={formData.weightKg}
-                    onChange={(e) => setFormData({ ...formData, weightKg: e.target.value })}
-                    data-testid="input-weight-kg"
-                  />
-                </div>
+                {formData.weightValue && (
+                  <p className="text-xs text-muted-foreground">
+                    {formData.weightUnit === "kg" 
+                      ? `= ${parseWeightInput(formData.weightValue, "kg").tons} Tons`
+                      : `= ${parseWeightInput(formData.weightValue, "tons").kg} Kg`}
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
