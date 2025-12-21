@@ -298,59 +298,9 @@ export default function TransporterDashboard() {
         )}
 
         {transporter && !transporter.isVerified && transporter.status !== "rejected" && (
-          <Card className="mb-6 border-amber-200 bg-amber-50" data-testid="verification-banner">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-4">
-                <div className="h-10 w-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <FileText className="h-5 w-5 text-amber-600" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-amber-800">Account Verification Required</h3>
-                  <p className="text-sm text-amber-700 mt-1">
-                    To access the marketplace and receive trip requests, please complete your business verification:
-                  </p>
-                  <ul className="text-sm text-amber-700 mt-2 space-y-1">
-                    <li className="flex items-center gap-2">
-                      {transporter.documentsComplete ? (
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <div className="h-4 w-4 rounded-full border-2 border-amber-400" />
-                      )}
-                      Upload business documents (GST, PAN, Business Registration)
-                    </li>
-                    <li className="flex items-center gap-2">
-                      {stats.totalVehicles > 0 ? (
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <div className="h-4 w-4 rounded-full border-2 border-amber-400" />
-                      )}
-                      Add at least one vehicle
-                    </li>
-                    <li className="flex items-center gap-2">
-                      {vehicles.some((v: any) => v.documentsComplete) ? (
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <div className="h-4 w-4 rounded-full border-2 border-amber-400" />
-                      )}
-                      Complete vehicle documents (RC, Insurance, Fitness)
-                    </li>
-                  </ul>
-                  <div className="flex gap-2 mt-4">
-                    <Button size="sm" onClick={() => setLocation("/transporter/documents")} data-testid="button-complete-verification">
-                      <FileText className="h-4 w-4 mr-2" />
-                      Upload Documents
-                    </Button>
-                    {stats.totalVehicles === 0 && (
-                      <Button size="sm" variant="outline" onClick={() => setLocation("/transporter/vehicles")}>
-                        <Truck className="h-4 w-4 mr-2" />
-                        Add Vehicle
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="mb-6">
+            <OnboardingTracker />
+          </div>
         )}
 
         {transporter && transporter.isVerified && (
@@ -365,12 +315,6 @@ export default function TransporterDashboard() {
               </div>
             </CardContent>
           </Card>
-        )}
-
-        {transporter && transporter.status === "active" && (
-          <div className="mb-6">
-            <OnboardingTracker />
-          </div>
         )}
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
