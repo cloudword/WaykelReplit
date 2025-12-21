@@ -123,9 +123,9 @@ export default function VerificationVehicles() {
         body: JSON.stringify({ key: url })
       });
       const data = await response.json();
-      setPreviewUrl(data.url || url);
+      setPreviewUrl(data.signedUrl || data.url || url);
     } catch {
-      setPreviewUrl(url);
+      toast.error("Failed to load document preview");
     }
   };
 

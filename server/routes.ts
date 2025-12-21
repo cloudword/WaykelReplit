@@ -1256,7 +1256,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
 
     try {
-      const { pickupLocation, dropLocation, pickupTime, date, price, distance, cargoType, weight } = req.body;
+      const { 
+        pickupLocation, dropLocation, pickupTime, date, price, distance, cargoType, weight,
+        weightKg, weightTons, weightUnit, requiredVehicleType, requiredVehicleCategory
+      } = req.body;
       
       // Validate required fields
       if (!pickupLocation || !dropLocation) {
@@ -1278,6 +1281,31 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         });
       }
 
+      // Handle weight conversion - accept weightKg/weightTons or legacy weight field
+      let finalWeightKg = weightKg;
+      let finalWeightTons = weightTons;
+      let finalWeight = weight;
+      
+      if (weightKg || weightTons) {
+        // New format: dual weight fields
+        finalWeightKg = weightKg ? parseFloat(weightKg) : null;
+        finalWeightTons = weightTons ? parseFloat(weightTons) : null;
+        
+        // Auto-convert if only one is provided
+        if (finalWeightKg && !finalWeightTons) {
+          finalWeightTons = Math.round(finalWeightKg / 1000 * 100) / 100;
+        } else if (finalWeightTons && !finalWeightKg) {
+          finalWeightKg = Math.round(finalWeightTons * 1000);
+        }
+        
+        // Generate display weight from unit preference
+        if (weightUnit === "tons" && finalWeightTons) {
+          finalWeight = `${finalWeightTons} Tons`;
+        } else if (finalWeightKg) {
+          finalWeight = `${finalWeightKg} Kg`;
+        }
+      }
+
       const rideData = {
         ...req.body,
         createdById: user.id,
@@ -1285,7 +1313,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         // Provide defaults for fields that may not be sent by customer portal
         distance: distance || "TBD",
         cargoType: cargoType || "General",
-        weight: weight || "N/A",
+        weight: finalWeight || "N/A",
+        weightKg: finalWeightKg || null,
+        weightTons: finalWeightTons || null,
+        requiredVehicleType: requiredVehicleType || null,
+        requiredVehicleCategory: requiredVehicleCategory || null,
       };
       
       const ride = await storage.createRide(rideData);

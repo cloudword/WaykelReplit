@@ -136,10 +136,11 @@ export default function DriverAddVehicle() {
               </div>
 
               <div>
-                <Label htmlFor="capacity">Load Capacity *</Label>
+                <Label htmlFor="capacity">Load Capacity (Kg) *</Label>
                 <Input 
                   id="capacity" 
-                  placeholder="e.g., 1.5 tons, 750 kg"
+                  type="number"
+                  placeholder="e.g., 5000"
                   value={formData.capacity}
                   onChange={(e) => setFormData({...formData, capacity: e.target.value})}
                   required
