@@ -4879,11 +4879,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(404).json({ error: "Ride not found" });
       }
       
-      // Check if bidding is already closed
-      if (ride.biddingStatus === "closed") {
-        return res.status(400).json({ error: "A bid has already been accepted for this trip" });
-      }
-      
       // Check authorization - super admin can accept any, customer can only accept on their rides
       const isSuperAdmin = sessionUser.isSuperAdmin;
       const isRideOwner = ride.createdById === sessionUser.id;
@@ -4891,7 +4886,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!isSuperAdmin && !isRideOwner) {
         return res.status(403).json({ error: "Only the ride owner or admin can accept bids" });
       }
-      
+
       // Verify transporter is still active/verified before accepting their bid
       if (bid.transporterId) {
         const transporter = await storage.getTransporter(bid.transporterId);
@@ -4901,6 +4896,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         if (transporter.status !== "active") {
           return res.status(400).json({ error: "This transporter's account is not verified. Cannot accept their bid." });
         }
+      }
+
+      // Atomically accept the bid: close bidding and set accepted bid only if bidding not already closed
+      const accepted = await storage.acceptBidAtomically(
+        ride.id,
+        bid.id,
+        sessionUser.id
+      );
+
+      if (!accepted) {
+        return res.status(409).json({ error: "Bidding already closed" });
       }
       
       // Compute financials with platform settings before atomic operation

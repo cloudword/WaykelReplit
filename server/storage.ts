@@ -121,6 +121,23 @@ export interface IStorage {
   getRideLedgerEntries(rideId: string): Promise<LedgerEntry[]>;
   getTransporterLedgerEntries(transporterId: string): Promise<LedgerEntry[]>;
   
+  // Atomic accepts
+  acceptBidAtomic(params: {
+    bidId: string;
+    rideId: string;
+    transporterId: string | null;
+    acceptedByUserId: string;
+    financials: {
+      finalPrice: string;
+      platformFee: string;
+      transporterEarning: string;
+      platformFeePercent: string;
+      shadowPlatformFee?: string;
+      shadowPlatformFeePercent?: string;
+    };
+  }): Promise<void>;
+  acceptBidAtomically(rideId: string, bidId: string, acceptedByUserId: string): Promise<boolean>;  
+  
   // Bids
   getBid(id: string): Promise<Bid | undefined>;
   getRideBids(rideId: string): Promise<Bid[]>;
@@ -969,6 +986,16 @@ export class DatabaseStorage implements IStorage {
         }
       }
     });
+  async acceptBidAtomically(rideId: string, bidId: string, acceptedByUserId: string): Promise<boolean> {
+    // Atomically set the accepted bid and close bidding only if bidding is not already closed
+    const updated = await db.update(rides).set({
+      biddingStatus: "closed",
+      acceptedBidId: bidId,
+      acceptedByUserId: acceptedByUserId,
+      acceptedAt: new Date()
+    }).where(and(eq(rides.id, rideId), sql`${rides.biddingStatus} != 'closed'`)).returning();
+
+    return Array.isArray(updated) && updated.length === 1;
   }
 
   async selfAssignRide(rideId: string, transporterId: string, driverId: string, vehicleId: string): Promise<void> {
