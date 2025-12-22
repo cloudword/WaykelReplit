@@ -714,17 +714,21 @@ export function DocumentUpload({
         <DialogHeader>
           <DialogTitle>Document Preview</DialogTitle>
         </DialogHeader>
-        <div className="flex justify-center">
-          {previewUrl && (
-            previewUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-              <img src={previewUrl} alt="Document" className="max-w-full max-h-[70vh] object-contain" />
-            ) : (
-              <iframe src={previewUrl} className="w-full h-[70vh]" title="Document Preview" />
-            )
-          )}
-        </div>
+
+        {previewUrl?.endsWith(".pdf") ? (
+          <iframe
+            src={previewUrl}
+            className="w-full h-[80vh]"
+          />
+        ) : (
+          <img
+            src={previewUrl}
+            className="max-h-[80vh] mx-auto"
+          />
+        )}
+
         <DialogFooter>
-          <Button variant="outline" onClick={() => setPreviewUrl(null)}>Close</Button>
+          <Button onClick={() => setPreviewUrl(null)}>Close</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
