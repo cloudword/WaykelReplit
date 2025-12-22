@@ -59,6 +59,7 @@ export interface IStorage {
   
   // Transporters
   getTransporter(id: string): Promise<Transporter | undefined>;
+  getTransporterByEntityId(entityId: string): Promise<Transporter | undefined>;
   getAllTransporters(): Promise<Transporter[]>;
   getAllTransportersSafe(): Promise<{
     id: string;
@@ -344,6 +345,11 @@ export class DatabaseStorage implements IStorage {
   // Transporters
   async getTransporter(id: string): Promise<Transporter | undefined> {
     const [transporter] = await db.select().from(transporters).where(eq(transporters.id, id));
+    return transporter || undefined;
+  }
+
+  async getTransporterByEntityId(entityId: string): Promise<Transporter | undefined> {
+    const [transporter] = await db.select().from(transporters).where(eq(transporters.entityId, entityId));
     return transporter || undefined;
   }
 

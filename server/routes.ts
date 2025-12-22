@@ -3797,10 +3797,34 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       } else if (vehicleId) {
         // Allow if admin or owner of vehicle (check is done at storage level for simplicity)
         result = await storage.getVehicleDocuments(vehicleId as string);
-      } else if (transporterId) {
-        if (!isAdmin && transporterId !== user.transporterId) {
+      } else if (req.query.transporterId) {
+        // Normalize transporterId: accept either entityId (UUID) or numeric/string id
+        let transporterId: string | undefined;
+        let transporterEntityId: string | undefined;
+
+        if (typeof req.query.transporterId === "string") {
+          if (req.query.transporterId.includes("-")) {
+            transporterEntityId = req.query.transporterId;
+          } else {
+            transporterId = req.query.transporterId;
+          }
+        }
+
+        // Resolve entityId -> numeric/string id
+        if (!transporterId && transporterEntityId) {
+          const transporter = await storage.getTransporterByEntityId(transporterEntityId);
+          if (!transporter) {
+            // Return safe empty list for missing transporter (list view expects array)
+            return res.json([]);
+          }
+          transporterId = transporter.id;
+        }
+
+        // Ownership enforcement
+        if (!isAdmin && transporterId && user.transporterId !== transporterId) {
           return res.status(403).json({ error: "You can only view your own transporter documents" });
         }
+
         result = await storage.getTransporterDocuments(transporterId as string);
       } else {
         if (!isAdmin) {
