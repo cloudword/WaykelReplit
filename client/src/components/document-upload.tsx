@@ -711,7 +711,8 @@ export function DocumentUpload({
 
       {/* Preview Dialog */}
       <Dialog open={!!previewUrl} onOpenChange={() => setPreviewUrl(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
+        <DialogContent aria-describedby="document-preview-description" className="max-w-4xl max-h-[90vh]">
+          <p id="document-preview-description" className="sr-only">Document preview</p>
           <DialogHeader>
             <DialogTitle>Document Preview</DialogTitle>
           </DialogHeader>

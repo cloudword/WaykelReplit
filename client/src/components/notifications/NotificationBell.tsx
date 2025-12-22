@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import {
   getNotifications,
-  getUnreadCount,
   markAsRead,
   markAllRead
 } from "@/lib/notificationsApi";
@@ -32,22 +33,16 @@ export default function NotificationBell() {
   const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
 
-  useEffect(() => {
-    fetchUnread();
-    const interval = setInterval(fetchUnread, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  async function fetchUnread() {
-    try {
-      const res = await getUnreadCount();
-      setUnreadCount(res.count || 0);
-    } catch (err) {
-      console.error("Failed to fetch unread count:", err);
-    }
-  }
+  // TEMP: Disable automatic unread badge polling while notifications are being stabilized
+  // This prevents noisy errors and keeps the UI silent if the notifier service is flaky.
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ["notifications-unread"],
+    queryFn: () => api.get('/api/notifications/unread-count').then(r => r.data.count),
+    retry: false,
+    refetchOnWindowFocus: false,
+    enabled: false, // ⬅️ TEMP disabled until notifications are stable
+  });
 
   async function openDropdown() {
     setOpen(!open);
@@ -124,7 +119,7 @@ export default function NotificationBell() {
       setNotifications(n =>
         n.map(x => x.id === notification.id ? { ...x, isRead: true } : x)
       );
-      fetchUnread();
+      // We do not call unread badge polling here because it's disabled (stability mode).
     }
     
     const destination = getNotificationDestination(notification);

@@ -146,6 +146,10 @@ export default function TransporterVehicles() {
       formData.append("file", rcFile);
       formData.append("documentType", "rc");
       formData.append("entityType", "vehicle");
+      // Include the authoritative entityId (UUID) when available — required for document ownership
+      if (result.entityId) {
+        formData.append("entityId", result.entityId);
+      }
       formData.append("vehicleId", vehicleId);
       formData.append("transporterId", user.transporterId);
       
