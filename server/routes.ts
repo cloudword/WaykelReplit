@@ -3904,10 +3904,47 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         contentType,
         entityType,
         type,
-        entityId,
+        entityId: incomingEntityId,
         expiryDate,
-        replaceDocumentId
+        replaceDocumentId,
+        vehicleId: bodyVehicleId,
+        driverId: bodyDriverId
       } = req.body;
+
+      // BACKWARD COMPAT SAFETY: Recover missing entityId from vehicleId, driverId or session transporter
+      let entityId = incomingEntityId;
+
+      if (!entityId && entityType === "vehicle" && bodyVehicleId) {
+        try {
+          const vehicle = await storage.getVehicle(bodyVehicleId);
+          entityId = vehicle?.entityId;
+        } catch (err) {
+          console.warn("Failed to resolve vehicle.entityId from vehicleId", err);
+        }
+      }
+
+      if (!entityId && entityType === "driver" && bodyDriverId) {
+        try {
+          const driver = await storage.getUser(bodyDriverId);
+          entityId = driver?.entityId;
+        } catch (err) {
+          console.warn("Failed to resolve driver.entityId from driverId", err);
+        }
+      }
+
+      if (!entityId && entityType === "transporter") {
+        // Prefer explicit session transporterEntityId if available, otherwise lookup transporter by session transporterId
+        if (sessionUser.transporterEntityId) {
+          entityId = sessionUser.transporterEntityId;
+        } else if (sessionUser.transporterId) {
+          try {
+            const t = await storage.getTransporter(sessionUser.transporterId);
+            entityId = t?.entityId;
+          } catch (err) {
+            console.warn("Failed to resolve transporter.entityId from session transporterId", err);
+          }
+        }
+      }
 
       if (!fileData || !fileName || !contentType || !entityType || !type || !entityId) {
         return res.status(400).json({ error: "fileData, fileName, contentType, entityType, type, and entityId are required" });
