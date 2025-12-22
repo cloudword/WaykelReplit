@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +10,7 @@ import {
   Plus, Settings, IndianRupee, MapPin, Package, CheckCircle, X, 
   BarChart3, Route, Clock, ArrowRight, Zap
 } from "lucide-react";
-import { api, API_BASE } from "@/lib/api";
+import { api, API_BASE, safeFetch } from "@/lib/api";
 import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 import { OnboardingTracker } from "@/components/onboarding-tracker";
@@ -38,6 +39,17 @@ export default function TransporterDashboard() {
   const [user] = useState<any>(() => {
     const stored = localStorage.getItem("currentUser");
     return stored ? JSON.parse(stored) : null;
+  });
+
+  // Onboarding status (single source of truth) — fetched once and passed to tracker
+  const transporterId = user?.transporterId;
+  const { data: onboardingStatus } = useQuery({
+    queryKey: ["onboarding-status", transporterId],
+    enabled: !!transporterId,
+    queryFn: async () => {
+      const res = await safeFetch(`${API_BASE}/transporters/${transporterId}/onboarding-status`);
+      return res.data;
+    },
   });
 
   const loadNotifications = async () => {
@@ -197,6 +209,13 @@ export default function TransporterDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Onboarding tracker (Phase 1) - single source of truth */}
+        {onboardingStatus && onboardingStatus.overallStatus !== "completed" && (
+          <div className="mb-6">
+            <OnboardingTracker data={onboardingStatus} />
+          </div>
+        )}
+
         {transporter && transporter.status === "pending_verification" && (
           <Card className="mb-6 border-amber-200 bg-amber-50" data-testid="pending-verification-banner">
             <CardContent className="p-4">
@@ -295,12 +314,6 @@ export default function TransporterDashboard() {
               </div>
             </CardContent>
           </Card>
-        )}
-
-        {transporter && !transporter.isVerified && transporter.status !== "rejected" && (
-          <div className="mb-6">
-            <OnboardingTracker />
-          </div>
         )}
 
         {transporter && transporter.isVerified && (
