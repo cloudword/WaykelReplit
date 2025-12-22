@@ -3252,6 +3252,104 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // GET /api/transporters/:id/onboarding-status - Authoritative onboarding status for a transporter (admin or owner)
+  app.get(
+    "/api/transporters/:id/onboarding-status",
+    requireAdminOrOwner(req => req.params.id),
+    async (req, res) => {
+      try {
+        const transporterId = req.params.id;
+
+        const transporter = await storage.getTransporterById(transporterId);
+
+        // HARD FAIL SAFE
+        if (!transporter || !transporter.entityId) {
+          return res.json({
+            transporter: { completed: false },
+            businessDocuments: { status: "not_started" },
+            vehicles: { count: 0, completed: false },
+            drivers: { count: 0, completed: false },
+            overallStatus: "not_started",
+          });
+        }
+
+        // ---- BUSINESS DOCS ----
+        const docs = await storage.getDocumentsByEntity(
+          transporter.entityId,
+          "transporter"
+        );
+
+        let businessStatus: "not_started" | "pending" | "approved" | "rejected" =
+          "not_started";
+
+        if (docs.length > 0) {
+          if (docs.some(d => d.status === "rejected")) {
+            businessStatus = "rejected";
+          } else if (docs.every(d => d.status === "approved")) {
+            businessStatus = "approved";
+          } else {
+            businessStatus = "pending";
+          }
+        }
+
+        // ---- VEHICLES ----
+        const vehicleCount = await storage.countVehiclesByTransporter(transporterId);
+
+        // ---- DRIVERS ----
+        const driverCount = await storage.countDriversByTransporter(transporterId);
+
+        const vehiclesCompleted = vehicleCount > 0;
+        const driversCompleted = driverCount > 0;
+
+        // ---- OVERALL ----
+        let overallStatus: "not_started" | "in_progress" | "completed" =
+          "not_started";
+
+        if (
+          businessStatus === "approved" &&
+          vehiclesCompleted &&
+          driversCompleted
+        ) {
+          overallStatus = "completed";
+        } else if (
+          businessStatus !== "not_started" ||
+          vehiclesCompleted ||
+          driversCompleted
+        ) {
+          overallStatus = "in_progress";
+        }
+
+        return res.json({
+          transporter: {
+            completed: overallStatus === "completed",
+          },
+          businessDocuments: {
+            status: businessStatus,
+          },
+          vehicles: {
+            count: vehicleCount,
+            completed: vehiclesCompleted,
+          },
+          drivers: {
+            count: driverCount,
+            completed: driversCompleted,
+          },
+          overallStatus,
+        });
+      } catch (err) {
+        console.error("[onboarding-status] unexpected error:", err);
+
+        return res.json({
+          transporter: { completed: false },
+          businessDocuments: { status: "not_started" },
+          vehicles: { count: 0, completed: false },
+          drivers: { count: 0, completed: false },
+          overallStatus: "not_started",
+        });
+      }
+    }
+  );
+
   // GET /api/transporters/:id - Get single transporter (admin or owner/transporter)
   app.get('/api/transporters/:id', requireAdminOrOwner(req => req.params.id), async (req, res) => {
     try {
