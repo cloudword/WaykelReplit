@@ -3274,21 +3274,25 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
 
         // ---- BUSINESS DOCS ----
-        const docs = await storage.getDocumentsByEntity(
-          transporter.entityId,
-          "transporter"
-        );
+        // Extend enum to include `not_required` for individual transporters
+        let businessDocumentsStatus: "not_required" | "not_started" | "pending" | "approved" | "rejected";
 
-        let businessStatus: "not_started" | "pending" | "approved" | "rejected" =
-          "not_started";
+        if (transporter.transporterType === "individual") {
+          businessDocumentsStatus = "not_required";
+        } else {
+          const businessDocs = await storage.getDocumentsByEntity(
+            transporter.entityId,
+            "transporter"
+          );
 
-        if (docs.length > 0) {
-          if (docs.some(d => d.status === "rejected")) {
-            businessStatus = "rejected";
-          } else if (docs.every(d => d.status === "approved")) {
-            businessStatus = "approved";
+          if (businessDocs.length === 0) {
+            businessDocumentsStatus = "not_started";
+          } else if (businessDocs.some(d => d.status === "rejected")) {
+            businessDocumentsStatus = "rejected";
+          } else if (businessDocs.every(d => d.status === "approved")) {
+            businessDocumentsStatus = "approved";
           } else {
-            businessStatus = "pending";
+            businessDocumentsStatus = "pending";
           }
         }
 
@@ -3302,19 +3306,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         const driversCompleted = driverCount > 0;
 
         // ---- OVERALL ----
-        let overallStatus: "not_started" | "in_progress" | "completed" =
-          "not_started";
+        let completed = false;
+        const businessCompleted = transporter.transporterType === "individual"
+          ? true
+          : businessDocumentsStatus === "approved";
 
-        if (
-          businessStatus === "approved" &&
-          vehiclesCompleted &&
-          driversCompleted
-        ) {
+        completed = businessCompleted && vehiclesCompleted && driversCompleted;
+
+        let overallStatus: "not_started" | "in_progress" | "completed" = "not_started";
+        if (completed) {
           overallStatus = "completed";
         } else if (
-          businessStatus !== "not_started" ||
           vehiclesCompleted ||
-          driversCompleted
+          driversCompleted ||
+          (transporter.transporterType !== "individual" && businessDocumentsStatus !== "not_started")
         ) {
           overallStatus = "in_progress";
         }
@@ -3324,7 +3329,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             completed: overallStatus === "completed",
           },
           businessDocuments: {
-            status: businessStatus,
+            status: businessDocumentsStatus,
           },
           vehicles: {
             count: vehicleCount,
