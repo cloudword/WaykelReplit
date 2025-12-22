@@ -434,8 +434,9 @@ export function DocumentUpload({
   const disabledDocTypes = docTypes.filter(type => isDocTypeDisabled(type.value));
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
@@ -705,32 +706,33 @@ export function DocumentUpload({
             </Button>
           )}
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </DialogContent>
+      </Dialog>
 
-    {/* Preview Dialog */}
-    <Dialog open={!!previewUrl} onOpenChange={() => setPreviewUrl(null)}>
-      <DialogContent className="max-w-4xl max-h-[90vh]">
-        <DialogHeader>
-          <DialogTitle>Document Preview</DialogTitle>
-        </DialogHeader>
+      {/* Preview Dialog */}
+      <Dialog open={!!previewUrl} onOpenChange={() => setPreviewUrl(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>Document Preview</DialogTitle>
+          </DialogHeader>
 
-        {previewUrl?.endsWith(".pdf") ? (
-          <iframe
-            src={previewUrl}
-            className="w-full h-[80vh]"
-          />
-        ) : (
-          <img
-            src={previewUrl}
-            className="max-h-[80vh] mx-auto"
-          />
-        )}
+          {previewUrl?.endsWith(".pdf") ? (
+            <iframe
+              src={previewUrl}
+              className="w-full h-[80vh]"
+            />
+          ) : (
+            <img
+              src={previewUrl}
+              className="max-h-[80vh] mx-auto"
+            />
+          )}
 
-        <DialogFooter>
-          <Button onClick={() => setPreviewUrl(null)}>Close</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <Button onClick={() => setPreviewUrl(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
