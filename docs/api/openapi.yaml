@@ -244,6 +244,42 @@ components:
           type: string
           format: date-time
 
+    BusinessDocumentsStatus:
+      type: string
+      description: Status of business documents for transporter onboarding
+      enum: [not_required, not_started, pending, approved, rejected]
+
+    OnboardingStatus:
+      type: object
+      properties:
+        transporter:
+          type: object
+          properties:
+            completed:
+              type: boolean
+        businessDocuments:
+          type: object
+          properties:
+            status:
+              $ref: '#/components/schemas/BusinessDocumentsStatus'
+        vehicles:
+          type: object
+          properties:
+            count:
+              type: integer
+            completed:
+              type: boolean
+        drivers:
+          type: object
+          properties:
+            count:
+              type: integer
+            completed:
+              type: boolean
+        overallStatus:
+          type: string
+          enum: [not_started, in_progress, completed]
+
   responses:
     Unauthorized:
       description: Authentication required
@@ -1168,6 +1204,29 @@ paths:
       responses:
         '200':
           description: Transporter rejected
+
+  /api/transporters/{id}/onboarding-status:
+    get:
+      tags: [Transporters]
+      summary: Authoritative onboarding status for a transporter (admin or owner)
+      security:
+        - sessionAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Onboarding status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingStatus'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # =====================
   # BIDS
