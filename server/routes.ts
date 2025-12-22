@@ -3252,6 +3252,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // GET /api/transporters/:id - Get single transporter (admin or owner/transporter)
+  app.get('/api/transporters/:id', requireAdminOrOwner(req => req.params.id), async (req, res) => {
+    try {
+      const transporter = await storage.getTransporter(req.params.id);
+      if (!transporter) return res.status(404).json({ error: 'Transporter not found' });
+      res.json(transporter);
+    } catch (error) {
+      console.error('[GET /api/transporters/:id] Error:', error);
+      res.status(500).json({ error: 'Failed to fetch transporter' });
+    }
+  });
+
   // PATCH /api/transporters/:id/status - Admin only
   app.patch("/api/transporters/:id/status", requireAdmin, async (req, res) => {
     try {

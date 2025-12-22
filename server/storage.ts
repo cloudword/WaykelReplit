@@ -1298,92 +1298,112 @@ export class DatabaseStorage implements IStorage {
     pendingVehicleDocCount: number;
     pendingDriverDocCount: number;
   } | undefined> {
-    const transporter = await this.getTransporter(transporterId);
-    if (!transporter) return undefined;
+    try {
+      const transporter = await this.getTransporter(transporterId);
+      if (!transporter) return undefined;
 
-    // Get all vehicles for this transporter
-    const transporterVehicles = await this.getTransporterVehicles(transporterId);
-    
-    // Get all drivers for this transporter
-    const transporterDrivers = await db.select().from(users)
-      .where(and(eq(users.transporterId, transporterId), eq(users.role, "driver")));
+      // Get all vehicles for this transporter
+      const transporterVehicles = await this.getTransporterVehicles(transporterId);
+      
+      // Get all drivers for this transporter
+      const transporterDrivers = await db.select().from(users)
+        .where(and(eq(users.transporterId, transporterId), eq(users.role, "driver")));
 
-    // Check for approved business documents (GST, MSME, etc.)
-    const businessDocs = await db.select().from(documents)
-      .where(and(
-        eq(documents.entityType, "transporter"),
-        eq(documents.entityId, transporterId),
-        eq(documents.status, "verified"),
-        not(eq(documents.status, "deleted"))
-      ));
-    
-    const hasBusinessDocs = businessDocs.length > 0;
-    
-    // Count approved vehicles - check documentStatus OR verified RC in documents table
-    const vehicleIdsWithVerifiedRC = transporterVehicles.length > 0 
-      ? (await db.select({ vehicleId: documents.vehicleId }).from(documents)
+      // Check for approved business documents (GST, MSME, etc.) - be resilient to both entityId and transporterId fields
+      const businessDocs = await db.select().from(documents)
+        .where(and(
+          eq(documents.entityType, "transporter"),
+          or(eq(documents.entityId, transporterId), eq(documents.transporterId, transporterId)),
+          eq(documents.status, "verified"),
+          not(eq(documents.status, "deleted"))
+        ));
+      
+      const hasBusinessDocs = businessDocs.length > 0;
+      
+      // Count approved vehicles - check vehicle.documentStatus OR verified RC in documents table
+      const vehicleIds = transporterVehicles.map(v => v.id);
+      const vehicleIdsWithVerifiedRC = vehicleIds.length > 0 
+        ? (await db.select({ vehicleId: documents.vehicleId }).from(documents)
+            .where(and(
+              eq(documents.entityType, "vehicle"),
+              or(inArray(documents.vehicleId, vehicleIds), inArray(documents.entityId, vehicleIds)),
+              eq(documents.status, "verified"),
+              sql`(lower(${documents.type}) IN ('rc', 'registration_certificate', 'vehicle_rc'))`
+            ))).map(d => d.vehicleId)
+        : [];
+      
+      const approvedVehicles = transporterVehicles.filter(v => 
+        v.documentStatus === "approved" || vehicleIdsWithVerifiedRC.includes(v.id)
+      );
+      
+      // Count approved drivers - check driver.documentStatus OR verified license in documents table
+      const driverIds = transporterDrivers.map(d => d.id);
+      const driverIdsWithVerifiedLicense = driverIds.length > 0
+        ? (await db.select({ userId: documents.userId }).from(documents)
+            .where(and(
+              eq(documents.entityType, "driver"),
+              or(inArray(documents.userId, driverIds), inArray(documents.entityId, driverIds)),
+              eq(documents.status, "verified"),
+              sql`(lower(${documents.type}) IN ('driving_license', 'license', 'dl'))`
+            ))).map(d => d.userId)
+        : [];
+      
+      const approvedDrivers = transporterDrivers.filter(d => 
+        d.documentStatus === "approved" || driverIdsWithVerifiedLicense.includes(d.id)
+      );
+      
+      // Count pending vehicle documents (guard against empty array for inArray)
+      const pendingVehicleDocs = vehicleIds.length > 0 
+        ? await db.select().from(documents)
           .where(and(
             eq(documents.entityType, "vehicle"),
-            inArray(documents.vehicleId, transporterVehicles.map(v => v.id)),
-            eq(documents.status, "verified"),
-            sql`lower(${documents.type}) IN ('rc', 'registration_certificate', 'vehicle_rc')`
-          ))).map(d => d.vehicleId)
-      : [];
-    
-    const approvedVehicles = transporterVehicles.filter(v => 
-      v.documentStatus === "approved" || vehicleIdsWithVerifiedRC.includes(v.id)
-    );
-    
-    // Count approved drivers - check documentStatus OR verified license in documents table
-    const driverIdsWithVerifiedLicense = transporterDrivers.length > 0
-      ? (await db.select({ userId: documents.userId }).from(documents)
+            or(inArray(documents.entityId, vehicleIds), inArray(documents.vehicleId, vehicleIds)),
+            eq(documents.status, "pending"),
+            not(eq(documents.status, "deleted"))
+          ))
+        : [];
+      
+      // Count pending driver documents (guard against empty array for inArray)
+      const pendingDriverDocs = driverIds.length > 0 
+        ? await db.select().from(documents)
           .where(and(
             eq(documents.entityType, "driver"),
-            inArray(documents.userId, transporterDrivers.map(d => d.id)),
-            eq(documents.status, "verified"),
-            sql`lower(${documents.type}) IN ('driving_license', 'license', 'dl')`
-          ))).map(d => d.userId)
-      : [];
-    
-    const approvedDrivers = transporterDrivers.filter(d => 
-      d.documentStatus === "approved" || driverIdsWithVerifiedLicense.includes(d.id)
-    );
-    
-    // Count pending vehicle documents (guard against empty array for inArray)
-    const pendingVehicleDocs = transporterVehicles.length > 0 
-      ? await db.select().from(documents)
-        .where(and(
-          eq(documents.entityType, "vehicle"),
-          inArray(documents.entityId, transporterVehicles.map(v => v.id)),
-          eq(documents.status, "pending"),
-          not(eq(documents.status, "deleted"))
-        ))
-      : [];
-    
-    // Count pending driver documents (guard against empty array for inArray)
-    const pendingDriverDocs = transporterDrivers.length > 0 
-      ? await db.select().from(documents)
-        .where(and(
-          eq(documents.entityType, "driver"),
-          inArray(documents.entityId, transporterDrivers.map(d => d.id)),
-          eq(documents.status, "pending"),
-          not(eq(documents.status, "deleted"))
-        ))
-      : [];
+            or(inArray(documents.entityId, driverIds), inArray(documents.userId, driverIds)),
+            eq(documents.status, "pending"),
+            not(eq(documents.status, "deleted"))
+          ))
+        : [];
 
-    return {
-      transporterType: transporter.transporterType || "business",
-      onboardingStatus: transporter.onboardingStatus || "incomplete",
-      hasBusinessDocs,
-      hasApprovedVehicle: approvedVehicles.length > 0,
-      hasApprovedDriver: approvedDrivers.length > 0,
-      vehicleCount: transporterVehicles.length,
-      driverCount: transporterDrivers.length,
-      approvedVehicleCount: approvedVehicles.length,
-      approvedDriverCount: approvedDrivers.length,
-      pendingVehicleDocCount: pendingVehicleDocs.length,
-      pendingDriverDocCount: pendingDriverDocs.length
-    };
+      return {
+        transporterType: transporter.transporterType || "business",
+        onboardingStatus: transporter.onboardingStatus || "incomplete",
+        hasBusinessDocs,
+        hasApprovedVehicle: approvedVehicles.length > 0,
+        hasApprovedDriver: approvedDrivers.length > 0,
+        vehicleCount: transporterVehicles.length,
+        driverCount: transporterDrivers.length,
+        approvedVehicleCount: approvedVehicles.length,
+        approvedDriverCount: approvedDrivers.length,
+        pendingVehicleDocCount: pendingVehicleDocs.length,
+        pendingDriverDocCount: pendingDriverDocs.length
+      };
+    } catch (error) {
+      console.error("[storage.getTransporterOnboardingStatus] Error:", error);
+      // Don't throw – return a conservative default so the onboarding UI can handle it gracefully
+      return {
+        transporterType: "business",
+        onboardingStatus: "incomplete",
+        hasBusinessDocs: false,
+        hasApprovedVehicle: false,
+        hasApprovedDriver: false,
+        vehicleCount: 0,
+        driverCount: 0,
+        approvedVehicleCount: 0,
+        approvedDriverCount: 0,
+        pendingVehicleDocCount: 0,
+        pendingDriverDocCount: 0
+      };
+    }
   }
 
   async updateTransporterType(transporterId: string, transporterType: "business" | "individual"): Promise<void> {
