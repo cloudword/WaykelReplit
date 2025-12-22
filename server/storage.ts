@@ -59,6 +59,7 @@ export interface IStorage {
   
   // Transporters
   getTransporter(id: string): Promise<Transporter | undefined>;
+  getTransporterById(id: string): Promise<Transporter | undefined>;
   getTransporterByEntityId(entityId: string): Promise<Transporter | undefined>;
   getAllTransporters(): Promise<Transporter[]>;
   getAllTransportersSafe(): Promise<{
@@ -81,6 +82,11 @@ export interface IStorage {
   updateTransporterStatus(id: string, status: "active" | "pending_approval" | "suspended" | "pending_verification" | "rejected"): Promise<void>;
   rejectTransporter(id: string, rejectedById: string, reason: string): Promise<void>;
   approveTransporter(id: string, approvedById: string): Promise<void>;
+
+  // Onboarding helpers
+  getDocumentsByEntity(entityId: string, entityType: "transporter"): Promise<Document[]>;
+  countVehiclesByTransporter(transporterId: string): Promise<number>;
+  countDriversByTransporter(transporterId: string): Promise<number>;
   
   // Vehicles
   getVehicle(id: string): Promise<Vehicle | undefined>;
@@ -348,6 +354,16 @@ export class DatabaseStorage implements IStorage {
     return transporter || undefined;
   }
 
+  async getTransporterById(id: string): Promise<Transporter | undefined> {
+    try {
+      const [row] = await db.select().from(transporters).where(eq(transporters.id, id)).limit(1);
+      return row || undefined;
+    } catch (err) {
+      console.error("[storage.getTransporterById] Error:", err);
+      return undefined;
+    }
+  }
+
   async getTransporterByEntityId(entityId: string): Promise<Transporter | undefined> {
     const [transporter] = await db.select().from(transporters).where(eq(transporters.entityId, entityId));
     return transporter || undefined;
@@ -355,6 +371,43 @@ export class DatabaseStorage implements IStorage {
 
   async getAllTransporters(): Promise<Transporter[]> {
     return await db.select().from(transporters).orderBy(desc(transporters.createdAt));
+  }
+
+  // Onboarding helpers
+  async getDocumentsByEntity(entityId: string, entityType: "transporter"): Promise<Document[]> {
+    try {
+      const rows = await db.select().from(documents).where(
+        and(
+          eq(documents.entityId, entityId),
+          eq(documents.entityType, entityType)
+        )
+      );
+      return rows;
+    } catch (err) {
+      console.error("[storage.getDocumentsByEntity] Error:", err);
+      return [];
+    }
+  }
+
+  async countVehiclesByTransporter(transporterId: string): Promise<number> {
+    try {
+      const [result] = await db.select({ count: sql<number>`count(*)` }).from(vehicles).where(eq(vehicles.transporterId, transporterId));
+      // result.count may be string depending on driver - coerce to number
+      return Number((result as any).count ?? 0);
+    } catch (err) {
+      console.error("[storage.countVehiclesByTransporter] Error:", err);
+      return 0;
+    }
+  }
+
+  async countDriversByTransporter(transporterId: string): Promise<number> {
+    try {
+      const [result] = await db.select({ count: sql<number>`count(*)` }).from(users).where(and(eq(users.transporterId, transporterId), eq(users.role, "driver")));
+      return Number((result as any).count ?? 0);
+    } catch (err) {
+      console.error("[storage.countDriversByTransporter] Error:", err);
+      return 0;
+    }
   }
 
   async getAllTransportersSafe(): Promise<{
