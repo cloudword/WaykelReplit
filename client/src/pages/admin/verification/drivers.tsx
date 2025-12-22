@@ -465,9 +465,8 @@ export default function VerificationDrivers() {
               )}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => window.open(previewUrl!, "_blank")}>
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Open in New Tab
+              <Button variant="outline" onClick={() => setPreviewUrl(null)}>
+                Close
               </Button>
             </DialogFooter>
           </DialogContent>

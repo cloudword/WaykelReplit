@@ -126,13 +126,13 @@ export function DocumentUpload({
         
         if (response.ok) {
           const { signedUrl } = await response.json();
-          window.open(signedUrl, "_blank");
+          setPreviewUrl(signedUrl);
         } else {
           toast.error("Failed to get document access");
         }
       } else {
         // For Replit Object Storage, use the download endpoint
-        window.open(`/objects/${doc.url}`, "_blank");
+        setPreviewUrl(`/objects/${doc.url}`);
       }
     } catch (error) {
       toast.error("Failed to view document");
@@ -704,6 +704,27 @@ export function DocumentUpload({
               )}
             </Button>
           )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Preview Dialog */}
+    <Dialog open={!!previewUrl} onOpenChange={() => setPreviewUrl(null)}>
+      <DialogContent className="max-w-4xl max-h-[90vh]">
+        <DialogHeader>
+          <DialogTitle>Document Preview</DialogTitle>
+        </DialogHeader>
+        <div className="flex justify-center">
+          {previewUrl && (
+            previewUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+              <img src={previewUrl} alt="Document" className="max-w-full max-h-[70vh] object-contain" />
+            ) : (
+              <iframe src={previewUrl} className="w-full h-[70vh]" title="Document Preview" />
+            )
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setPreviewUrl(null)}>Close</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

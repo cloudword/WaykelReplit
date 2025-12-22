@@ -373,6 +373,8 @@ export default function AdminTransporters() {
     }
   };
 
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
   const handleViewDocument = async (doc: any) => {
     if (!doc.url) {
       toast.error("Document URL not available");
@@ -388,12 +390,12 @@ export default function AdminTransporters() {
         });
         if (response.ok) {
           const { signedUrl } = await response.json();
-          window.open(signedUrl, "_blank");
+          setPreviewUrl(signedUrl);
         } else {
           toast.error("Failed to get document access");
         }
       } else {
-        window.open(`/objects/${doc.url}`, "_blank");
+        setPreviewUrl(`/objects/${doc.url}`);
       }
     } catch (error) {
       toast.error("Failed to view document");
