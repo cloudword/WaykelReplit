@@ -109,6 +109,7 @@ const handleViewDocument = async (doc: any) => {
     return;
   }
   try {
+    let fileUrl: string;
     if (doc.url.startsWith("private/")) {
       const response = await fetch(`${API_BASE}/spaces/signed-url`, {
         method: "POST",
@@ -118,13 +119,16 @@ const handleViewDocument = async (doc: any) => {
       });
       if (response.ok) {
         const { signedUrl } = await response.json();
-        window.open(signedUrl, "_blank");
+        fileUrl = signedUrl;
       } else {
         toast.error("Failed to get document access");
+        return;
       }
     } else {
-      window.open(`/objects/${doc.url}`, "_blank");
+      fileUrl = `/objects/${doc.url}`;
     }
+
+    setPreviewDoc({ fileUrl, type: doc.type, name: doc.documentName });
   } catch (error) {
     toast.error("Failed to view document");
   }
@@ -141,6 +145,7 @@ export default function TransporterDocuments() {
   const [showBusinessUpload, setShowBusinessUpload] = useState(false);
   const [uploadEntityType, setUploadEntityType] = useState<"driver" | "vehicle" | "transporter">("driver");
   const [selectedEntityId, setSelectedEntityId] = useState("");
+  const [previewDoc, setPreviewDoc] = useState<{ fileUrl: string; type: string; name?: string } | null>(null);
   const [user] = useState<any>(() => {
     const stored = localStorage.getItem("currentUser");
     return stored ? JSON.parse(stored) : null;
@@ -609,6 +614,38 @@ export default function TransporterDocuments() {
           onSuccess={loadData}
           existingDocuments={businessDocs.map(d => ({ id: d.id, type: d.type, status: d.status, documentName: d.documentName, url: d.url, expiryDate: d.expiryDate }))}
         />
+      )}
+
+      {/* Document preview modal */}
+      {previewDoc && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center">
+          <div className="bg-white rounded-lg max-w-4xl w-full p-4 relative shadow-lg">
+
+            <button
+              onClick={() => setPreviewDoc(null)}
+              className="absolute top-3 right-3 text-gray-600 hover:text-black text-xl"
+            >
+              ✕
+            </button>
+
+            <h2 className="text-lg font-semibold mb-4">
+              {previewDoc.name || "Document Preview"}
+            </h2>
+
+            {previewDoc.fileUrl.toLowerCase().includes('.pdf') ? (
+              <iframe
+                src={previewDoc.fileUrl}
+                className="w-full h-[75vh] border rounded"
+              />
+            ) : (
+              <img
+                src={previewDoc.fileUrl}
+                alt="Document preview"
+                className="max-h-[75vh] mx-auto rounded"
+              />
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
