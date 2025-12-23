@@ -2602,7 +2602,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(404).json({ error: "Transporter not found" });
       }
 
-      const transporterType = onboarding?.transporterType || transporter.transporterType || "business";
+      const transporterTypeRaw = onboarding?.transporterType || transporter.transporterType;
+      const transporterType = transporterTypeRaw === "business" ? "business" : "individual";
       const needsBusinessDocs = transporterType === "business";
       const businessDocsComplete = needsBusinessDocs ? Boolean(onboarding?.hasBusinessDocs) : true;
       const vehiclesComplete = onboarding?.hasApprovedVehicle ?? true;
@@ -3321,11 +3322,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           });
         }
 
+        const transporterType = transporter.transporterType === "business" ? "business" : "individual";
+
         // ---- BUSINESS DOCS ----
         // Extend enum to include `not_required` for individual transporters
         let businessDocumentsStatus: "not_required" | "not_started" | "pending" | "approved" | "rejected";
 
-        if (transporter.transporterType === "individual") {
+        if (transporterType === "individual") {
           businessDocumentsStatus = "not_required";
         } else {
           const businessDocs = await storage.getDocumentsByEntity(
@@ -3355,7 +3358,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
         // ---- OVERALL ----
         let completed = false;
-        const businessCompleted = transporter.transporterType === "individual"
+        const businessCompleted = transporterType === "individual"
           ? true
           : businessDocumentsStatus === "approved";
 
@@ -3367,7 +3370,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         } else if (
           vehiclesCompleted ||
           driversCompleted ||
-          (transporter.transporterType !== "individual" && businessDocumentsStatus !== "not_started")
+          (transporterType !== "individual" && businessDocumentsStatus !== "not_started")
         ) {
           overallStatus = "in_progress";
         }
@@ -3376,6 +3379,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           transporter: {
             completed: overallStatus === "completed",
           },
+          transporterType,
           businessDocuments: {
             status: businessDocumentsStatus,
           },
@@ -5997,6 +6001,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           vehiclesWithDocs.reduce((sum, v) => sum + v.pendingDocuments, 0) +
           driversWithDocs.reduce((sum, d) => sum + d.pendingDocuments, 0);
         
+        const transporterType = transporter.transporterType === "business" ? "business" : "individual";
+
         result.push({
           id: transporter.id,
           companyName: transporter.companyName,
@@ -6005,8 +6011,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           email: transporter.email,
           status: transporter.status,
           verificationStatus: transporter.verificationStatus,
+          transporterType,
           documentsComplete: transporter.documentsComplete,
           createdAt: transporter.createdAt,
+          transporterType,
+          businessDocumentsStatus: transporterType === "individual" ? "not_required" : undefined,
           // Transporter's own documents
           documents: transporterDocs,
           pendingDocuments: transporterDocs.filter(d => d.status === "pending").length,

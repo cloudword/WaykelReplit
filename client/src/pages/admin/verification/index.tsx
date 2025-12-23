@@ -665,8 +665,9 @@ export default function VerificationOverview() {
                         {/* Transporter Business Documents */}
                         <div>
                           {(() => {
+                            const transporterType = transporter.transporterType === "business" ? "business" : "individual";
                             const businessDocsStatus = transporter.businessDocumentsStatus || (transporter as any)?.businessDocuments?.status;
-                            const requiresBusinessDocs = transporter.transporterType !== "individual" && businessDocsStatus !== "not_required";
+                            const requiresBusinessDocs = transporterType === "business" && businessDocsStatus !== "not_required";
                             return (
                               <>
                                 <h4 className="font-medium text-sm text-gray-700 mb-3 flex items-center gap-2">

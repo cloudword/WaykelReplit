@@ -1558,8 +1558,10 @@ export class DatabaseStorage implements IStorage {
           ))
         : [];
 
+      const transporterType = transporter.transporterType === "business" ? "business" : "individual";
+
       return {
-        transporterType: transporter.transporterType || "business",
+        transporterType,
         onboardingStatus: transporter.onboardingStatus || "incomplete",
         hasBusinessDocs,
         hasApprovedVehicle: approvedVehicles.length > 0,
@@ -1575,7 +1577,7 @@ export class DatabaseStorage implements IStorage {
       console.error("[storage.getTransporterOnboardingStatus] Error:", error);
       // Don't throw – return a conservative default so the onboarding UI can handle it gracefully
       return {
-        transporterType: "business",
+        transporterType: "individual",
         onboardingStatus: "incomplete",
         hasBusinessDocs: false,
         hasApprovedVehicle: false,
