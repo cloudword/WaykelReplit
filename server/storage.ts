@@ -1,70 +1,3 @@
-  async getVerificationLogs(entityType: string, entityId: string): Promise<VerificationLog[]> {
-    return await db.select().from(verificationLogs)
-      .where(and(
-        eq(verificationLogs.entityType, entityType),
-        eq(verificationLogs.entityId, entityId)
-      ))
-      .orderBy(desc(verificationLogs.performedAt));
-  }
-
-  // Trust score helper for transporter (server-only)
-  async getTransporterTrustScore(transporterId: string): Promise<{ score: number; reasons: string[] }> {
-    const transporter = await this.getTransporter(transporterId);
-    if (!transporter) return { score: 0, reasons: ["Transporter not found"] };
-
-    let score = 0;
-    const reasons: string[] = [];
-
-    // Verification status
-    if (transporter.verificationStatus === "approved") {
-      score += 50;
-      reasons.push("Transporter is admin-verified");
-    } else if (transporter.verificationStatus === "pending") {
-      score += 10;
-      reasons.push("Verification pending");
-    } else if (transporter.verificationStatus === "flagged") {
-      score -= 30;
-      reasons.push("Transporter is flagged");
-    } else if (transporter.verificationStatus === "rejected") {
-      score -= 50;
-      reasons.push("Transporter was rejected");
-    } else {
-      reasons.push("Transporter is unverified");
-    }
-
-    // Document completion
-    if (transporter.documentsComplete) {
-      score += 20;
-      reasons.push("All required documents complete");
-    } else {
-      reasons.push("Documents incomplete");
-    }
-
-    // Onboarding status
-    if (transporter.onboardingStatus === "completed") {
-      score += 10;
-      reasons.push("Onboarding completed");
-    } else {
-      reasons.push("Onboarding incomplete");
-    }
-
-    // Check for negative audit logs (flagged/rejected)
-    const logs = await this.getVerificationLogs("transporter", transporterId);
-    const flagged = logs.some(l => l.action === "flagged");
-    const rejected = logs.some(l => l.action === "rejected");
-    if (flagged) {
-      score -= 20;
-      reasons.push("Transporter has been flagged");
-    }
-    if (rejected) {
-      score -= 30;
-      reasons.push("Transporter has been rejected in the past");
-    }
-
-    // Clamp score between 0 and 100
-    score = Math.max(0, Math.min(100, score));
-    return { score, reasons };
-  }
 import { 
   users, vehicles, rides, bids, transporters, documents, notifications, apiLogs,
   roles, userRoles, savedAddresses, driverApplications, ledgerEntries, platformSettings, otpCodes,
@@ -109,6 +42,8 @@ export function sanitizeRequestBody(body: any): any {
 }
 
 export interface IStorage {
+  getVerificationLogs(entityType: string, entityId: string): Promise<VerificationLog[]>;
+
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
@@ -150,6 +85,7 @@ export interface IStorage {
   updateTransporterStatus(id: string, status: "active" | "pending_approval" | "suspended" | "pending_verification" | "rejected"): Promise<void>;
   rejectTransporter(id: string, rejectedById: string, reason: string): Promise<void>;
   approveTransporter(id: string, approvedById: string): Promise<void>;
+  getTransporterTrustScore(transporterId: string): Promise<{ score: number; reasons: string[] }>;
 
   // Onboarding helpers
   getDocumentsByEntity(entityId: string, entityType: "transporter"): Promise<Document[]>;
@@ -235,7 +171,6 @@ export interface IStorage {
   updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced" | "deleted", reviewedById?: string | null, rejectionReason?: string | null): Promise<void>;
   softDeleteDocument(id: string, deletedById: string): Promise<void>;
   findActiveDocumentByType(entityType: string, entityId: string, docType: string): Promise<Document | undefined>;
-  getVerificationLogs(entityType: string, entityId: string): Promise<VerificationLog[]>;
   
   // Notifications
   createNotification(notification: InsertNotification): Promise<Notification>;
@@ -366,6 +301,19 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error("[storage] Failed to record verification log", error);
     }
+  }
+
+  async getVerificationLogs(entityType: string, entityId: string): Promise<VerificationLog[]> {
+    return db
+      .select()
+      .from(verificationLogs)
+      .where(
+        and(
+          eq(verificationLogs.entityType, entityType),
+          eq(verificationLogs.entityId, entityId)
+        )
+      )
+      .orderBy(desc(verificationLogs.createdAt));
   }
 
   // Users
@@ -597,6 +545,59 @@ export class DatabaseStorage implements IStorage {
       action: "approved",
       performedBy: approvedById,
     });
+  }
+
+  async getTransporterTrustScore(transporterId: string): Promise<{ score: number; reasons: string[] }> {
+    const transporter = await this.getTransporter(transporterId);
+    if (!transporter) return { score: 0, reasons: ["Transporter not found"] };
+
+    let score = 0;
+    const reasons: string[] = [];
+
+    if (transporter.verificationStatus === "approved") {
+      score += 50;
+      reasons.push("Transporter is admin-verified");
+    } else if (transporter.verificationStatus === "pending") {
+      score += 10;
+      reasons.push("Verification pending");
+    } else if (transporter.verificationStatus === "flagged") {
+      score -= 30;
+      reasons.push("Transporter is flagged");
+    } else if (transporter.verificationStatus === "rejected") {
+      score -= 50;
+      reasons.push("Transporter was rejected");
+    } else {
+      reasons.push("Transporter is unverified");
+    }
+
+    if (transporter.documentsComplete) {
+      score += 20;
+      reasons.push("All required documents complete");
+    } else {
+      reasons.push("Documents incomplete");
+    }
+
+    if (transporter.onboardingStatus === "completed") {
+      score += 10;
+      reasons.push("Onboarding completed");
+    } else {
+      reasons.push("Onboarding incomplete");
+    }
+
+    const logs = await this.getVerificationLogs("transporter", transporterId);
+    const flagged = logs.some(log => log.action === "flagged");
+    const rejected = logs.some(log => log.action === "rejected");
+    if (flagged) {
+      score -= 20;
+      reasons.push("Transporter has been flagged");
+    }
+    if (rejected) {
+      score -= 30;
+      reasons.push("Transporter has been rejected in the past");
+    }
+
+    score = Math.max(0, Math.min(100, score));
+    return { score, reasons };
   }
 
   // Vehicles

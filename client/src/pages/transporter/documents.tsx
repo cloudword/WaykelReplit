@@ -105,23 +105,6 @@ function DocumentThumbnail({ doc, onView }: { doc: any; onView: () => void }) {
   );
 }
 
-const handleViewDocument = async (doc: any) => {
-  if (!doc.id) {
-    toast.error("Document not available");
-    return;
-  }
-  try {
-    const res = await api.get(`/api/documents/${doc.id}/preview`);
-    if (res?.data?.url) {
-      setPreviewDoc({ fileUrl: res.data.url, type: doc.type, name: doc.documentName });
-    } else {
-      toast.error("Failed to get document preview URL");
-    }
-  } catch (error) {
-    toast.error("Failed to view document");
-  }
-};
-
 export default function TransporterDocuments() {
   const [_, setLocation] = useLocation();
   const [documents, setDocuments] = useState<any[]>([]);
@@ -133,7 +116,7 @@ export default function TransporterDocuments() {
   const [showBusinessUpload, setShowBusinessUpload] = useState(false);
   const [uploadEntityType, setUploadEntityType] = useState<"driver" | "vehicle" | "transporter">("driver");
   const [selectedEntityId, setSelectedEntityId] = useState("");
-  const [previewDoc, setPreviewDoc] = useState<{ fileUrl: string; type: string; name?: string } | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [user] = useState<any>(() => {
     const stored = localStorage.getItem("currentUser");
     return stored ? JSON.parse(stored) : null;
@@ -278,6 +261,35 @@ export default function TransporterDocuments() {
     setUploadEntityType(type);
     setSelectedEntityId("");
     setShowUploadDialog(true);
+  };
+
+  const handleViewDocument = async (doc: any) => {
+    if (!doc?.id) {
+      toast.error("Document not available");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/documents/${doc.id}/preview`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        toast.error("Failed to get document preview URL");
+        return;
+      }
+
+      const payload = await response.json().catch(() => null);
+      if (payload?.url) {
+        setPreviewUrl(payload.url);
+      } else if (doc.url) {
+        setPreviewUrl(doc.url);
+      } else {
+        toast.error("Failed to get document preview URL");
+      }
+    } catch (error) {
+      toast.error("Failed to view document");
+    }
   };
 
   if (!user) {
@@ -619,37 +631,22 @@ export default function TransporterDocuments() {
         />
       )}
 
-      {/* Document preview modal */}
-      {previewDoc && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center">
-          <div className="bg-white rounded-lg max-w-4xl w-full p-4 relative shadow-lg">
+      <Dialog open={!!previewUrl} onOpenChange={() => setPreviewUrl(null)}>
+        <DialogContent
+          className="max-w-4xl max-h-[90vh]"
+          aria-describedby="document-preview-description"
+        >
+          <p id="document-preview-description" className="sr-only">
+            Document preview
+          </p>
 
-            <button
-              onClick={() => setPreviewDoc(null)}
-              className="absolute top-3 right-3 text-gray-600 hover:text-black text-xl"
-            >
-              ✕
-            </button>
-
-            <h2 className="text-lg font-semibold mb-4">
-              {previewDoc.name || "Document Preview"}
-            </h2>
-
-            {previewDoc.fileUrl.toLowerCase().includes('.pdf') ? (
-              <iframe
-                src={previewDoc.fileUrl}
-                className="w-full h-[75vh] border rounded"
-              />
-            ) : (
-              <img
-                src={previewDoc.fileUrl}
-                alt="Document preview"
-                className="max-h-[75vh] mx-auto rounded"
-              />
-            )}
-          </div>
-        </div>
-      )}
+          {previewUrl?.endsWith(".pdf") ? (
+            <iframe src={previewUrl} className="w-full h-[80vh]" />
+          ) : (
+            <img src={previewUrl} className="max-h-[80vh] mx-auto" />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

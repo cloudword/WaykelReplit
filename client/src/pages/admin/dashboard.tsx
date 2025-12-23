@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
 import { Link } from "wouter";
 import { API_BASE } from "@/lib/api";
+import { useAdminSessionGate } from "@/hooks/useAdminSession";
 
 interface AdminStats {
   totalDrivers: number;
@@ -31,6 +32,7 @@ interface AdminStats {
 }
 
 export default function AdminDashboard() {
+  const { isReady, isChecking } = useAdminSessionGate();
   const { data: stats, isLoading } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats"],
     queryFn: async () => {
@@ -38,6 +40,7 @@ export default function AdminDashboard() {
       if (!res.ok) throw new Error("Failed to fetch stats");
       return res.json();
     },
+    enabled: isReady,
   });
 
   const formatRevenue = (amount: number) => {
@@ -59,7 +62,7 @@ export default function AdminDashboard() {
     }
   };
 
-  if (isLoading) {
+  if (isChecking || isLoading) {
     return (
       <div className="min-h-screen bg-gray-100 pl-64">
         <AdminSidebar />

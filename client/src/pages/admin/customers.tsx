@@ -8,10 +8,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Search, MoreHorizontal, Download, Plus, Loader2, Users, Phone, Mail, Eye, Calendar, MapPin, Package, IndianRupee, Ban, CheckCircle } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { API_BASE } from "@/lib/api";
 import { format } from "date-fns";
+import { useAdminSessionGate } from "@/hooks/useAdminSession";
 
 interface Customer {
   id: string;
@@ -53,7 +54,9 @@ export default function AdminCustomers() {
     password: "",
   });
 
-  const fetchData = async () => {
+  const { isReady, isChecking } = useAdminSessionGate();
+
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [customersRes, ridesRes] = await Promise.all([
@@ -75,11 +78,12 @@ export default function AdminCustomers() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
+    if (!isReady) return;
     fetchData();
-  }, []);
+  }, [isReady, fetchData]);
 
   const handleAddCustomer = async () => {
     if (!newCustomer.name || !newCustomer.phone || !newCustomer.password) {
@@ -270,7 +274,7 @@ export default function AdminCustomers() {
             </div>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {(isChecking || loading) ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
               </div>

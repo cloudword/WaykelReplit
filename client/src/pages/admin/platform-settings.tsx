@@ -12,6 +12,7 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { API_BASE } from "@/lib/api";
+import { useAdminSessionGate } from "@/hooks/useAdminSession";
 
 interface TierConfig {
   amount: number;
@@ -110,10 +111,12 @@ async function previewFee(amount: number): Promise<FeePreview> {
 
 export default function PlatformSettingsPage() {
   const queryClient = useQueryClient();
+  const { isReady, isChecking } = useAdminSessionGate();
   
   const { data: settings, isLoading, error } = useQuery({
     queryKey: ["platform-settings"],
-    queryFn: fetchSettings
+    queryFn: fetchSettings,
+    enabled: isReady,
   });
 
   const [commissionEnabled, setCommissionEnabled] = useState(false);
@@ -244,7 +247,7 @@ export default function PlatformSettingsPage() {
     setTierConfig(newTiers);
   };
 
-  if (isLoading) {
+  if (isChecking || isLoading) {
     return (
       <div className="min-h-screen bg-gray-100 pl-64">
         <AdminSidebar />

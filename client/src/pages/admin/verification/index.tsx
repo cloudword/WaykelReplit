@@ -12,9 +12,10 @@ import {
   FileText, RefreshCw, ChevronDown, ChevronRight, Truck, Users, 
   AlertTriangle, Shield, Car, User
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { API_BASE } from "@/lib/api";
+import { useAdminSessionGate } from "@/hooks/useAdminSession";
 
 interface Document {
   id: string;
@@ -117,6 +118,7 @@ export default function VerificationOverview() {
   const [timelineLogs, setTimelineLogs] = useState<Record<string, VerificationLogEntry[]>>({});
   const [timelineLoading, setTimelineLoading] = useState<Record<string, boolean>>({});
   const [timelineErrors, setTimelineErrors] = useState<Record<string, string | null>>({});
+  const { isReady, isChecking } = useAdminSessionGate();
 
   const handlePreviewDocument = async (doc: Document) => {
     setLoadingPreview(true);
@@ -155,7 +157,7 @@ export default function VerificationOverview() {
     }
   };
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`${API_BASE}/admin/verification/overview`, { credentials: "include" });
@@ -171,11 +173,12 @@ export default function VerificationOverview() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
+    if (!isReady) return;
     fetchData();
-  }, []);
+  }, [isReady, fetchData]);
 
   const loadTransporterTimeline = async (transporterId: string, force = false) => {
     if (!force && (timelineLogs[transporterId] || timelineLoading[transporterId])) {
@@ -549,8 +552,8 @@ export default function VerificationOverview() {
               <Shield className="h-6 w-6 text-blue-600" />
               <h1 className="text-xl font-bold text-gray-900">Verification Center</h1>
             </div>
-            <Button variant="outline" onClick={fetchData} disabled={loading} data-testid="button-refresh">
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+            <Button variant="outline" onClick={fetchData} disabled={loading || isChecking} data-testid="button-refresh">
+              <RefreshCw className={`h-4 w-4 mr-2 ${(loading || isChecking) ? "animate-spin" : ""}`} />
               Refresh
             </Button>
           </div>
@@ -571,7 +574,7 @@ export default function VerificationOverview() {
           </div>
         </div>
 
-        {loading ? (
+        {(loading || isChecking) ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
           </div>

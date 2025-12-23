@@ -8,7 +8,7 @@ import { RefreshCw, MapPin, Clock, Package, Truck, IndianRupee, Calendar, User, 
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 import { VehicleSelector } from "@/components/vehicle-selector";
 import { OnboardingTracker } from "@/components/onboarding/OnboardingTracker";
-import { api, API_BASE } from "@/lib/api";
+import { api, API_BASE, transporterApi } from "@/lib/api";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -75,7 +75,7 @@ export default function TransporterMarketplace() {
     loadRides();
     if (user?.transporterId) {
       api.transporters.get(user.transporterId).then(setTransporter);
-      api.transporters.getPermissions(user.transporterId)
+      transporterApi.getPermissions()
         .then((data) => {
           setPermissions(data?.permissions ?? data);
         })

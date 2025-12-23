@@ -551,3 +551,10 @@ export const api = {
     },
   },
 };
+
+export const transporterApi = {
+  getPermissions: async () => {
+    const res = await apiFetch(`${API_BASE}/transporter/permissions`);
+    return res.json();
+  },
+};

@@ -9,9 +9,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Search, Building2, CheckCircle, XCircle, Loader2, Eye, Clock, FileText, RefreshCw, ExternalLink, AlertTriangle } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { API_BASE } from "@/lib/api";
+import { useAdminSessionGate } from "@/hooks/useAdminSession";
 
 interface Document {
   id: string;
@@ -57,8 +58,9 @@ export default function VerificationTransporters() {
   const [timelineLogs, setTimelineLogs] = useState<VerificationLogEntry[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [timelineError, setTimelineError] = useState<string | null>(null);
+  const { isReady, isChecking } = useAdminSessionGate();
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`${API_BASE}/admin/verification/transporters`, { credentials: "include" });
@@ -70,11 +72,12 @@ export default function VerificationTransporters() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
+    if (!isReady) return;
     fetchData();
-  }, []);
+  }, [isReady, fetchData]);
 
   const loadTransporterTimeline = async (transporterId: string, options?: { suppressToast?: boolean }) => {
     setTimelineLoading(true);
@@ -236,7 +239,7 @@ export default function VerificationTransporters() {
               <h1 className="text-2xl font-bold" data-testid="text-page-title">Transporter Verification</h1>
               <p className="text-gray-500">Review and verify transporter documents</p>
             </div>
-            <Button onClick={fetchData} variant="outline" size="sm" data-testid="button-refresh">
+            <Button onClick={fetchData} variant="outline" size="sm" data-testid="button-refresh" disabled={loading || isChecking}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
@@ -289,7 +292,7 @@ export default function VerificationTransporters() {
               </div>
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {(loading || isChecking) ? (
                 <div className="flex justify-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
                 </div>

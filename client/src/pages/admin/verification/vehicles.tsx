@@ -8,9 +8,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Search, Truck, CheckCircle, XCircle, Loader2, Eye, Clock, FileText, RefreshCw, ExternalLink, AlertTriangle, Building2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { API_BASE } from "@/lib/api";
+import { useAdminSessionGate } from "@/hooks/useAdminSession";
 
 interface Document {
   id: string;
@@ -50,8 +51,9 @@ export default function VerificationVehicles() {
   const [rejectingDocId, setRejectingDocId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const { isReady, isChecking } = useAdminSessionGate();
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`${API_BASE}/admin/verification/vehicles`, { credentials: "include" });
@@ -63,11 +65,12 @@ export default function VerificationVehicles() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
+    if (!isReady) return;
     fetchData();
-  }, []);
+  }, [isReady, fetchData]);
 
   const handleApproveDocument = async (docId: string) => {
     setProcessingDocId(docId);
@@ -157,7 +160,7 @@ export default function VerificationVehicles() {
               <h1 className="text-2xl font-bold" data-testid="text-page-title">Vehicle Verification</h1>
               <p className="text-gray-500">Review and verify vehicle documents</p>
             </div>
-            <Button onClick={fetchData} variant="outline" size="sm" data-testid="button-refresh">
+            <Button onClick={fetchData} variant="outline" size="sm" data-testid="button-refresh" disabled={loading || isChecking}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
@@ -210,7 +213,7 @@ export default function VerificationVehicles() {
               </div>
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {(loading || isChecking) ? (
                 <div className="flex justify-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
                 </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Search, Filter, MoreHorizontal, Truck, AlertCircle, Building2, User, Fi
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { useAdminSessionGate } from "@/hooks/useAdminSession";
 
 export default function AdminVehicles() {
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -21,12 +22,9 @@ export default function AdminVehicles() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const { isReady, isChecking } = useAdminSessionGate();
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [vehiclesRes, transportersRes, usersRes, ridesRes] = await Promise.all([
@@ -45,7 +43,12 @@ export default function AdminVehicles() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!isReady) return;
+    loadData();
+  }, [isReady, loadData]);
 
   const getTransporterName = (transporterId: string | null) => {
     if (!transporterId) return "Individual";
@@ -119,7 +122,7 @@ export default function AdminVehicles() {
             </div>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {(isChecking || loading) ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
               </div>

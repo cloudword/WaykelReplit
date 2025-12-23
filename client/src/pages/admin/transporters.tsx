@@ -11,9 +11,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, MoreHorizontal, Building2, Download, Plus, CheckCircle, XCircle, Loader2, Users, Truck, MapPin, IndianRupee, Phone, Mail, Eye, ShieldCheck, Clock, AlertCircle, FileText, RefreshCw, Ban } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
+import { useAdminSessionGate } from "@/hooks/useAdminSession";
 
 interface Transporter {
   id: string;
@@ -67,7 +68,9 @@ export default function AdminTransporters() {
     fleetSize: "1",
   });
 
-  const fetchData = async () => {
+  const { isReady, isChecking } = useAdminSessionGate();
+
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [transportersData, usersData, vehiclesData, ridesData] = await Promise.all([
@@ -109,11 +112,12 @@ export default function AdminTransporters() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
+    if (!isReady) return;
     fetchData();
-  }, []);
+  }, [isReady, fetchData]);
 
   const handleStatusUpdate = async (id: string, newStatus: string) => {
     try {
@@ -518,6 +522,8 @@ export default function AdminTransporters() {
     }
   };
 
+  const isDataLoading = isChecking || loading;
+
   return (
     <div className="min-h-screen bg-gray-100 pl-64">
       <AdminSidebar />
@@ -709,7 +715,7 @@ export default function AdminTransporters() {
             </div>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {isDataLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
               </div>
