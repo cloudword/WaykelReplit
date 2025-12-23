@@ -1,20 +1,20 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { 
-  Bell, Building2, Truck, Users, FileText, TrendingUp, 
+  Bell, Building2, Truck, Users, FileText, 
   Plus, Settings, IndianRupee, MapPin, Package, CheckCircle, X, 
   BarChart3, Route, Clock, ArrowRight, Zap
 } from "lucide-react";
-import { api, API_BASE, safeFetch } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 import { OnboardingTracker } from "@/components/onboarding/OnboardingTracker";
 import { useOnboardingStatus } from "@/hooks/useOnboardingStatus";
+import { useTransporterSessionGate } from "@/hooks/useTransporterSession";
 
 export default function TransporterDashboard() {
   const [_, setLocation] = useLocation();
@@ -37,10 +37,8 @@ export default function TransporterDashboard() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [transporter, setTransporter] = useState<any>(null);
-  const [user] = useState<any>(() => {
-    const stored = localStorage.getItem("currentUser");
-    return stored ? JSON.parse(stored) : null;
-  });
+  const { user: sessionUser, isReady: sessionReady, isChecking: sessionChecking } = useTransporterSessionGate();
+  const user = sessionUser;
 
   // Onboarding status (single source of truth) — fetched via hook
   const transporterId = user?.transporterId;
@@ -87,8 +85,11 @@ export default function TransporterDashboard() {
   };
 
   useEffect(() => {
+    if (!sessionReady || !user?.transporterId) return;
+
     const loadDashboardData = async () => {
-      if (!user?.transporterId) return;
+      if (!sessionReady || !user?.transporterId) return;
+      setLoading(true);
       
       try {
         const [bidsData, vehiclesData, usersData, transporterData, ridesData] = await Promise.all([
@@ -147,7 +148,7 @@ export default function TransporterDashboard() {
     // Poll for notifications every 30 seconds
     const notificationInterval = setInterval(loadNotifications, 30000);
     return () => clearInterval(notificationInterval);
-  }, [user?.transporterId]);
+  }, [sessionReady, user?.transporterId]);
 
   const handleLogout = async () => {
     try {
@@ -159,6 +160,14 @@ export default function TransporterDashboard() {
       toast.error("Logout failed");
     }
   };
+
+  if (sessionChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <p className="text-gray-500">Checking your session...</p>
+      </div>
+    );
+  }
 
   if (!user) {
     setLocation("/auth");
@@ -203,12 +212,6 @@ export default function TransporterDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {onboardingStatus && onboardingStatus.overallStatus !== "completed" && (
-          <div className="mb-6">
-            <OnboardingTracker data={onboardingStatus} />
-          </div>
-        )}
-        {/* Onboarding tracker (Phase 1) - single source of truth */}
         {onboardingStatus && onboardingStatus.overallStatus !== "completed" && (
           <div className="mb-6">
             <OnboardingTracker data={onboardingStatus} />

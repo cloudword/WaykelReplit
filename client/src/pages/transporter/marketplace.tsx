@@ -48,9 +48,10 @@ export default function TransporterMarketplace() {
 
   const onboardingComplete = onboarding?.overallStatus === "completed";
   const permissionsAllowBid = permissions?.canBid !== false;
-  const canBid = onboardingComplete && permissionsAllowBid;
-  const showVerificationWarning = Boolean(onboarding && !onboardingComplete);
-  const backendBlocked = onboardingComplete && permissions?.canBid === false;
+  const canBid = (onboarding?.canBid ?? onboardingComplete) && permissionsAllowBid;
+  const showVerificationWarning = Boolean(onboarding && !canBid);
+  const backendBlocked = onboarding && onboarding.canBid === false;
+  const blockingReason = onboarding?.blockingReason || (backendBlocked ? "Bidding is temporarily disabled for your account." : undefined);
 
   const loadRides = async () => {
     setLoading(true);
@@ -347,21 +348,7 @@ export default function TransporterMarketplace() {
                     </Button>
                     {!canBid && (
                       <p className="text-sm text-muted mt-2">
-                        {showVerificationWarning ? (
-                          <>
-                            Complete onboarding to place bids.
-                            <span
-                              className="ml-2 text-primary underline cursor-pointer"
-                              onClick={() => setLocation("/transporter/dashboard")}
-                            >
-                              Complete setup
-                            </span>
-                          </>
-                        ) : backendBlocked ? (
-                          "Bidding is temporarily disabled for your account. Please contact support."
-                        ) : (
-                          "Bidding is currently unavailable."
-                        )}
+                        {blockingReason || "Bidding is currently unavailable."}
                       </p>
                     )}
                   </div>

@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 import { OnboardingTracker } from "@/components/onboarding/OnboardingTracker";
 import { useOnboardingStatus } from "@/hooks/useOnboardingStatus";
+import { useTransporterSessionGate } from "@/hooks/useTransporterSession";
 
 export default function TransporterDrivers() {
   const [_, setLocation] = useLocation();
@@ -33,15 +34,13 @@ export default function TransporterDrivers() {
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const licenseInputRef = useRef<HTMLInputElement>(null);
-  const [user] = useState<any>(() => {
-    const stored = localStorage.getItem("currentUser");
-    return stored ? JSON.parse(stored) : null;
-  });
+  const { user: sessionUser, isReady: sessionReady, isChecking: sessionChecking } = useTransporterSessionGate();
+  const user = sessionUser;
 
   const { data: onboardingStatus } = useOnboardingStatus(user?.transporterId);
 
   const loadDrivers = async () => {
-    if (!user?.transporterId) return;
+    if (!sessionReady || !user?.transporterId) return;
     setLoading(true);
     try {
       const [driversData, docsData] = await Promise.all([
@@ -73,8 +72,9 @@ export default function TransporterDrivers() {
   };
 
   useEffect(() => {
+    if (!sessionReady) return;
     loadDrivers();
-  }, [user?.transporterId]);
+  }, [sessionReady, user?.transporterId]);
 
   const handleAddDriver = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -205,6 +205,15 @@ export default function TransporterDrivers() {
     driver.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     driver.phone?.includes(searchQuery)
   );
+
+  if (sessionChecking || !sessionReady) {
+    return (
+      <div className="min-h-screen bg-gray-50 pl-64 flex items-center justify-center text-gray-500">
+        <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+        Checking session...
+      </div>
+    );
+  }
 
   if (!user) {
     setLocation("/auth");

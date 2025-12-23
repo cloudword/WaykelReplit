@@ -2,11 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { API_BASE } from "@/lib/api";
 
 export type OnboardingStatus = {
+  transporterType?: "business" | "individual";
   transporter?: { completed: boolean };
   businessDocuments: { status: "not_required" | "not_started" | "pending" | "approved" | "rejected" };
-  vehicles: { count: number; completed: boolean };
-  drivers: { count: number; completed: boolean };
+  vehicles: { count: number; completed: boolean; hasApprovedVehicle?: boolean };
+  drivers: { count: number; completed: boolean; hasApprovedDriver?: boolean };
   overallStatus: "not_started" | "in_progress" | "completed";
+  canBid?: boolean;
+  blockingReason?: string | null;
 };
 
 export function useOnboardingStatus(transporterId?: string) {
