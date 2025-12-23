@@ -18,6 +18,34 @@ import {
   getVehicleTypesByCategory, parseWeightInput, WeightUnit, VehicleCategoryCode
 } from "@shared/vehicleData";
 
+type VehicleFormState = {
+  vehicleCategory: VehicleCategoryCode | "";
+  vehicleTypeCode: string;
+  type: string;
+  plateNumber: string;
+  model: string;
+  capacityValue: string;
+  capacityUnit: WeightUnit;
+  bodyType: string;
+  lengthFt: string;
+  axleType: string;
+  fuelType: string;
+};
+
+const createVehicleFormState = (): VehicleFormState => ({
+  vehicleCategory: "",
+  vehicleTypeCode: "",
+  type: "",
+  plateNumber: "",
+  model: "",
+  capacityValue: "",
+  capacityUnit: "kg",
+  bodyType: "",
+  lengthFt: "",
+  axleType: "",
+  fuelType: "",
+});
+
 export default function TransporterVehicles() {
   const [_, setLocation] = useLocation();
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -25,19 +53,7 @@ export default function TransporterVehicles() {
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [newVehicle, setNewVehicle] = useState({
-    vehicleCategory: "" as VehicleCategoryCode | "",
-    vehicleTypeCode: "",
-    type: "",
-    plateNumber: "",
-    model: "",
-    capacityValue: "",
-    capacityUnit: "kg" as WeightUnit,
-    bodyType: "",
-    lengthFt: "",
-    axleType: "",
-    fuelType: "",
-  });
+  const [newVehicle, setNewVehicle] = useState<VehicleFormState>(createVehicleFormState);
   const [rcFile, setRcFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const rcInputRef = useRef<HTMLInputElement>(null);
@@ -45,6 +61,12 @@ export default function TransporterVehicles() {
     const stored = localStorage.getItem("currentUser");
     return stored ? JSON.parse(stored) : null;
   });
+
+  const resetVehicleForm = () => {
+    setNewVehicle(createVehicleFormState());
+    setRcFile(null);
+    if (rcInputRef.current) rcInputRef.current.value = "";
+  };
 
   const { data: onboardingStatus } = useOnboardingStatus(user?.transporterId);
 
@@ -106,7 +128,7 @@ export default function TransporterVehicles() {
       
       // Step 1: Create the vehicle
       // Note: capacityTons must be string (decimal in DB), capacityKg is integer
-      const result = await api.vehicles.create({
+      const creationPayload = {
         type: displayType,
         plateNumber: newVehicle.plateNumber,
         model: newVehicle.model,
@@ -121,32 +143,26 @@ export default function TransporterVehicles() {
         fuelType: newVehicle.fuelType || null,
         transporterId: user.transporterId,
         status: "active",
-      });
-      
-      if (result.error) {
-        toast.error(result.error);
-        setIsSubmitting(false);
-        return;
+      };
+
+      const result = await api.vehicles.create(creationPayload);
+      const vehicleCreationError = (result as any)?.error as string | undefined;
+      if (!result || vehicleCreationError) {
+        throw new Error(vehicleCreationError || "Vehicle creation failed. Please try again or contact support.");
       }
-      
-      // Step 2: Upload RC document for the newly created vehicle
-      // API returns vehicle directly with result.id
+
       const vehicleId = result.id;
       const entityId = result.entityId;
+
       if (!vehicleId || !entityId) {
-        console.error("No vehicle ID returned from API:", result);
-        toast.error("Vehicle created but could not upload RC - missing vehicle details");
-        setShowAddDialog(false);
-        setNewVehicle({ 
-          vehicleCategory: "", vehicleTypeCode: "", type: "", plateNumber: "", model: "", 
-          capacityValue: "", capacityUnit: "kg", bodyType: "", lengthFt: "", axleType: "", fuelType: "" 
-        });
-        setRcFile(null);
-        if (rcInputRef.current) rcInputRef.current.value = "";
-        loadVehicles();
-        return;
+        console.error("Vehicle entityId missing in response:", result);
+        throw new Error("VEHICLE_ENTITY_ID_MISSING");
       }
-      
+
+      if (!entityId) {
+        throw new Error("RC_UPLOAD_BLOCKED");
+      }
+
       const formData = new FormData();
       formData.append("fileData", rcFile);
       formData.append("fileName", rcFile.name);
@@ -164,22 +180,24 @@ export default function TransporterVehicles() {
       if (!uploadRes.ok) {
         const uploadErr = await uploadRes.json().catch(() => ({}));
         console.error("RC upload failed:", uploadErr);
-        toast.error("Vehicle created but RC upload failed. Please upload RC from vehicle details.");
-      } else {
-        toast.success("Vehicle added with RC document!");
+        throw new Error("RC_UPLOAD_BLOCKED");
       }
-      
+
+      toast.success("Vehicle added successfully");
       setShowAddDialog(false);
-      setNewVehicle({ 
-        vehicleCategory: "", vehicleTypeCode: "", type: "", plateNumber: "", model: "", 
-        capacityValue: "", capacityUnit: "kg", bodyType: "", lengthFt: "", axleType: "", fuelType: "" 
-      });
-      setRcFile(null);
-      if (rcInputRef.current) rcInputRef.current.value = "";
+      resetVehicleForm();
       loadVehicles();
     } catch (error) {
-      console.error("Add vehicle error:", error);
-      toast.error("Failed to add vehicle");
+      const message = (error as Error)?.message;
+      if (message === "VEHICLE_ENTITY_ID_MISSING") {
+        toast.error("Vehicle creation failed. Please try again or contact support.");
+      } else if (message === "RC_UPLOAD_BLOCKED") {
+        toast.error("RC upload blocked. Vehicle setup incomplete.");
+      } else if (message) {
+        toast.error(message);
+      } else {
+        toast.error("Failed to add vehicle");
+      }
     } finally {
       setIsSubmitting(false);
     }

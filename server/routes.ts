@@ -2585,6 +2585,51 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // GET /api/transporter/permissions - Marketplace + bidding feature flags for logged-in transporters
+  app.get("/api/transporter/permissions", requireAuth, requireTransporterWithVerification, async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user || !user.transporterId) {
+      return res.status(403).json({ error: "Transporter access required" });
+    }
+
+    try {
+      const [transporter, onboarding] = await Promise.all([
+        storage.getTransporter(user.transporterId),
+        storage.getTransporterOnboardingStatus(user.transporterId)
+      ]);
+
+      if (!transporter) {
+        return res.status(404).json({ error: "Transporter not found" });
+      }
+
+      const transporterType = onboarding?.transporterType || transporter.transporterType || "business";
+      const needsBusinessDocs = transporterType === "business";
+      const businessDocsComplete = needsBusinessDocs ? Boolean(onboarding?.hasBusinessDocs) : true;
+      const vehiclesComplete = onboarding?.hasApprovedVehicle ?? true;
+      const driversComplete = onboarding?.hasApprovedDriver ?? true;
+      const onboardingComplete = Boolean(
+        (onboarding?.onboardingStatus === "completed" || transporter.onboardingStatus === "completed") &&
+        vehiclesComplete &&
+        driversComplete &&
+        (!needsBusinessDocs || businessDocsComplete)
+      );
+
+      res.json({
+        canBid: onboardingComplete,
+        canViewMarketplace: true,
+        onboardingStatus: onboarding?.onboardingStatus ?? transporter.onboardingStatus ?? "unknown",
+        verificationStatus: transporter.verificationStatus ?? "unknown"
+      });
+    } catch (error) {
+      console.error("[GET /api/transporter/permissions] Error:", error);
+      res.status(200).json({
+        canBid: false,
+        canViewMarketplace: true,
+        onboardingStatus: "unknown"
+      });
+    }
+  });
+
   // ===== TRANSPORTER ONBOARDING API =====
   
   // GET /api/transporter/onboarding-status - Get current onboarding status
@@ -3182,6 +3227,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       const vehicle = await storage.createVehicle(vehicleData);
+      if (!vehicle?.entityId) {
+        console.error("[POST /api/vehicles] entityId generation failed", { vehicleId: vehicle?.id, transporterId: vehicleData.transporterId });
+        return res.status(500).json({ error: "Vehicle entityId generation failed" });
+      }
+
       res.status(201).json(vehicle);
     } catch (error: any) {
       console.error("[POST /api/vehicles] Error:", error);

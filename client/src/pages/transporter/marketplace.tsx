@@ -47,6 +47,24 @@ export default function TransporterMarketplace() {
     return stored ? JSON.parse(stored) : null;
   });
 
+  const onboardingExtras = onboarding as Record<string, any> | undefined;
+  const onboardingStatusComplete = Boolean(
+    onboarding?.overallStatus === "completed" ||
+    onboardingExtras?.onboardingStatus === "completed" ||
+    onboardingExtras?.isComplete === true ||
+    onboardingExtras?.canBid === true
+  );
+  const vehiclesComplete = onboarding?.vehicles?.completed ?? onboardingExtras?.hasApprovedVehicle ?? true;
+  const driversComplete = onboarding?.drivers?.completed ?? onboardingExtras?.hasApprovedDriver ?? true;
+  const businessDocsComplete = onboarding?.businessDocuments
+    ? onboarding.businessDocuments.status === "approved" || onboarding.businessDocuments.status === "not_required"
+    : onboardingExtras?.hasBusinessDocs ?? true;
+  const onboardingComplete = Boolean(onboardingStatusComplete && vehiclesComplete && driversComplete && businessDocsComplete);
+  const permissionsAllowBid = permissions?.canBid !== false;
+  const canBid = onboardingComplete && permissionsAllowBid;
+  const showVerificationWarning = Boolean(onboarding && !onboardingComplete);
+  const backendBlocked = onboardingComplete && permissions?.canBid === false;
+
   const loadRides = async () => {
     setLoading(true);
     try {
@@ -80,8 +98,8 @@ export default function TransporterMarketplace() {
           setPermissions(data?.permissions ?? data);
         })
         .catch((error) => {
-          console.error("Failed to load transporter permissions", error);
-          toast.error("Could not load transporter permissions");
+          console.warn("Failed to load transporter permissions", error);
+          setPermissions(null);
         });
     }
   }, [user?.transporterId]);
@@ -110,8 +128,7 @@ export default function TransporterMarketplace() {
     }
   };
 
-  // Canonical bid gating logic
-  const canBid = permissions?.canBid;
+  // Canonical bid gating logic derives from onboarding completeness + backend overrides (computed above)
 
   if (!user) {
     setLocation("/auth");
@@ -151,15 +168,15 @@ export default function TransporterMarketplace() {
             />
           </div>
         )}
-        {permissions && permissions.verificationStatus !== 'approved' && (
+        {showVerificationWarning && (
           <Card className="mb-6 border-amber-200 bg-amber-50" data-testid="verification-required-banner">
             <CardContent className="p-4">
               <div className="flex items-start gap-4">
                 <AlertCircle className="h-6 w-6 text-amber-600 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <h3 className="font-semibold text-amber-800">Verification Required to Place Bids</h3>
+                  <h3 className="font-semibold text-amber-800">Finish onboarding to place bids</h3>
                   <p className="text-sm text-amber-700 mt-1">
-                    You can view available loads, but to place bids you need to complete your account verification first.
+                    A few onboarding steps are still pending. Complete the requirements below so you can start bidding immediately.
                   </p>
                   <Button 
                     size="sm" 
@@ -168,7 +185,7 @@ export default function TransporterMarketplace() {
                     data-testid="button-complete-verification"
                   >
                     <FileText className="h-4 w-4 mr-2" />
-                    Complete Verification
+                    Continue Onboarding
                   </Button>
                 </div>
               </div>
@@ -335,13 +352,21 @@ export default function TransporterMarketplace() {
                     </Button>
                     {!canBid && (
                       <p className="text-sm text-muted mt-2">
-                        Complete onboarding to place bids.
-                        <span
-                          className="ml-2 text-primary underline cursor-pointer"
-                          onClick={() => setLocation("/transporter/dashboard")}
-                        >
-                          Complete setup
-                        </span>
+                        {showVerificationWarning ? (
+                          <>
+                            Complete onboarding to place bids.
+                            <span
+                              className="ml-2 text-primary underline cursor-pointer"
+                              onClick={() => setLocation("/transporter/dashboard")}
+                            >
+                              Complete setup
+                            </span>
+                          </>
+                        ) : backendBlocked ? (
+                          "Bidding is temporarily disabled for your account. Please contact support."
+                        ) : (
+                          "Bidding is currently unavailable."
+                        )}
                       </p>
                     )}
                   </div>
