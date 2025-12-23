@@ -132,9 +132,10 @@ export default function TransporterVehicles() {
       // Step 2: Upload RC document for the newly created vehicle
       // API returns vehicle directly with result.id
       const vehicleId = result.id;
-      if (!vehicleId) {
+      const entityId = result.entityId;
+      if (!vehicleId || !entityId) {
         console.error("No vehicle ID returned from API:", result);
-        toast.error("Vehicle created but could not upload RC - no vehicle ID returned");
+        toast.error("Vehicle created but could not upload RC - missing vehicle details");
         setShowAddDialog(false);
         setNewVehicle({ 
           vehicleCategory: "", vehicleTypeCode: "", type: "", plateNumber: "", model: "", 
@@ -147,16 +148,13 @@ export default function TransporterVehicles() {
       }
       
       const formData = new FormData();
-      formData.append("file", rcFile);
-      formData.append("documentType", "rc");
+      formData.append("fileData", rcFile);
+      formData.append("fileName", rcFile.name);
+      formData.append("contentType", rcFile.type || "application/octet-stream");
       formData.append("entityType", "vehicle");
-      // Include the authoritative entityId (UUID) when available — required for document ownership
-      if (result.entityId) {
-        formData.append("entityId", result.entityId);
-      }
-      formData.append("vehicleId", vehicleId);
-      formData.append("transporterId", user.transporterId);
-      
+      formData.append("type", "rc");
+      formData.append("entityId", entityId);
+
       const uploadRes = await fetch(`${API_BASE}/documents/upload`, {
         method: "POST",
         body: formData,
@@ -252,10 +250,13 @@ export default function TransporterVehicles() {
                 Add Vehicle
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent aria-describedby="rc-upload-desc">
               <DialogHeader>
                 <DialogTitle>Add New Vehicle</DialogTitle>
               </DialogHeader>
+              <p id="rc-upload-desc" className="sr-only">
+                Upload vehicle registration certificate
+              </p>
               <form onSubmit={handleAddVehicle} className="space-y-4">
                 <div>
                   <Label htmlFor="type">Vehicle Type</Label>
