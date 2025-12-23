@@ -3744,48 +3744,28 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             ...customer,
             totalTrips: customerRides.length,
           };
-            transporterType,
         })
       );
       
       res.json(customersWithStats);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch customers" });
-              hasApprovedVehicle: onboardingSnapshot?.hasApprovedVehicle === true,
     }
   });
 
   // Get drivers - supports transporterId or entityId (Phase-1 compatibility)
-              hasApprovedDriver: onboardingSnapshot?.hasApprovedDriver === true,
   app.get("/api/drivers", requireAuth, async (req, res) => {
-            overallStatus,
-            canBid: evaluateBidEligibility(transporter, {
-              transporterType,
-              businessDocuments: { status: businessDocumentsStatus },
-              hasApprovedVehicle: onboardingSnapshot?.hasApprovedVehicle === true,
-              hasApprovedDriver: onboardingSnapshot?.hasApprovedDriver === true,
-              overallStatus,
-            }).canBid,
-            blockingReason: evaluateBidEligibility(transporter, {
-              transporterType,
-              businessDocuments: { status: businessDocumentsStatus },
-              hasApprovedVehicle: onboardingSnapshot?.hasApprovedVehicle === true,
-              hasApprovedDriver: onboardingSnapshot?.hasApprovedDriver === true,
-              overallStatus,
-            }).blockingReason,
+    try {
       const user = getCurrentUser(req)!;
       const isAdmin = user.isSuperAdmin || user.role === "admin";
 
       const transporterId = req.query.transporterId as string | undefined;
       const entityId = req.query.entityId as string | undefined;
 
-            transporterType: "individual",
       if (!transporterId && !entityId && !isAdmin && user.role !== "transporter") {
         return res.status(400).json({ error: "transporterId or entityId is required" });
       }
 
-            canBid: false,
-            blockingReason: "Failed to calculate onboarding status",
       let drivers: any[] = [];
 
       if (entityId) {
@@ -6056,7 +6036,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           transporterType,
           documentsComplete: transporter.documentsComplete,
           createdAt: transporter.createdAt,
-          transporterType,
           businessDocumentsStatus: transporterType === "individual" ? "not_required" : undefined,
           // Transporter's own documents
           documents: transporterDocs,
