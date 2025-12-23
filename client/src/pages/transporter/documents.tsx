@@ -13,6 +13,7 @@ import { useOnboardingStatus } from "@/hooks/useOnboardingStatus";
 import { DocumentUpload } from "@/components/document-upload";
 import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
+import { useTransporterSessionGate } from "@/hooks/useTransporterSession";
 
 function DocumentThumbnail({ doc, onView }: { doc: any; onView: () => void }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -117,15 +118,13 @@ export default function TransporterDocuments() {
   const [uploadEntityType, setUploadEntityType] = useState<"driver" | "vehicle" | "transporter">("driver");
   const [selectedEntityId, setSelectedEntityId] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [user] = useState<any>(() => {
-    const stored = localStorage.getItem("currentUser");
-    return stored ? JSON.parse(stored) : null;
-  });
+  const { user: sessionUser, isReady: sessionReady, isChecking: sessionChecking } = useTransporterSessionGate();
+  const user = sessionUser;
 
   const { data: onboardingStatus } = useOnboardingStatus(user?.transporterId);
 
   const loadData = async () => {
-    if (!user?.transporterId) {
+    if (!sessionReady || !user?.transporterId) {
       console.log("No transporterId found in user:", user);
       return;
     }
@@ -197,8 +196,9 @@ export default function TransporterDocuments() {
   };
 
   useEffect(() => {
+    if (!sessionReady) return;
     loadData();
-  }, [user?.transporterId]);
+  }, [sessionReady, user?.transporterId]);
 
   // optionally show tracker for incomplete onboardings
   // displayed above page content
@@ -292,6 +292,15 @@ export default function TransporterDocuments() {
     }
   };
 
+  if (sessionChecking || !sessionReady) {
+    return (
+      <div className="min-h-screen bg-gray-50 pl-64 flex items-center justify-center text-gray-500">
+        <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+        Checking session...
+      </div>
+    );
+  }
+
   if (!user) {
     setLocation("/auth");
     return null;
@@ -352,18 +361,20 @@ export default function TransporterDocuments() {
         )}
 
         <div className="grid grid-cols-3 gap-4 mb-6">
-          <Card className="cursor-pointer hover:bg-gray-50" onClick={() => setShowBusinessUpload(true)} data-testid="card-upload-business">
-            <CardContent className="p-6 flex items-center gap-4">
-              <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Building2 className="h-6 w-6 text-purple-600" />
-              </div>
-              <div>
-                <p className="font-medium">Business Documents</p>
-                <p className="text-sm text-gray-500">GST, PAN, Registration</p>
-              </div>
-              <Upload className="h-5 w-5 text-gray-400 ml-auto" />
-            </CardContent>
-          </Card>
+          {onboardingStatus?.businessDocuments?.status !== "not_required" && (
+            <Card className="cursor-pointer hover:bg-gray-50" onClick={() => setShowBusinessUpload(true)} data-testid="card-upload-business">
+              <CardContent className="p-6 flex items-center gap-4">
+                <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <Building2 className="h-6 w-6 text-purple-600" />
+                </div>
+                <div>
+                  <p className="font-medium">Business Documents</p>
+                  <p className="text-sm text-gray-500">GST, PAN, Registration</p>
+                </div>
+                <Upload className="h-5 w-5 text-gray-400 ml-auto" />
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="cursor-pointer hover:bg-gray-50" onClick={() => openUploadDialog("driver")} data-testid="card-upload-driver">
             <CardContent className="p-6 flex items-center gap-4">

@@ -98,6 +98,8 @@ interface TransporterTree {
   totalVehicles: number;
   totalDrivers: number;
   activeVehicles: number;
+  transporterType?: "business" | "individual";
+  businessDocumentsStatus?: string;
 }
 
 export default function VerificationOverview() {
@@ -662,21 +664,34 @@ export default function VerificationOverview() {
 
                         {/* Transporter Business Documents */}
                         <div>
-                          <h4 className="font-medium text-sm text-gray-700 mb-3 flex items-center gap-2">
-                            <FileText className="h-4 w-4" />
-                            Business Documents
-                            {transporter.pendingDocuments > 0 && (
-                              <Badge variant="outline" className="bg-yellow-50 text-yellow-700 text-xs">
-                                {transporter.pendingDocuments} pending
-                              </Badge>
-                            )}
-                          </h4>
-                          <DocumentTypeSection
-                            documents={transporter.documents}
-                            requiredTypes={REQUIRED_TRANSPORTER_DOCS}
-                            optionalTypes={["trade_license", "bank_details", "company_pan", "address_proof"] as const}
-                            entityLabel="Transporter"
-                          />
+                          {(() => {
+                            const businessDocsStatus = transporter.businessDocumentsStatus || (transporter as any)?.businessDocuments?.status;
+                            const requiresBusinessDocs = transporter.transporterType !== "individual" && businessDocsStatus !== "not_required";
+                            return (
+                              <>
+                                <h4 className="font-medium text-sm text-gray-700 mb-3 flex items-center gap-2">
+                                  <FileText className="h-4 w-4" />
+                                  Business Documents
+                                  {!requiresBusinessDocs && (
+                                    <Badge variant="outline" className="bg-gray-100 text-gray-700 text-xs">
+                                      Not required
+                                    </Badge>
+                                  )}
+                                  {requiresBusinessDocs && transporter.pendingDocuments > 0 && (
+                                    <Badge variant="outline" className="bg-yellow-50 text-yellow-700 text-xs">
+                                      {transporter.pendingDocuments} pending
+                                    </Badge>
+                                  )}
+                                </h4>
+                                <DocumentTypeSection
+                                  documents={transporter.documents}
+                                  requiredTypes={requiresBusinessDocs ? REQUIRED_TRANSPORTER_DOCS : []}
+                                  optionalTypes={["trade_license", "bank_details", "company_pan", "address_proof"] as const}
+                                  entityLabel="Transporter"
+                                />
+                              </>
+                            );
+                          })()}
                         </div>
 
                         {/* Verification Timeline */}

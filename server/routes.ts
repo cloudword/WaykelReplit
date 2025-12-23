@@ -4275,6 +4275,65 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // GET /api/documents/:id/preview - Return signed preview URL (role-aware)
+  app.get("/api/documents/:id/preview", async (req, res) => {
+    const sessionUser = getCurrentUser(req);
+    if (!sessionUser?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      const doc = await storage.getDocumentById(req.params.id);
+      if (!doc) {
+        return res.status(404).json({ error: "Document not found" });
+      }
+
+      // Authorization: admins, uploader, or owning transporter/vehicle
+      const isAdmin = sessionUser.isSuperAdmin || sessionUser.role === "admin";
+      let allowed = isAdmin;
+
+      if (!allowed && doc.userId && doc.userId === sessionUser.id) {
+        allowed = true;
+      }
+
+      if (!allowed && doc.transporterId && sessionUser.transporterId && doc.transporterId === sessionUser.transporterId) {
+        allowed = true;
+      }
+
+      if (!allowed && doc.vehicleId && sessionUser.transporterId) {
+        const vehicle = await storage.getVehicle(doc.vehicleId);
+        if (vehicle?.transporterId === sessionUser.transporterId) {
+          allowed = true;
+        }
+      }
+
+      if (!allowed) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // If URL is already absolute, return it directly
+      if (doc.url.startsWith("http://") || doc.url.startsWith("https://")) {
+        return res.json({ url: doc.url });
+      }
+
+      const spacesStorage = getSpacesStorage();
+      if (!spacesStorage) {
+        return res.status(503).json({ error: "Storage not configured" });
+      }
+
+      const hasAccess = await checkSpacesFileAccess(doc.url, sessionUser, storage);
+      if (!hasAccess) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const signedUrl = await spacesStorage.getSignedUrl(doc.url, 3600);
+      res.json({ url: signedUrl, expiresIn: 3600 });
+    } catch (error) {
+      console.error("Document preview error:", error);
+      res.status(500).json({ error: "Failed to generate preview" });
+    }
+  });
+
   // PATCH /api/documents/:id/status - Admin only (to verify/reject documents)
   app.patch("/api/documents/:id/status", protectedLimiter, requireAdmin, async (req, res) => {
     try {

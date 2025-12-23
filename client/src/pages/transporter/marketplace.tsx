@@ -11,6 +11,7 @@ import { OnboardingTracker } from "@/components/onboarding/OnboardingTracker";
 import { api, API_BASE, transporterApi } from "@/lib/api";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useTransporterSessionGate } from "@/hooks/useTransporterSession";
 
 interface MarketplaceRide {
   id: string;
@@ -40,26 +41,12 @@ export default function TransporterMarketplace() {
   const [viewMode, setViewMode] = useState<"matched" | "all">("matched");
   const [transporter, setTransporter] = useState<any>(null);
   const [permissions, setPermissions] = useState<any>(null);
+  const { user: sessionUser, isReady: sessionReady, isChecking: sessionChecking } = useTransporterSessionGate();
+  const user = sessionUser;
   // Onboarding status (authoritative)
   const { data: onboarding, isLoading: onboardingLoading } = useOnboardingStatus(transporter?.id);
-  const [user] = useState<any>(() => {
-    const stored = localStorage.getItem("currentUser");
-    return stored ? JSON.parse(stored) : null;
-  });
 
-  const onboardingExtras = onboarding as Record<string, any> | undefined;
-  const onboardingStatusComplete = Boolean(
-    onboarding?.overallStatus === "completed" ||
-    onboardingExtras?.onboardingStatus === "completed" ||
-    onboardingExtras?.isComplete === true ||
-    onboardingExtras?.canBid === true
-  );
-  const vehiclesComplete = onboarding?.vehicles?.completed ?? onboardingExtras?.hasApprovedVehicle ?? true;
-  const driversComplete = onboarding?.drivers?.completed ?? onboardingExtras?.hasApprovedDriver ?? true;
-  const businessDocsComplete = onboarding?.businessDocuments
-    ? onboarding.businessDocuments.status === "approved" || onboarding.businessDocuments.status === "not_required"
-    : onboardingExtras?.hasBusinessDocs ?? true;
-  const onboardingComplete = Boolean(onboardingStatusComplete && vehiclesComplete && driversComplete && businessDocsComplete);
+  const onboardingComplete = onboarding?.overallStatus === "completed";
   const permissionsAllowBid = permissions?.canBid !== false;
   const canBid = onboardingComplete && permissionsAllowBid;
   const showVerificationWarning = Boolean(onboarding && !onboardingComplete);
@@ -90,19 +77,18 @@ export default function TransporterMarketplace() {
   const allRides = rides;
 
   useEffect(() => {
+    if (!sessionReady || !sessionUser?.transporterId) return;
     loadRides();
-    if (user?.transporterId) {
-      api.transporters.get(user.transporterId).then(setTransporter);
-      transporterApi.getPermissions()
-        .then((data) => {
-          setPermissions(data?.permissions ?? data);
-        })
-        .catch((error) => {
-          console.warn("Failed to load transporter permissions", error);
-          setPermissions(null);
-        });
-    }
-  }, [user?.transporterId]);
+    api.transporters.get(sessionUser.transporterId).then(setTransporter);
+    transporterApi.getPermissions()
+      .then((data) => {
+        setPermissions(data?.permissions ?? data);
+      })
+      .catch((error) => {
+        console.warn("Failed to load transporter permissions", error);
+        setPermissions(null);
+      });
+  }, [sessionReady, sessionUser?.transporterId]);
 
   const handlePlaceBid = (rideId: string, price: number) => {
     setSelectedRideId(rideId);
@@ -130,9 +116,18 @@ export default function TransporterMarketplace() {
 
   // Canonical bid gating logic derives from onboarding completeness + backend overrides (computed above)
 
-  if (!user) {
+  if (!sessionUser && !sessionChecking) {
     setLocation("/auth");
     return null;
+  }
+
+  if (sessionChecking || !sessionReady) {
+    return (
+      <div className="min-h-screen bg-gray-50 pl-64 flex items-center justify-center text-gray-500">
+        <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+        Checking session...
+      </div>
+    );
   }
 
   return (
