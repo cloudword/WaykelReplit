@@ -105,3 +105,20 @@ export async function safeLog<T>(fn: () => Promise<T>): Promise<T | null> {
 }
 
 export const db = drizzle(pool, { schema });
+
+async function ensureSchemaPatches(): Promise<void> {
+  const statements = [
+    // Documents table on prod is missing this column even though schema expects it
+    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS verification_status TEXT DEFAULT 'unverified'"
+  ];
+
+  for (const statement of statements) {
+    try {
+      await pool.query(statement);
+    } catch (err) {
+      console.error('[db] Failed to apply schema patch:', err);
+    }
+  }
+}
+
+void ensureSchemaPatches();
