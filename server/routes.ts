@@ -4138,7 +4138,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (entityType === "driver") {
         userId = entityId;
       } else if (entityType === "vehicle") {
-        vehicleId = entityId;
+        // entityId is the vehicle.entityId; resolve to the actual vehicle.id to satisfy FK
+        const [vehicleByEntity] = await storage.getVehiclesByEntity(entityId);
+        if (vehicleByEntity) {
+          vehicleId = vehicleByEntity.id;
+          transporterId = vehicleByEntity.transporterId ?? transporterId;
+        } else {
+          const vehicleById = await storage.getVehicle(entityId);
+          vehicleId = vehicleById?.id;
+          transporterId = vehicleById?.transporterId ?? transporterId;
+        }
+
+        if (!vehicleId) {
+          return res.status(400).json({ error: "Vehicle not found for entityId" });
+        }
       } else if (entityType === "transporter") {
         transporterId = entityId;
       }
@@ -4238,6 +4251,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const newDocData = {
         type,
         url: fileUrl,
+        entityId,
         entityType,
         userId: userId || sessionUser.id,
         vehicleId,
