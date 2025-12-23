@@ -273,6 +273,12 @@ export const api = {
       });
       return res.json();
     },
+    delete: async (id: string) => {
+      const res = await apiFetch(`${API_BASE}/vehicles/${id}`, {
+        method: "DELETE",
+      });
+      return res.json();
+    },
   },
   transporters: {
     list: async (filters?: any) => {

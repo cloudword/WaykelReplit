@@ -98,6 +98,7 @@ export interface IStorage {
   getTransporterVehicles(transporterId: string): Promise<Vehicle[]>;
   getAllVehicles(): Promise<Vehicle[]>;
   createVehicle(vehicle: InsertVehicle): Promise<Vehicle>;
+  deleteVehicle(id: string): Promise<void>;
   updateVehicleStatus(id: string, status: "active" | "inactive" | "maintenance"): Promise<void>;
   
   // Rides
@@ -642,6 +643,10 @@ export class DatabaseStorage implements IStorage {
     const entityId = generateEntityId('V');
     const [vehicle] = await db.insert(vehicles).values({ ...insertVehicle, entityId } as any).returning();
     return vehicle;
+  }
+
+  async deleteVehicle(id: string): Promise<void> {
+    await db.delete(vehicles).where(eq(vehicles.id, id));
   }
 
   async updateVehicleStatus(id: string, status: "active" | "inactive" | "maintenance"): Promise<void> {

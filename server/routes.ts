@@ -3239,6 +3239,36 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // DELETE /api/vehicles/:id - Remove vehicle when onboarding flow fails (owner or admin only)
+  app.delete("/api/vehicles/:id", requireDriverOrTransporter, async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const { id } = req.params;
+
+    try {
+      const vehicle = await storage.getVehicle(id);
+      if (!vehicle) {
+        return res.status(404).json({ error: "Vehicle not found" });
+      }
+
+      const isAdmin = user.isSuperAdmin || user.role === "admin";
+      if (!isAdmin) {
+        if (!user.transporterId || vehicle.transporterId !== user.transporterId) {
+          return res.status(403).json({ error: "Not authorized to delete this vehicle" });
+        }
+      }
+
+      await storage.deleteVehicle(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[DELETE /api/vehicles/:id] Error:", error);
+      res.status(500).json({ error: "Failed to delete vehicle" });
+    }
+  });
+
   // Transporter routes
   // GET /api/transporters - Admin only (with defensive aggregates)
   app.get("/api/transporters", requireAdmin, async (req, res) => {

@@ -18,6 +18,27 @@ import {
   getVehicleTypesByCategory, parseWeightInput, WeightUnit, VehicleCategoryCode
 } from "@shared/vehicleData";
 
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== "string") {
+        reject(new Error("Failed to read file"));
+        return;
+      }
+      const [, base64] = result.split(",");
+      if (!base64) {
+        reject(new Error("Unable to encode file"));
+        return;
+      }
+      resolve(base64);
+    };
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+};
+
 type VehicleFormState = {
   vehicleCategory: VehicleCategoryCode | "";
   vehicleTypeCode: string;
@@ -116,7 +137,10 @@ export default function TransporterVehicles() {
     }
     
     setIsSubmitting(true);
+    let createdVehicleId: string | null = null;
+    let rcUploaded = false;
     try {
+
       // Calculate capacity in both units
       const capacityParsed = newVehicle.capacityValue 
         ? parseWeightInput(newVehicle.capacityValue, newVehicle.capacityUnit)
@@ -153,35 +177,35 @@ export default function TransporterVehicles() {
 
       const vehicleId = result.id;
       const entityId = result.entityId;
+      createdVehicleId = vehicleId;
 
       if (!vehicleId || !entityId) {
         console.error("Vehicle entityId missing in response:", result);
         throw new Error("VEHICLE_ENTITY_ID_MISSING");
       }
 
-      if (!entityId) {
-        throw new Error("RC_UPLOAD_BLOCKED");
-      }
-
-      const formData = new FormData();
-      formData.append("fileData", rcFile);
-      formData.append("fileName", rcFile.name);
-      formData.append("contentType", rcFile.type || "application/octet-stream");
-      formData.append("entityType", "vehicle");
-      formData.append("type", "rc");
-      formData.append("entityId", entityId);
-
+      const fileData = await fileToBase64(rcFile);
       const uploadRes = await fetch(`${API_BASE}/documents/upload`, {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: JSON.stringify({
+          fileData,
+          fileName: rcFile.name,
+          contentType: rcFile.type || "application/octet-stream",
+          entityType: "vehicle",
+          type: "rc",
+          entityId,
+        }),
       });
       
       if (!uploadRes.ok) {
         const uploadErr = await uploadRes.json().catch(() => ({}));
         console.error("RC upload failed:", uploadErr);
-        throw new Error("RC_UPLOAD_BLOCKED");
+        throw new Error(uploadErr?.error || "RC_UPLOAD_BLOCKED");
       }
+
+      rcUploaded = true;
 
       toast.success("Vehicle added successfully");
       setShowAddDialog(false);
@@ -189,6 +213,17 @@ export default function TransporterVehicles() {
       loadVehicles();
     } catch (error) {
       const message = (error as Error)?.message;
+      if (message) {
+        console.error("Add vehicle error:", message);
+      }
+      if (createdVehicleId && !rcUploaded) {
+        try {
+          await api.vehicles.delete(createdVehicleId);
+          console.warn("Rolled back vehicle", createdVehicleId, "after RC upload failure");
+        } catch (cleanupError) {
+          console.error("Failed to rollback vehicle after RC upload error:", cleanupError);
+        }
+      }
       if (message === "VEHICLE_ENTITY_ID_MISSING") {
         toast.error("Vehicle creation failed. Please try again or contact support.");
       } else if (message === "RC_UPLOAD_BLOCKED") {
