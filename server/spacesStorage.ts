@@ -234,7 +234,11 @@ export class SpacesStorageService {
   }
 
   getPublicUrl(key: string): string {
-    return `${this.endpoint}/${this.bucket}/${key}`;
+    const encodedKey = key
+      .split("/")
+      .map((segment) => encodeURIComponent(segment))
+      .join("/");
+    return `${this.endpoint}/${this.bucket}/${encodedKey}`;
   }
 
   async getSignedUrl(key: string, expiresInSeconds: number = 3600): Promise<string> {

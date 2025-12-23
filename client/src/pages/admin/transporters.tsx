@@ -26,7 +26,7 @@ interface Transporter {
   fleetSize: number;
   status: string;
   rejectionReason?: string;
-  isVerified?: boolean;
+  verificationStatus?: string;
   documentsComplete?: boolean;
   verifiedAt?: string;
   preferredRoutes?: string[];
@@ -780,7 +780,7 @@ export default function AdminTransporters() {
                           <Badge variant={getStatusBadgeVariant(t.status)}>
                             {getStatusLabel(t.status)}
                           </Badge>
-                          {t.isVerified && (
+                          {t.verificationStatus === 'approved' && (
                             <div className="flex items-center gap-1 text-xs text-green-600">
                               <ShieldCheck className="h-3 w-3" />
                               Verified
@@ -888,7 +888,7 @@ export default function AdminTransporters() {
                       <Badge variant={getStatusBadgeVariant(selectedTransporter.status)}>
                         {getStatusLabel(selectedTransporter.status)}
                       </Badge>
-                      {selectedTransporter.isVerified && (
+                      {selectedTransporter.verificationStatus === 'approved' && (
                         <div className="flex items-center gap-1 text-xs text-green-600 mt-1">
                           <ShieldCheck className="h-3 w-3" />
                           Verified

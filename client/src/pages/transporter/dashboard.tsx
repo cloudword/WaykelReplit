@@ -315,7 +315,7 @@ export default function TransporterDashboard() {
           </Card>
         )}
 
-        {transporter && transporter.isVerified && (
+        {transporter && transporter.verificationStatus === 'approved' && (
           <Card className="mb-6 border-green-200 bg-green-50" data-testid="verified-banner">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -412,7 +412,7 @@ export default function TransporterDashboard() {
                   size="sm" 
                   onClick={() => setLocation("/transporter/post-trip")} 
                   data-testid="button-post-new-trip"
-                  disabled={transporter && !transporter.isVerified}
+                  disabled={transporter && transporter.verificationStatus !== 'approved'}
                 >
                   <Plus className="h-4 w-4 mr-1" />
                   Post Trip
@@ -455,7 +455,7 @@ export default function TransporterDashboard() {
                     size="sm" 
                     className="mt-3" 
                     onClick={() => setLocation("/transporter/post-trip")}
-                    disabled={transporter && !transporter.isVerified}
+                    disabled={transporter && transporter.verificationStatus !== 'approved'}
                   >
                     <Plus className="h-4 w-4 mr-1" />
                     Post Your First Trip
@@ -475,7 +475,7 @@ export default function TransporterDashboard() {
                 className="w-full justify-start bg-blue-600 hover:bg-blue-700 text-white" 
                 onClick={() => setLocation("/transporter/post-trip")} 
                 data-testid="button-post-trip"
-                disabled={transporter && !transporter.isVerified}
+                disabled={transporter && transporter.verificationStatus !== 'approved'}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Post New Trip

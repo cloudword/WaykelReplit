@@ -1,3 +1,70 @@
+  async getVerificationLogs(entityType: string, entityId: string): Promise<VerificationLog[]> {
+    return await db.select().from(verificationLogs)
+      .where(and(
+        eq(verificationLogs.entityType, entityType),
+        eq(verificationLogs.entityId, entityId)
+      ))
+      .orderBy(desc(verificationLogs.performedAt));
+  }
+
+  // Trust score helper for transporter (server-only)
+  async getTransporterTrustScore(transporterId: string): Promise<{ score: number; reasons: string[] }> {
+    const transporter = await this.getTransporter(transporterId);
+    if (!transporter) return { score: 0, reasons: ["Transporter not found"] };
+
+    let score = 0;
+    const reasons: string[] = [];
+
+    // Verification status
+    if (transporter.verificationStatus === "approved") {
+      score += 50;
+      reasons.push("Transporter is admin-verified");
+    } else if (transporter.verificationStatus === "pending") {
+      score += 10;
+      reasons.push("Verification pending");
+    } else if (transporter.verificationStatus === "flagged") {
+      score -= 30;
+      reasons.push("Transporter is flagged");
+    } else if (transporter.verificationStatus === "rejected") {
+      score -= 50;
+      reasons.push("Transporter was rejected");
+    } else {
+      reasons.push("Transporter is unverified");
+    }
+
+    // Document completion
+    if (transporter.documentsComplete) {
+      score += 20;
+      reasons.push("All required documents complete");
+    } else {
+      reasons.push("Documents incomplete");
+    }
+
+    // Onboarding status
+    if (transporter.onboardingStatus === "completed") {
+      score += 10;
+      reasons.push("Onboarding completed");
+    } else {
+      reasons.push("Onboarding incomplete");
+    }
+
+    // Check for negative audit logs (flagged/rejected)
+    const logs = await this.getVerificationLogs("transporter", transporterId);
+    const flagged = logs.some(l => l.action === "flagged");
+    const rejected = logs.some(l => l.action === "rejected");
+    if (flagged) {
+      score -= 20;
+      reasons.push("Transporter has been flagged");
+    }
+    if (rejected) {
+      score -= 30;
+      reasons.push("Transporter has been rejected in the past");
+    }
+
+    // Clamp score between 0 and 100
+    score = Math.max(0, Math.min(100, score));
+    return { score, reasons };
+  }
 import { 
   users, vehicles, rides, bids, transporters, documents, notifications, apiLogs,
   roles, userRoles, savedAddresses, driverApplications, ledgerEntries, platformSettings, otpCodes,
@@ -17,6 +84,7 @@ import {
   type PlatformSettings, type InsertPlatformSettings,
   type OtpCode, type InsertOtpCode
 } from "@shared/schema";
+import { verificationLogs, type VerificationLog } from "@shared/verificationLogsSchema";
 import { db } from "./db";
 import { eq, and, desc, asc, or, sql, gte, inArray, not } from "drizzle-orm";
 import { generateEntityId } from "./utils/entityId";
@@ -71,7 +139,7 @@ export interface IStorage {
     status: string;
     location: string;
     fleetSize: number | null;
-    isVerified: boolean | null;
+    verificationStatus: string | null;
     createdAt: Date | null;
     vehicleCount: number;
     driverCount: number;
@@ -167,6 +235,7 @@ export interface IStorage {
   updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced" | "deleted", reviewedById?: string | null, rejectionReason?: string | null): Promise<void>;
   softDeleteDocument(id: string, deletedById: string): Promise<void>;
   findActiveDocumentByType(entityType: string, entityId: string, docType: string): Promise<Document | undefined>;
+  getVerificationLogs(entityType: string, entityId: string): Promise<VerificationLog[]>;
   
   // Notifications
   createNotification(notification: InsertNotification): Promise<Notification>;
@@ -277,6 +346,28 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  private async logVerificationAction(params: {
+    entityType: string;
+    entityId: string;
+    action: string;
+    performedBy: string;
+    reason?: string | null;
+    meta?: Record<string, unknown> | null;
+  }): Promise<void> {
+    try {
+      await db.insert(verificationLogs).values({
+        entityType: params.entityType,
+        entityId: params.entityId,
+        action: params.action,
+        performedBy: params.performedBy,
+        reason: params.reason ?? null,
+        meta: params.meta ?? null,
+      });
+    } catch (error) {
+      console.error("[storage] Failed to record verification log", error);
+    }
+  }
+
   // Users
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
@@ -438,7 +529,7 @@ export class DatabaseStorage implements IStorage {
         status: sql<string>`COALESCE(${transporters.status}, 'pending_verification')`,
         location: transporters.location,
         fleetSize: transporters.fleetSize,
-        isVerified: transporters.isVerified,
+        verificationStatus: transporters.verificationStatus,
         createdAt: transporters.createdAt,
         vehicleCount: sql<number>`COALESCE(COUNT(DISTINCT ${vehicles.id}), 0)`,
         driverCount: sql<number>`COALESCE(COUNT(DISTINCT CASE WHEN ${users.role} = 'driver' THEN ${users.id} END), 0)`,
@@ -472,16 +563,24 @@ export class DatabaseStorage implements IStorage {
     await db.update(transporters).set({
       status: "rejected",
       rejectionReason: reason,
-      isVerified: false,
+      verificationStatus: 'rejected',
       verifiedAt: new Date(),
       verifiedBy: rejectedById,
     }).where(eq(transporters.id, id));
+
+    await this.logVerificationAction({
+      entityType: "transporter",
+      entityId: id,
+      action: "rejected",
+      performedBy: rejectedById,
+      reason,
+    });
   }
 
   async approveTransporter(id: string, approvedById: string): Promise<void> {
     await db.update(transporters).set({
       status: "active",
-      isVerified: true,
+      verificationStatus: 'approved',
       rejectionReason: null,
       verifiedAt: new Date(),
       verifiedBy: approvedById,
@@ -491,6 +590,13 @@ export class DatabaseStorage implements IStorage {
     await db.update(users).set({
       profileComplete: true
     }).where(eq(users.transporterId, id));
+
+    await this.logVerificationAction({
+      entityType: "transporter",
+      entityId: id,
+      action: "approved",
+      performedBy: approvedById,
+    });
   }
 
   // Vehicles
@@ -875,7 +981,7 @@ export class DatabaseStorage implements IStorage {
   async getActiveTransporters(): Promise<Transporter[]> {
     // Only return transporters that are both active AND verified
     return await db.select().from(transporters).where(
-      and(eq(transporters.status, "active"), eq(transporters.isVerified, true))
+      and(eq(transporters.status, "active"), eq(transporters.verificationStatus, 'approved'))
     );
   }
 
@@ -886,17 +992,7 @@ export class DatabaseStorage implements IStorage {
 
   // Verify a transporter (admin action)
   async verifyTransporter(id: string, verifiedById: string): Promise<void> {
-    await db.update(transporters).set({
-      isVerified: true,
-      status: "active",
-      verifiedAt: new Date(),
-      verifiedBy: verifiedById,
-    }).where(eq(transporters.id, id));
-    
-    // Update associated users' document completion status
-    await db.update(users).set({
-      profileComplete: true
-    }).where(eq(users.transporterId, id));
+    await this.approveTransporter(id, verifiedById);
   }
 
   async getVehiclesByTypeAndCapacity(vehicleType: string | null, minCapacityKg: number | null): Promise<Vehicle[]> {

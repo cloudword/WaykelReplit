@@ -106,31 +106,17 @@ function DocumentThumbnail({ doc, onView }: { doc: any; onView: () => void }) {
 }
 
 const handleViewDocument = async (doc: any) => {
-  if (!doc.url) {
+  if (!doc.id) {
     toast.error("Document not available");
     return;
   }
   try {
-    let fileUrl: string;
-    if (doc.url.startsWith("private/")) {
-      const response = await fetch(`${API_BASE}/spaces/signed-url`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ key: doc.url }),
-      });
-      if (response.ok) {
-        const { signedUrl } = await response.json();
-        fileUrl = signedUrl;
-      } else {
-        toast.error("Failed to get document access");
-        return;
-      }
+    const res = await api.get(`/api/documents/${doc.id}/preview`);
+    if (res?.data?.url) {
+      setPreviewDoc({ fileUrl: res.data.url, type: doc.type, name: doc.documentName });
     } else {
-      fileUrl = `/objects/${doc.url}`;
+      toast.error("Failed to get document preview URL");
     }
-
-    setPreviewDoc({ fileUrl, type: doc.type, name: doc.documentName });
   } catch (error) {
     toast.error("Failed to view document");
   }
@@ -325,7 +311,7 @@ export default function TransporterDocuments() {
           </div>
         )}
 
-        {transporter && !transporter.isVerified && (
+        {transporter && transporter.verificationStatus !== 'approved' && (
           <Card className="mb-6 border-amber-200 bg-amber-50" data-testid="verification-status">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -339,7 +325,7 @@ export default function TransporterDocuments() {
           </Card>
         )}
 
-        {transporter && transporter.isVerified && (
+        {transporter && transporter.verificationStatus === 'approved' && (
           <Card className="mb-6 border-green-200 bg-green-50" data-testid="verification-complete">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">

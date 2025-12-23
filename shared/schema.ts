@@ -85,7 +85,7 @@ export const transporters = pgTable("transporters", {
   isOwnerOperator: boolean("is_owner_operator").default(false),
   ownerDriverUserId: varchar("owner_driver_user_id").references(() => users.id),
   documentsComplete: boolean("documents_complete").default(false),
-  isVerified: boolean("is_verified").default(false),
+  verificationStatus: text("verification_status").$type<"unverified" | "pending" | "approved" | "rejected" | "flagged">().default("unverified"),
   verifiedAt: timestamp("verified_at"),
   verifiedBy: varchar("verified_by").references(() => users.id),
   ownerOperatorVehicleId: varchar("owner_operator_vehicle_id"),
@@ -123,6 +123,7 @@ export const vehicles = pgTable("vehicles", {
   currentPincode: text("current_pincode"),
   // Document verification status for onboarding
   documentStatus: text("document_status").$type<DocumentVerificationStatus>().default("document_missing"),
+  verificationStatus: text("verification_status").$type<"unverified" | "pending" | "approved" | "rejected" | "flagged">().default("unverified"),
   isActiveForBidding: boolean("is_active_for_bidding").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -275,6 +276,7 @@ export const documents = pgTable("documents", {
   storagePath: text("storage_path"),
   expiryDate: text("expiry_date"),
   status: text("status").notNull().$type<"verified" | "pending" | "expired" | "rejected" | "replaced" | "deleted">().default("pending"),
+  verificationStatus: text("verification_status").$type<"unverified" | "pending" | "approved" | "rejected" | "flagged">().default("unverified"),
   rejectionReason: text("rejection_reason"),
   reviewedBy: varchar("reviewed_by").references(() => users.id),
   reviewedAt: timestamp("reviewed_at"),

@@ -1,4 +1,5 @@
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
+import { VerificationTimeline, type VerificationLogEntry } from "@/components/admin/verification-timeline";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +30,7 @@ interface TransporterVerification {
   contact: string;
   email: string;
   status: string;
-  isVerified: boolean;
+  verificationStatus: string;
   documentsComplete: boolean;
   createdAt: string;
   totalDocuments: number;
@@ -53,6 +54,9 @@ export default function VerificationTransporters() {
   const [rejectingTransporterId, setRejectingTransporterId] = useState<string | null>(null);
   const [transporterRejectionReason, setTransporterRejectionReason] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [timelineLogs, setTimelineLogs] = useState<VerificationLogEntry[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineError, setTimelineError] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
@@ -71,6 +75,36 @@ export default function VerificationTransporters() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  const loadTransporterTimeline = async (transporterId: string, options?: { suppressToast?: boolean }) => {
+    setTimelineLoading(true);
+    setTimelineError(null);
+    try {
+      const response = await fetch(`${API_BASE}/admin/verification/logs/transporter/${transporterId}`, {
+        credentials: "include",
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error((payload as any)?.error || "Failed to load verification timeline");
+      }
+      setTimelineLogs(Array.isArray(payload) ? payload : []);
+    } catch (error: any) {
+      setTimelineLogs([]);
+      setTimelineError(error.message || "Failed to load verification timeline");
+      if (!options?.suppressToast) {
+        toast.error(error.message || "Failed to load verification timeline");
+      }
+    } finally {
+      setTimelineLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!showReviewDialog || !selectedTransporter) {
+      return;
+    }
+    loadTransporterTimeline(selectedTransporter.id, { suppressToast: true });
+  }, [showReviewDialog, selectedTransporter?.id]);
 
   const handleApproveDocument = async (docId: string) => {
     setProcessingDocId(docId);
@@ -482,6 +516,34 @@ export default function VerificationTransporters() {
                       ))}
                     </div>
                   )}
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Verification Timeline
+                    </h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => selectedTransporter && loadTransporterTimeline(selectedTransporter.id)}
+                      disabled={timelineLoading || !selectedTransporter}
+                    >
+                      <RefreshCw className={`h-4 w-4 mr-2 ${timelineLoading ? "animate-spin" : ""}`} />
+                      Refresh timeline
+                    </Button>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    {timelineError && (
+                      <p className="text-xs text-red-600 mb-2">{timelineError}</p>
+                    )}
+                    <VerificationTimeline
+                      logs={timelineLogs}
+                      loading={timelineLoading}
+                      emptyMessage="No verification activity yet."
+                    />
+                  </div>
                 </div>
               </div>
             )}

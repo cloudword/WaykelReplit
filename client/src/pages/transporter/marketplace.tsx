@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useOnboardingStatus } from "@/hooks/useOnboardingStatus";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RefreshCw, MapPin, Clock, Package, Truck, IndianRupee, Calendar, User, Phone, Star, Sparkles, Filter, AlertCircle, FileText } from "lucide-react";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 import { VehicleSelector } from "@/components/vehicle-selector";
+import { OnboardingTracker } from "@/components/onboarding/OnboardingTracker";
 import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -37,6 +39,9 @@ export default function TransporterMarketplace() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"matched" | "all">("matched");
   const [transporter, setTransporter] = useState<any>(null);
+  const [permissions, setPermissions] = useState<any>(null);
+  // Onboarding status (authoritative)
+  const { data: onboarding, isLoading: onboardingLoading } = useOnboardingStatus(transporter?.id);
   const [user] = useState<any>(() => {
     const stored = localStorage.getItem("currentUser");
     return stored ? JSON.parse(stored) : null;
@@ -70,6 +75,10 @@ export default function TransporterMarketplace() {
     loadRides();
     if (user?.transporterId) {
       api.transporters.get(user.transporterId).then(setTransporter);
+      apiFetch(`${API_BASE}/transporters/${user.transporterId}/permissions`).then(async (res) => {
+        const data = await res.json();
+        setPermissions(data.permissions);
+      });
     }
   }, [user?.transporterId]);
 
@@ -81,7 +90,6 @@ export default function TransporterMarketplace() {
 
   const handleBidConfirm = async (vehicleId: string, bidAmount: string) => {
     if (!selectedRideId || !user?.id) return;
-    
     try {
       await api.bids.create({
         rideId: selectedRideId,
@@ -98,6 +106,9 @@ export default function TransporterMarketplace() {
     }
   };
 
+  // Canonical bid gating logic
+  const canBid = permissions?.canBid;
+
   if (!user) {
     setLocation("/auth");
     return null;
@@ -106,7 +117,6 @@ export default function TransporterMarketplace() {
   return (
     <div className="min-h-screen bg-gray-50 pl-64">
       <TransporterSidebar />
-      
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center h-16 gap-4">
@@ -123,7 +133,21 @@ export default function TransporterMarketplace() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {transporter && !transporter.isVerified && (
+        {/* Onboarding Tracker (compact) below header, above trip list */}
+        {onboarding && (
+          <div className="mb-6">
+            <OnboardingTracker
+              variant="compact"
+              data={onboarding}
+              onNavigate={(target) => {
+                if (target === "business") setLocation("/transporter/documents");
+                if (target === "vehicles") setLocation("/transporter/vehicles");
+                if (target === "drivers") setLocation("/transporter/drivers");
+              }}
+            />
+          </div>
+        )}
+        {permissions && permissions.verificationStatus !== 'approved' && (
           <Card className="mb-6 border-amber-200 bg-amber-50" data-testid="verification-required-banner">
             <CardContent className="p-4">
               <div className="flex items-start gap-4">
@@ -297,14 +321,25 @@ export default function TransporterMarketplace() {
                         {parseFloat(ride.price).toLocaleString()}
                       </p>
                     </div>
-                    <Button 
-                      onClick={() => handlePlaceBid(ride.id, parseFloat(ride.price))} 
+                    <Button
+                      onClick={() => handlePlaceBid(ride.id, parseFloat(ride.price))}
                       data-testid={`button-bid-${ride.id}`}
                       className="bg-blue-600 hover:bg-blue-700"
-                      disabled={transporter && !transporter.isVerified}
+                      disabled={!canBid}
                     >
-                      {transporter && !transporter.isVerified ? "Verify to Bid" : "Place Bid"}
+                      Place Bid
                     </Button>
+                    {!canBid && (
+                      <p className="text-sm text-muted mt-2">
+                        Complete onboarding to place bids.
+                        <span
+                          className="ml-2 text-primary underline cursor-pointer"
+                          onClick={() => setLocation("/transporter/dashboard")}
+                        >
+                          Complete setup
+                        </span>
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>

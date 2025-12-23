@@ -546,7 +546,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           baseCity: req.body.city || req.body.location || "India",
           fleetSize: req.body.fleetSize || 1,
           status: "pending_approval" as const,
-          isVerified: false,
+          verificationStatus: 'unverified',
           transporterType, // Set entity type (business/individual)
           onboardingStatus: "incomplete" as const,
         };
@@ -3353,20 +3353,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!sessionUser) {
         return res.status(401).json({ error: "Authentication required" });
       }
-      
+
       const transporter = await storage.getTransporter(req.params.id);
       if (!transporter) {
         return res.status(404).json({ error: "Transporter not found" });
       }
-      
-      // Verify the transporter (sets isVerified=true, status=active)
+
+      // Approve and verify transporter (sets verificationStatus=approved, status=active, logs audit)
       await storage.verifyTransporter(req.params.id, sessionUser.id);
-      
+
       // Get updated transporter to return
       const updatedTransporter = await storage.getTransporter(req.params.id);
-      
-      res.json({ 
-        success: true, 
+
+      res.json({
+        success: true,
         message: "Transporter verified and approved successfully",
         transporter: updatedTransporter
       });
@@ -5851,7 +5851,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           contact: transporter.contact,
           email: transporter.email,
           status: transporter.status,
-          isVerified: transporter.isVerified,
+          verificationStatus: transporter.verificationStatus,
           documentsComplete: transporter.documentsComplete,
           createdAt: transporter.createdAt,
           // Transporter's own documents
@@ -6076,6 +6076,44 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // GET /api/admin/verification/logs/:entityType/:entityId - Fetch audit timeline for any entity
+  app.get("/api/admin/verification/logs/:entityType/:entityId", requireAdmin, async (req: Request, res: Response) => {
+    const { entityType, entityId } = req.params;
+    const allowedEntities = new Set(["transporter", "vehicle", "driver", "document"]);
+
+    if (!allowedEntities.has(entityType)) {
+      return res.status(400).json({ error: "Invalid entity type" });
+    }
+
+    try {
+      const logs = await storage.getVerificationLogs(entityType, entityId);
+      const performerIds = Array.from(new Set(logs.map((log) => log.performedBy).filter(Boolean)));
+      const performerMap: Record<string, { name: string | null; email: string | null }> = {};
+
+      if (performerIds.length > 0) {
+        await Promise.all(
+          performerIds.map(async (adminId) => {
+            const adminUser = await storage.getUser(adminId);
+            if (adminUser) {
+              performerMap[adminId] = { name: adminUser.name, email: adminUser.email };
+            }
+          })
+        );
+      }
+
+      res.json(
+        logs.map((log) => ({
+          ...log,
+          performedByName: performerMap[log.performedBy]?.name ?? null,
+          performedByEmail: performerMap[log.performedBy]?.email ?? null,
+        }))
+      );
+    } catch (error) {
+      console.error("[admin] verification/logs failed:", error);
+      res.status(500).json({ error: "Failed to load verification logs" });
+    }
+  });
+
   // ============== PLATFORM SETTINGS (Super Admin Only) ==============
 
   app.get("/api/admin/platform-settings", requireAuth, async (req: Request, res: Response) => {
@@ -6271,7 +6309,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // Check transporter verification
       if (verifiedTransporterId) {
         const transporter = await storage.getTransporter(verifiedTransporterId);
-        if (transporter && !transporter.isVerified) {
+        if (transporter && transporter.verificationStatus !== 'approved') {
           return res.status(403).json({ error: "Transporter must be verified to post trips" });
         }
       }

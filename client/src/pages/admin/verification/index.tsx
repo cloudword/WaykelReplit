@@ -1,4 +1,5 @@
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
+import { VerificationTimeline, type VerificationLogEntry } from "@/components/admin/verification-timeline";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,7 +84,7 @@ interface TransporterTree {
   contact: string;
   email: string;
   status: string;
-  isVerified: boolean;
+  verificationStatus: string;
   documentsComplete: boolean;
   createdAt: string;
   documents: Document[];
@@ -113,6 +114,9 @@ export default function VerificationOverview() {
   const [transporterRejectionReason, setTransporterRejectionReason] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [timelineLogs, setTimelineLogs] = useState<Record<string, VerificationLogEntry[]>>({});
+  const [timelineLoading, setTimelineLoading] = useState<Record<string, boolean>>({});
+  const [timelineErrors, setTimelineErrors] = useState<Record<string, string | null>>({});
 
   const handlePreviewDocument = async (doc: Document) => {
     setLoadingPreview(true);
@@ -173,11 +177,47 @@ export default function VerificationOverview() {
     fetchData();
   }, []);
 
+  const loadTransporterTimeline = async (transporterId: string, force = false) => {
+    if (!force && (timelineLogs[transporterId] || timelineLoading[transporterId])) {
+      return;
+    }
+
+    setTimelineLoading((prev) => ({ ...prev, [transporterId]: true }));
+    setTimelineErrors((prev) => ({ ...prev, [transporterId]: null }));
+
+    try {
+      const response = await fetch(`${API_BASE}/admin/verification/logs/transporter/${transporterId}`, {
+        credentials: "include",
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error((payload as any)?.error || "Failed to load verification timeline");
+      }
+
+      setTimelineLogs((prev) => ({ ...prev, [transporterId]: Array.isArray(payload) ? payload : [] }));
+    } catch (error: any) {
+      console.error("Timeline fetch error:", error);
+      setTimelineErrors((prev) => ({ ...prev, [transporterId]: error.message || "Failed to load verification timeline" }));
+      toast.error(error.message || "Failed to load verification timeline");
+    } finally {
+      setTimelineLoading((prev) => {
+        const next = { ...prev };
+        delete next[transporterId];
+        return next;
+      });
+    }
+  };
+
   const toggleTransporter = (id: string) => {
     setExpandedTransporters(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+        void loadTransporterTimeline(id);
+      }
       return next;
     });
   };
@@ -250,7 +290,8 @@ export default function VerificationOverview() {
       });
       if (!response.ok) throw new Error("Failed to approve");
       toast.success("Transporter approved");
-      fetchData();
+      await fetchData();
+      await loadTransporterTimeline(id, true);
     } catch (error) {
       toast.error("Failed to approve transporter");
     } finally {
@@ -260,8 +301,9 @@ export default function VerificationOverview() {
 
   const handleRejectTransporter = async () => {
     if (!rejectingTransporterId || !transporterRejectionReason.trim()) return;
+    const transporterId = rejectingTransporterId;
     try {
-      const response = await fetch(`${API_BASE}/transporters/${rejectingTransporterId}/reject`, {
+      const response = await fetch(`${API_BASE}/transporters/${transporterId}/reject`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -271,7 +313,8 @@ export default function VerificationOverview() {
       toast.success("Transporter rejected");
       setRejectingTransporterId(null);
       setTransporterRejectionReason("");
-      fetchData();
+      await fetchData();
+      await loadTransporterTimeline(transporterId, true);
     } catch (error) {
       toast.error("Failed to reject transporter");
     }
@@ -631,6 +674,37 @@ export default function VerificationOverview() {
                             optionalTypes={["trade_license", "bank_details", "company_pan", "address_proof"] as const}
                             entityLabel="Transporter"
                           />
+                        </div>
+
+                        {/* Verification Timeline */}
+                        <div>
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                            <h4 className="font-medium text-sm text-gray-700 flex items-center gap-2">
+                              <Clock className="h-4 w-4" />
+                              Verification Timeline
+                            </h4>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => loadTransporterTimeline(transporter.id, true)}
+                              disabled={!!timelineLoading[transporter.id]}
+                            >
+                              <RefreshCw className={`h-4 w-4 mr-2 ${timelineLoading[transporter.id] ? "animate-spin" : ""}`} />
+                              Refresh timeline
+                            </Button>
+                          </div>
+                          <div className="bg-gray-50 rounded-lg p-4">
+                            {timelineErrors[transporter.id] && (
+                              <p className="text-xs text-red-600 mb-2">
+                                {timelineErrors[transporter.id]}
+                              </p>
+                            )}
+                            <VerificationTimeline
+                              logs={timelineLogs[transporter.id]}
+                              loading={!!timelineLoading[transporter.id]}
+                              emptyMessage={timelineErrors[transporter.id] || "No verification history yet."}
+                            />
+                          </div>
                         </div>
 
                         {/* Vehicles Branch */}
