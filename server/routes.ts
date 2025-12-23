@@ -2673,19 +2673,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       };
       
-      // Calculate overall completion
+      // Calculate overall completion (derived, not relying on stored onboardingStatus)
       const requiredSteps = Object.values(steps).filter(s => s.required);
       const completedSteps = requiredSteps.filter(s => s.completed);
       const allComplete = completedSteps.length === requiredSteps.length;
+      const overallStatus = allComplete ? "completed" : (completedSteps.length > 0 ? "in_progress" : "not_started");
       
       res.json({
         transporterType: status.transporterType,
-        onboardingStatus: status.onboardingStatus,
+        onboardingStatus: overallStatus,
         steps,
         completedCount: completedSteps.length,
         totalCount: requiredSteps.length,
         isComplete: allComplete,
-        canBid: allComplete && status.onboardingStatus === "completed"
+        canBid: allComplete,
       });
     } catch (error) {
       console.error("[GET /api/transporter/onboarding-status] Error:", error);
@@ -2750,6 +2751,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   const normalizeTransporterType = (raw?: string) => raw === "business" ? "business" : "individual";
 
+  const deriveOverallStatus = (onboarding: any, transporterType: "business" | "individual") => {
+    const businessDocsStatus = onboarding?.businessDocuments?.status;
+    const businessOk = transporterType === "individual"
+      ? true
+      : businessDocsStatus === "approved" || onboarding?.hasBusinessDocs === true;
+    const vehiclesOk = onboarding?.hasApprovedVehicle === true;
+    const driversOk = onboarding?.hasApprovedDriver === true;
+
+    if (businessOk && vehiclesOk && driversOk) return "completed" as const;
+    if (businessOk || vehiclesOk || driversOk) return "in_progress" as const;
+    return "not_started" as const;
+  };
+
   const evaluateBidEligibility = (transporter: any, onboarding: any) => {
     const transporterType = normalizeTransporterType(onboarding?.transporterType || transporter?.transporterType);
 
@@ -2772,9 +2786,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
     const vehiclesOk = onboarding?.hasApprovedVehicle === true;
     const driversOk = onboarding?.hasApprovedDriver === true;
-    const onboardingComplete = onboarding?.overallStatus === "completed";
+    const derivedOverall = onboarding?.overallStatus || deriveOverallStatus(onboarding, transporterType);
 
-    const canBid = businessOk && vehiclesOk && driversOk && onboardingComplete;
+    const canBid = businessOk && vehiclesOk && driversOk && derivedOverall === "completed";
 
     if (canBid) {
       return { canBid: true, blockingReason: null, transporterType };
@@ -2786,7 +2800,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         ? "Add at least one vehicle with an approved RC before bidding."
         : !driversOk
           ? "Add at least one driver with an approved driving license before bidding."
-          : !onboardingComplete
+          : derivedOverall !== "completed"
             ? "Finish onboarding to place bids."
             : "Bidding is currently unavailable.";
 
@@ -2806,7 +2820,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         storage.getTransporterOnboardingStatus(user.transporterId)
       ]);
 
-      const { canBid, blockingReason, transporterType } = evaluateBidEligibility(transporter, onboarding);
+      const transporterType = normalizeTransporterType(onboarding?.transporterType || transporter?.transporterType);
+      const overallStatus = deriveOverallStatus(onboarding, transporterType);
+      const { canBid, blockingReason } = evaluateBidEligibility(transporter, { ...onboarding, overallStatus, transporterType });
       res.json({ canBid, blockingReason, transporterType });
     } catch (error) {
       console.error("[GET /api/transporter/bidding-eligibility] Error:", error);
