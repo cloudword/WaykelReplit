@@ -284,6 +284,10 @@ export const api = {
       const res = await apiFetch(`${API_BASE}/transporters/${id}`);
       return res.json();
     },
+    getPermissions: async (id: string) => {
+      const res = await apiFetch(`${API_BASE}/transporters/${id}/permissions`);
+      return res.json();
+    },
     create: async (data: any) => {
       const res = await apiFetch(`${API_BASE}/transporters`, {
         method: "POST",

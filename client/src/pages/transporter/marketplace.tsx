@@ -75,10 +75,14 @@ export default function TransporterMarketplace() {
     loadRides();
     if (user?.transporterId) {
       api.transporters.get(user.transporterId).then(setTransporter);
-      apiFetch(`${API_BASE}/transporters/${user.transporterId}/permissions`).then(async (res) => {
-        const data = await res.json();
-        setPermissions(data.permissions);
-      });
+      api.transporters.getPermissions(user.transporterId)
+        .then((data) => {
+          setPermissions(data?.permissions ?? data);
+        })
+        .catch((error) => {
+          console.error("Failed to load transporter permissions", error);
+          toast.error("Could not load transporter permissions");
+        });
     }
   }, [user?.transporterId]);
 
