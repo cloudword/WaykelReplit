@@ -11,6 +11,8 @@ import { Truck, Plus, Search, FileText, CheckCircle, Clock, AlertCircle, Upload,
 import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
+import { OnboardingTracker } from "@/components/onboarding/OnboardingTracker";
+import { useOnboardingStatus } from "@/hooks/useOnboardingStatus";
 import { 
   VEHICLE_CATEGORIES, VEHICLE_TYPES, BODY_TYPES, VEHICLE_LENGTHS, AXLE_TYPES, FUEL_TYPES,
   getVehicleTypesByCategory, parseWeightInput, WeightUnit, VehicleCategoryCode
@@ -43,6 +45,8 @@ export default function TransporterVehicles() {
     const stored = localStorage.getItem("currentUser");
     return stored ? JSON.parse(stored) : null;
   });
+
+  const { data: onboardingStatus } = useOnboardingStatus(user?.transporterId);
 
   const loadVehicles = async () => {
     if (!user?.transporterId) return;
@@ -207,6 +211,28 @@ export default function TransporterVehicles() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Empty state when not loading and there are no vehicles */}
+        {!loading && vehicles.length === 0 && (
+          <div className="mb-6">
+            <Card className="border-dashed border-gray-200 p-6 text-center">
+              <CardContent>
+                <p className="text-lg font-semibold">No vehicles added yet</p>
+                <p className="text-sm text-gray-500 mt-2">Add your first vehicle to start receiving trips</p>
+                <div className="mt-4">
+                  <Button onClick={() => setShowAddDialog(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Vehicle
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+        {onboardingStatus && onboardingStatus.overallStatus !== "completed" && (
+          <div className="mb-6">
+            <OnboardingTracker data={onboardingStatus} />
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />

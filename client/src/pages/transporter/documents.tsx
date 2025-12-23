@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Building2, FileText, Upload, Users, Truck, RefreshCw, Loader2, CheckCircle, AlertCircle, Eye, Download, X, ZoomIn } from "lucide-react";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
+import { OnboardingTracker } from "@/components/onboarding/OnboardingTracker";
+import { useOnboardingStatus } from "@/hooks/useOnboardingStatus";
 import { DocumentUpload } from "@/components/document-upload";
 import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
@@ -151,6 +153,8 @@ export default function TransporterDocuments() {
     return stored ? JSON.parse(stored) : null;
   });
 
+  const { data: onboardingStatus } = useOnboardingStatus(user?.transporterId);
+
   const loadData = async () => {
     if (!user?.transporterId) {
       console.log("No transporterId found in user:", user);
@@ -226,6 +230,13 @@ export default function TransporterDocuments() {
   useEffect(() => {
     loadData();
   }, [user?.transporterId]);
+
+  // optionally show tracker for incomplete onboardings
+  // displayed above page content
+
+  // optionally show tracker for incomplete onboardings
+  // displayed above page content
+
 
   const driverDocs = documents.filter(d => d.entityType === "driver");
   const vehicleDocs = documents.filter(d => d.entityType === "vehicle");
@@ -308,6 +319,12 @@ export default function TransporterDocuments() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {onboardingStatus && onboardingStatus.overallStatus !== "completed" && (
+          <div className="mb-6">
+            <OnboardingTracker data={onboardingStatus} />
+          </div>
+        )}
+
         {transporter && !transporter.isVerified && (
           <Card className="mb-6 border-amber-200 bg-amber-50" data-testid="verification-status">
             <CardContent className="p-4">

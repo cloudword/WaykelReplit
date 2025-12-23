@@ -184,6 +184,9 @@ export interface IStorage {
   getTransportersByStatus(status: string): Promise<Transporter[]>;
   verifyTransporter(id: string, verifiedById: string): Promise<void>;
   getVehiclesByTypeAndCapacity(vehicleType: string | null, minCapacityKg: number | null): Promise<Vehicle[]>;
+  // Entity-based queries (used by new onboarding flows and compatibility paths)
+  getVehiclesByEntity(entityId: string): Promise<Vehicle[]>;
+  getDriversByEntity(entityId: string): Promise<User[]>;
   updateRideAcceptedBid(rideId: string, bidId: string, transporterId: string): Promise<void>;
   closeBidding(rideId: string, acceptedByUserId: string): Promise<void>;
   acceptBidAtomic(params: {
@@ -500,12 +503,32 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(vehicles).where(eq(vehicles.userId, userId));
   }
 
+  async getDriversByEntity(entityId: string): Promise<User[]> {
+    // Drivers are users linked via entityId relationships/ documents referencing entityId
+    // First, try to find users with matching entityId (legacy) - otherwise query users by transporterId derived from entity
+    const [byEntity] = await db.select().from(users).where(eq(users.entityId, entityId));
+    if (byEntity) return [byEntity as any];
+
+    // Fallback: if the entityId belongs to a transporter, return users by transporter id
+    const transporter = await db.select().from(transporters).where(eq(transporters.entityId, entityId)).limit(1);
+    if (transporter && transporter.length > 0) {
+      const transporterId = transporter[0].id;
+      return await db.select().from(users).where(eq(users.transporterId, transporterId));
+    }
+
+    // No matches: return empty
+    return [];
+  }
   async getTransporterVehicles(transporterId: string): Promise<Vehicle[]> {
     return await db.select().from(vehicles).where(eq(vehicles.transporterId, transporterId));
   }
 
   async getAllVehicles(): Promise<Vehicle[]> {
     return await db.select().from(vehicles).orderBy(desc(vehicles.createdAt));
+  }
+
+  async getVehiclesByEntity(entityId: string): Promise<Vehicle[]> {
+    return await db.select().from(vehicles).where(eq(vehicles.entityId, entityId));
   }
 
   async createVehicle(insertVehicle: InsertVehicle): Promise<Vehicle> {

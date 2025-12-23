@@ -13,7 +13,8 @@ import {
 import { api, API_BASE, safeFetch } from "@/lib/api";
 import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
-import { OnboardingTracker } from "@/components/onboarding-tracker";
+import { OnboardingTracker } from "@/components/onboarding/OnboardingTracker";
+import { useOnboardingStatus } from "@/hooks/useOnboardingStatus";
 
 export default function TransporterDashboard() {
   const [_, setLocation] = useLocation();
@@ -41,16 +42,9 @@ export default function TransporterDashboard() {
     return stored ? JSON.parse(stored) : null;
   });
 
-  // Onboarding status (single source of truth) — fetched once and passed to tracker
+  // Onboarding status (single source of truth) — fetched via hook
   const transporterId = user?.transporterId;
-  const { data: onboardingStatus } = useQuery({
-    queryKey: ["onboarding-status", transporterId],
-    enabled: !!transporterId,
-    queryFn: async () => {
-      const res = await safeFetch(`${API_BASE}/transporters/${transporterId}/onboarding-status`);
-      return res.data;
-    },
-  });
+  const { data: onboardingStatus } = useOnboardingStatus(transporterId);
 
   const loadNotifications = async () => {
     try {
@@ -209,6 +203,11 @@ export default function TransporterDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {onboardingStatus && onboardingStatus.overallStatus !== "completed" && (
+          <div className="mb-6">
+            <OnboardingTracker data={onboardingStatus} />
+          </div>
+        )}
         {/* Onboarding tracker (Phase 1) - single source of truth */}
         {onboardingStatus && onboardingStatus.overallStatus !== "completed" && (
           <div className="mb-6">

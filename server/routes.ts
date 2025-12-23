@@ -3089,76 +3089,44 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // GET /api/vehicles - Auth required, users can view their own or transporter's
   // PHASE B/D: Auto-scope based on role, show ALL vehicles including pending
   app.get("/api/vehicles", requireAuth, async (req, res) => {
-    const { userId, transporterId: queryTransporterId } = req.query;
     const user = getCurrentUser(req)!;
     const isAdmin = user.isSuperAdmin || user.role === "admin";
     const isTransporter = user.role === "transporter";
-    
+
+    // Accept either transporterId (legacy) or entityId (new onboarding flows)
+    const transporterId = req.query.transporterId as string | undefined;
+    const entityId = req.query.entityId as string | undefined;
+
     try {
-      let result: any[] = [];
-      
-      // STRICT DATA ISOLATION: Log session info for debugging
-      console.log(`[GET /api/vehicles] User: ${user.id}, Role: ${user.role}, SessionTransporterId: ${user.transporterId}, QueryTransporterId: ${queryTransporterId}`);
-      
-      // PHASE B: Query scoping based on role
-      if (isAdmin) {
-        // Admin can query by any filter
-        if (userId) {
-          result = await storage.getUserVehicles(userId as string);
-        } else if (queryTransporterId) {
-          result = await storage.getTransporterVehicles(queryTransporterId as string);
-        } else {
-          // Admin with no filter gets empty - use /api/vehicles/all for all
-          result = [];
-        }
-      } else if (isTransporter) {
-        // STRICT ISOLATION: Transporters ONLY see their own vehicles
-        // Use session transporterId, never trust query parameters
-        if (!user.transporterId) {
-          console.warn(`[GET /api/vehicles] Transporter ${user.id} has no transporterId in session - returning empty`);
-          return res.json([]);
-        }
-        
-        // DEFENSE-IN-DEPTH: Verify session transporterId against database
-        try {
-          const dbUser = await storage.getUser(user.id);
-          if (!dbUser) {
-            console.warn(`[SECURITY] User ${user.id} not found in database`);
-            return res.json([]);
-          }
-          if (dbUser.transporterId !== user.transporterId) {
-            console.error(`[SECURITY ALERT] Session transporterId mismatch in /api/vehicles for user ${user.id}: session=${user.transporterId}, db=${dbUser.transporterId}`);
-            // Use database transporterId, update session
-            if (req.session?.user) {
-              req.session.user.transporterId = dbUser.transporterId ?? undefined;
-            }
-            // Query with correct transporterId
-            result = await storage.getTransporterVehicles(dbUser.transporterId ?? undefined as any);
-            console.log(`[GET /api/vehicles] Returning ${result.length} vehicles for corrected transporter ${dbUser.transporterId}`);
-            return res.json(result || []);
-          }
-        } catch (verifyError) {
-          console.error(`[SECURITY] Failed to verify transporter in /api/vehicles:`, verifyError);
-          // Continue with session data in case of DB error
-        }
-        
-        // Cross-tenant check: if query param differs from session, log warning and use session
-        if (queryTransporterId && queryTransporterId !== user.transporterId) {
-          console.warn(`[GET /api/vehicles] SECURITY: Transporter ${user.id} tried to access transporterId ${queryTransporterId} but session has ${user.transporterId}`);
-        }
-        
-        result = await storage.getTransporterVehicles(user.transporterId);
-        console.log(`[GET /api/vehicles] Returning ${result.length} vehicles for transporter ${user.transporterId}`);
-      } else {
-        // Drivers: Only see their own assigned vehicles (least privilege)
-        result = await storage.getUserVehicles(user.id);
+      console.log(`[GET /api/vehicles] User: ${user.id}, Role: ${user.role}, SessionTransporterId: ${user.transporterId}, QueryTransporterId: ${transporterId}, QueryEntityId: ${entityId}`);
+
+      // If nothing is provided and the requester is not a transporter, require a parameter
+      if (!transporterId && !entityId && !isTransporter && !isAdmin && user.role !== "driver") {
+        return res.status(400).json({ error: "transporterId or entityId is required" });
       }
-      
-      // PHASE G: Always return array, never throw on empty
-      res.json(result || []);
+
+      let vehicles: any[] = [];
+
+      if (entityId) {
+        // Entity-based lookup (preferred for new onboarding flows)
+        vehicles = await storage.getVehiclesByEntity(entityId);
+      } else {
+        // Determine the target transporter id: either provided or session (for transporters)
+        const targetTransporterId = transporterId || (isTransporter ? user.transporterId : undefined);
+        if (!targetTransporterId) {
+          if (user.role === "driver") {
+            vehicles = await storage.getUserVehicles(user.id);
+          } else {
+            vehicles = [];
+          }
+        } else {
+          vehicles = await storage.getTransporterVehicles(targetTransporterId);
+        }
+      }
+
+      res.json(vehicles ?? []);
     } catch (error) {
       console.error("[GET /api/vehicles] Error:", error);
-      // PHASE H: Return empty array on error instead of 500
       res.json([]);
     }
   });
@@ -3679,14 +3647,43 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // Get all drivers (for admin panel) - Admin only
-  app.get("/api/drivers", requireAdmin, async (req, res) => {
+  // Get drivers - supports transporterId or entityId (Phase-1 compatibility)
+  app.get("/api/drivers", requireAuth, async (req, res) => {
     try {
-      const drivers = await storage.getDrivers();
-      const driversWithoutPasswords = drivers.map(({ password, ...driver }) => driver);
-      res.json(driversWithoutPasswords);
+      const user = getCurrentUser(req)!;
+      const isAdmin = user.isSuperAdmin || user.role === "admin";
+
+      const transporterId = req.query.transporterId as string | undefined;
+      const entityId = req.query.entityId as string | undefined;
+
+      if (!transporterId && !entityId && !isAdmin && user.role !== "transporter") {
+        return res.status(400).json({ error: "transporterId or entityId is required" });
+      }
+
+      let drivers: any[] = [];
+
+      if (entityId) {
+        drivers = await storage.getDriversByEntity(entityId);
+      } else {
+        const targetTransporterId = transporterId || (user.role === "transporter" ? user.transporterId : undefined);
+        if (!targetTransporterId) {
+          // If caller is a driver, return their own record
+          if (user.role === "driver") {
+            const u = await storage.getUser(user.id);
+            drivers = u ? [u] : [];
+          } else {
+            drivers = [];
+          }
+        } else {
+          drivers = await storage.getUsersByTransporterAndRole(targetTransporterId, "driver");
+        }
+      }
+
+      const driversWithoutPasswords = drivers.map(({ password, ...d }) => d);
+      res.json(driversWithoutPasswords ?? []);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch drivers" });
+      console.error("[GET /api/drivers] Error:", error);
+      res.json([]);
     }
   });
 

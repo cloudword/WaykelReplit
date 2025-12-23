@@ -10,6 +10,8 @@ import { Plus, Users, Phone, Mail, Search, FileText, CheckCircle, Clock, AlertCi
 import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
+import { OnboardingTracker } from "@/components/onboarding/OnboardingTracker";
+import { useOnboardingStatus } from "@/hooks/useOnboardingStatus";
 
 export default function TransporterDrivers() {
   const [_, setLocation] = useLocation();
@@ -35,6 +37,8 @@ export default function TransporterDrivers() {
     const stored = localStorage.getItem("currentUser");
     return stored ? JSON.parse(stored) : null;
   });
+
+  const { data: onboardingStatus } = useOnboardingStatus(user?.transporterId);
 
   const loadDrivers = async () => {
     if (!user?.transporterId) return;
@@ -221,6 +225,28 @@ export default function TransporterDrivers() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Empty state when not loading and there are no drivers */}
+        {!loading && drivers.length === 0 && (
+          <div className="mb-6">
+            <Card className="border-dashed border-gray-200 p-6 text-center">
+              <CardContent>
+                <p className="text-lg font-semibold">No drivers added yet</p>
+                <p className="text-sm text-gray-500 mt-2">Add your first driver to start assigning vehicles</p>
+                <div className="mt-4">
+                  <Button onClick={() => setShowAddDialog(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Driver
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+        {onboardingStatus && onboardingStatus.overallStatus !== "completed" && (
+          <div className="mb-6">
+            <OnboardingTracker data={onboardingStatus} />
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
