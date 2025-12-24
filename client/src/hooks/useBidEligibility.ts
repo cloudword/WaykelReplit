@@ -3,29 +3,23 @@ import { transporterApi } from "@/lib/api";
 
 export type BidEligibility = {
   canBid: boolean;
-  eligible?: boolean;
-  reason?: string | null;
-  blockingReason?: string | null;
-  transporterType?: "business" | "individual";
-  requireBusinessDocs?: boolean;
-  businessOk?: boolean;
-  vehiclesOk?: boolean;
-  driversOk?: boolean;
-  overallStatus?: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED" | "BLOCKED";
-  overallStatusLegacy?: string;
-  transporterStatus?: string;
-  verificationStatus?: string;
-  onboardingStatus?: string;
+  reason?:
+    | "not_verified"
+    | "missing_vehicle"
+    | "missing_driver"
+    | "business_docs_required"
+    | "suspended"
+    | null;
 };
 
 export function useBidEligibility(transporterId?: string) {
   return useQuery<BidEligibility>({
-    queryKey: ["bid-eligibility", transporterId || "self"],
-    enabled: true,
+    queryKey: ["bid-eligibility", transporterId || "missing-id"],
+    enabled: Boolean(transporterId),
     staleTime: 15_000,
     queryFn: async () => {
-      const data = await transporterApi.getBidEligibility(transporterId);
-      return data as BidEligibility;
+      if (!transporterId) throw new Error("transporterId is required for eligibility lookup");
+      return transporterApi.getBidEligibility(transporterId) as Promise<BidEligibility>;
     },
   });
 }

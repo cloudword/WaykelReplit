@@ -563,12 +563,13 @@ export const transporterApi = {
     const res = await apiFetch(`${API_BASE}/transporter/permissions`);
     return res.json();
   },
-  getBidEligibility: async (transporterId?: string) => {
-    // Prefer the admin/self endpoint when transporterId is provided; fallback to self route
-    const path = transporterId
-      ? `${API_BASE}/transporters/${transporterId}/bid-eligibility`
-      : `${API_BASE}/transporter/bidding-eligibility`;
-    const res = await apiFetch(path);
+  getBidEligibility: async (transporterId: string) => {
+    if (!transporterId) {
+      throw new Error("transporterId is required for eligibility lookup");
+    }
+
+    // Authoritative eligibility endpoint
+    const res = await apiFetch(`${API_BASE}/transporters/${transporterId}/eligibility`);
     return res.json();
   },
 };

@@ -1,14 +1,12 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { useOnboardingStatus } from "@/hooks/useOnboardingStatus";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RefreshCw, MapPin, Clock, Package, Truck, IndianRupee, Calendar, User, Phone, Star, Sparkles, Filter, AlertCircle, FileText } from "lucide-react";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 import { VehicleSelector } from "@/components/vehicle-selector";
-import { OnboardingTracker } from "@/components/onboarding/OnboardingTracker";
-import { api, API_BASE, transporterApi } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTransporterSessionGate } from "@/hooks/useTransporterSession";
@@ -41,22 +39,32 @@ export default function TransporterMarketplace() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"matched" | "all">("matched");
   const [transporter, setTransporter] = useState<any>(null);
-  const [permissions, setPermissions] = useState<any>(null);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [bids, setBids] = useState<any[]>([]);
   const { user: sessionUser, isReady: sessionReady, isChecking: sessionChecking } = useTransporterSessionGate();
   const user = sessionUser;
-  // Onboarding status (authoritative)
-  const { data: onboarding, isLoading: onboardingLoading } = useOnboardingStatus(transporter?.id);
-  const { data: bidEligibility, isLoading: bidEligibilityLoading, refetch: refetchBidEligibility } = useBidEligibility(transporter?.id || sessionUser?.transporterId);
+  const transporterId = transporter?.id || sessionUser?.transporterId;
+  const { data: bidEligibility, isLoading: bidEligibilityLoading, refetch: refetchBidEligibility } = useBidEligibility(transporterId);
 
-  const onboardingComplete = onboarding?.overallStatus === "completed" || onboarding?.overallStatusCode === "COMPLETED";
-  const permissionsAllowBid = permissions?.canBid !== false;
-  const eligibilityCanBid = bidEligibility?.eligible ?? bidEligibility?.canBid;
-  const canBid = (eligibilityCanBid ?? onboarding?.canBid ?? onboardingComplete) && permissionsAllowBid;
-  const showVerificationWarning = Boolean((bidEligibility && !eligibilityCanBid) || (onboarding && !canBid));
-  const backendBlocked = bidEligibility ? eligibilityCanBid === false : onboarding?.canBid === false;
-  const blockingReason = bidEligibility?.reason || bidEligibility?.blockingReason || onboarding?.blockingReason || (backendBlocked ? "Bidding is temporarily disabled for your account." : undefined);
+  const canBid = bidEligibility?.canBid === true;
+  const bidCheckInProgress = bidEligibilityLoading || !bidEligibility;
+  const blockingReason = (() => {
+    switch (bidEligibility?.reason) {
+      case "not_verified":
+        return "Account verification is pending. Complete verification to start bidding.";
+      case "missing_vehicle":
+        return "Add and verify a vehicle to place bids.";
+      case "missing_driver":
+        return "Add and verify a driver to place bids.";
+      case "business_docs_required":
+        return "Upload required business documents to enable bidding.";
+      case "suspended":
+        return "Your account is suspended. Please contact support.";
+      default:
+        return undefined;
+    }
+  })();
+  const showEligibilityWarning = Boolean(bidEligibility && !canBid);
 
   const loadRides = async () => {
     setLoading(true);
@@ -122,14 +130,6 @@ export default function TransporterMarketplace() {
     api.transporters.get(sessionUser.transporterId).then(setTransporter);
     loadVehicles();
     loadBids();
-    transporterApi.getPermissions()
-      .then((data) => {
-        setPermissions(data?.permissions ?? data);
-      })
-      .catch((error) => {
-        console.warn("Failed to load transporter permissions", error);
-        setPermissions(null);
-      });
     refetchBidEligibility();
   }, [sessionReady, sessionUser?.transporterId]);
 
@@ -192,21 +192,7 @@ export default function TransporterMarketplace() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Onboarding Tracker (compact) below header, above trip list */}
-        {onboarding && (
-          <div className="mb-6">
-            <OnboardingTracker
-              variant="compact"
-              data={onboarding}
-              onNavigate={(target) => {
-                if (target === "business") setLocation("/transporter/documents");
-                if (target === "vehicles") setLocation("/transporter/vehicles");
-                if (target === "drivers") setLocation("/transporter/drivers");
-              }}
-            />
-          </div>
-        )}
-        {showVerificationWarning && (
+        {showEligibilityWarning && (
           <Card className="mb-6 border-amber-200 bg-amber-50" data-testid="verification-required-banner">
             <CardContent className="p-4">
               <div className="flex items-start gap-4">
@@ -214,17 +200,19 @@ export default function TransporterMarketplace() {
                 <div className="flex-1">
                   <h3 className="font-semibold text-amber-800">Finish onboarding to place bids</h3>
                   <p className="text-sm text-amber-700 mt-1">
-                    A few onboarding steps are still pending. Complete the requirements below so you can start bidding immediately.
+                    {blockingReason || "Complete the required steps to enable bidding."}
                   </p>
-                  <Button 
-                    size="sm" 
-                    className="mt-3"
-                    onClick={() => setLocation("/transporter/documents")}
-                    data-testid="button-complete-verification"
-                  >
-                    <FileText className="h-4 w-4 mr-2" />
-                    Continue Onboarding
-                  </Button>
+                  {bidEligibility?.reason !== "suspended" && (
+                    <Button
+                      size="sm"
+                      className="mt-3"
+                      onClick={() => setLocation("/transporter/documents")}
+                      data-testid="button-complete-verification"
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Complete Setup
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -395,11 +383,11 @@ export default function TransporterMarketplace() {
                           onClick={() => handlePlaceBid(ride.id, parseFloat(ride.price))}
                           data-testid={`button-bid-${ride.id}`}
                           className="bg-blue-600 hover:bg-blue-700"
-                          disabled={!canBid}
+                          disabled={bidCheckInProgress || !canBid}
                         >
-                          Place Bid
+                          {bidCheckInProgress ? "Checking eligibility..." : "Place Bid"}
                         </Button>
-                        {!canBid && (
+                        {!bidCheckInProgress && !canBid && (
                           <p className="text-sm text-muted mt-2">
                             {blockingReason || "Bidding is currently unavailable."}
                           </p>
