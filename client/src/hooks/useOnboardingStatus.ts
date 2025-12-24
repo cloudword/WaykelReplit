@@ -7,7 +7,10 @@ export type OnboardingStatus = {
   businessDocuments: { status: "not_required" | "not_started" | "pending" | "approved" | "rejected" };
   vehicles: { count: number; completed: boolean; hasApprovedVehicle?: boolean };
   drivers: { count: number; completed: boolean; hasApprovedDriver?: boolean };
-  overallStatus: "not_started" | "in_progress" | "completed";
+  overallStatus: "not_started" | "in_progress" | "completed" | string;
+  overallStatusCode?: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED" | "BLOCKED";
+  transporterStatus?: string;
+  verificationStatus?: string;
   canBid?: boolean;
   blockingReason?: string | null;
 };

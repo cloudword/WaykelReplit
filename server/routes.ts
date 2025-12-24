@@ -2593,23 +2593,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
 
     try {
-        const [transporter, onboarding] = await Promise.all([
-          storage.getTransporter(user.transporterId),
-          storage.getTransporterOnboardingStatus(user.transporterId)
-        ]);
-
-        if (!transporter) {
-          return res.status(404).json({ error: "Transporter not found" });
-        }
-
-        const { canBid, blockingReason } = evaluateBidEligibility(transporter, onboarding);
+        const eligibility = await getTransporterBidEligibilitySnapshot(user.transporterId);
 
         res.json({
-          canBid,
-          blockingReason,
+          canBid: eligibility.canBid,
+          blockingReason: eligibility.blockingReason,
           canViewMarketplace: true,
-          onboardingStatus: onboarding?.onboardingStatus ?? transporter.onboardingStatus ?? "unknown",
-          verificationStatus: transporter.verificationStatus ?? "unknown"
+          onboardingStatus: eligibility.overallStatus.toLowerCase(),
+          overallStatus: eligibility.overallStatus,
+          verificationStatus: eligibility.verificationStatus ?? "unknown",
+          transporterStatus: eligibility.transporterStatus ?? "unknown",
+          requireBusinessDocs: eligibility.requireBusinessDocs,
         });
     } catch (error) {
       console.error("[GET /api/transporter/permissions] Error:", error);
@@ -2636,8 +2630,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // STRICT ISOLATION: Always use session transporterId
       console.log(`[GET /api/transporter/onboarding-status] Fetching status for transporter ${user.transporterId} (user: ${user.id})`);
       
-      const status = await storage.getTransporterOnboardingStatus(user.transporterId);
-      if (!status) {
+      const [status, transporter] = await Promise.all([
+        storage.getTransporterOnboardingStatus(user.transporterId),
+        storage.getTransporter(user.transporterId)
+      ]);
+
+      if (!status || !transporter) {
         console.warn(`[GET /api/transporter/onboarding-status] Transporter ${user.transporterId} not found in database`);
         return res.status(404).json({ error: "Transporter not found" });
       }
@@ -2676,12 +2674,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // Calculate overall completion (derived, not relying on stored onboardingStatus)
       const requiredSteps = Object.values(steps).filter(s => s.required);
       const completedSteps = requiredSteps.filter(s => s.completed);
-      const allComplete = completedSteps.length === requiredSteps.length;
-      const overallStatus = allComplete ? "completed" : (completedSteps.length > 0 ? "in_progress" : "not_started");
+      const overallStatusCode = deriveOverallStatus({
+        transporterStatus: transporter.status,
+        verificationStatus: transporter.verificationStatus,
+        businessOk: steps.businessVerification.completed,
+        vehiclesOk: steps.addVehicle.completed,
+        driversOk: steps.addDriver.completed,
+      });
+
+      const allComplete = overallStatusCode === "COMPLETED";
+      const overallStatus = overallStatusCode.toLowerCase();
       
       res.json({
         transporterType: status.transporterType,
         onboardingStatus: overallStatus,
+        overallStatus: overallStatusCode,
+        transporterStatus: transporter.status,
+        verificationStatus: transporter.verificationStatus,
         steps,
         completedCount: completedSteps.length,
         totalCount: requiredSteps.length,
@@ -2749,62 +2758,124 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  type OverallStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED" | "BLOCKED";
+
   const normalizeTransporterType = (raw?: string) => raw === "business" ? "business" : "individual";
 
-  const deriveOverallStatus = (onboarding: any, transporterType: "business" | "individual") => {
-    const businessDocsStatus = onboarding?.businessDocuments?.status;
-    const businessOk = transporterType === "individual"
-      ? true
-      : businessDocsStatus === "approved" || onboarding?.hasBusinessDocs === true;
-    const vehiclesOk = onboarding?.hasApprovedVehicle === true;
-    const driversOk = onboarding?.hasApprovedDriver === true;
+  const deriveOverallStatus = (flags: {
+    transporterStatus?: string;
+    verificationStatus?: string;
+    businessOk: boolean;
+    vehiclesOk: boolean;
+    driversOk: boolean;
+  }): OverallStatus => {
+    const { transporterStatus, verificationStatus, businessOk, vehiclesOk, driversOk } = flags;
 
-    if (businessOk && vehiclesOk && driversOk) return "completed" as const;
-    if (businessOk || vehiclesOk || driversOk) return "in_progress" as const;
-    return "not_started" as const;
+    if (transporterStatus && transporterStatus !== "active") return "BLOCKED";
+    if (verificationStatus && verificationStatus !== "approved") return "BLOCKED";
+    if (businessOk && vehiclesOk && driversOk) return "COMPLETED";
+    if (businessOk || vehiclesOk || driversOk) return "IN_PROGRESS";
+    return "NOT_STARTED";
   };
 
   const evaluateBidEligibility = (transporter: any, onboarding: any) => {
     const transporterType = normalizeTransporterType(onboarding?.transporterType || transporter?.transporterType);
-
-    // Transporter status gate
-    const status = transporter?.status;
-    if (status && status !== "active") {
-      const statusMessages: Record<string, string> = {
-        pending_verification: "Your account is pending document verification. Please upload required documents.",
-        pending_approval: "Your documents are under review. You'll be notified once approved.",
-        rejected: "Your account verification was rejected. Please re-upload the required documents.",
-        suspended: "Your account is suspended. Please contact support.",
-      };
-      return { canBid: false, blockingReason: statusMessages[status] || "Your account must be active before bidding.", transporterType };
-    }
-
-    const businessDocsStatus = onboarding?.businessDocuments?.status;
-    const businessOk = transporterType === "individual"
-      ? true
-      : businessDocsStatus === "approved" || onboarding?.hasBusinessDocs === true;
-
+    const requireBusinessDocs = transporterType === "business";
+    const businessOk = requireBusinessDocs
+      ? onboarding?.hasBusinessDocs === true || onboarding?.businessDocuments?.status === "approved"
+      : true;
     const vehiclesOk = onboarding?.hasApprovedVehicle === true;
     const driversOk = onboarding?.hasApprovedDriver === true;
-    const derivedOverall = onboarding?.overallStatus || deriveOverallStatus(onboarding, transporterType);
 
-    const canBid = businessOk && vehiclesOk && driversOk && derivedOverall === "completed";
+    const transporterStatus = transporter?.status || "unknown";
+    const verificationStatus = transporter?.verificationStatus || onboarding?.verificationStatus || "unknown";
 
-    if (canBid) {
-      return { canBid: true, blockingReason: null, transporterType };
+    const overallStatus = deriveOverallStatus({
+      transporterStatus,
+      verificationStatus,
+      businessOk,
+      vehiclesOk,
+      driversOk,
+    });
+
+    const statusMessages: Record<string, string> = {
+      pending_verification: "Your account is pending document verification. Please upload required documents.",
+      pending_approval: "Your documents are under review. You'll be notified once approved.",
+      rejected: "Your account verification was rejected. Please re-upload the required documents.",
+      suspended: "Your account is suspended. Please contact support.",
+      unverified: "Your account must be verified before bidding.",
+    };
+
+    const verificationMessages: Record<string, string> = {
+      pending: "Your account verification is pending. Please wait for approval.",
+      rejected: "Your account verification was rejected. Please re-submit required documents.",
+      flagged: "Your account is flagged. Please contact support.",
+    };
+
+    let blockingReason: string | null = null;
+    if (overallStatus === "BLOCKED") {
+      if (transporterStatus && transporterStatus !== "active" && transporterStatus !== "unknown") {
+        blockingReason = statusMessages[transporterStatus] || "Your account must be active before bidding.";
+      } else if (verificationStatus && verificationStatus !== "approved" && verificationStatus !== "unknown") {
+        blockingReason = verificationMessages[verificationStatus] || "Your account must be verified before bidding.";
+      }
     }
 
-    const blockingReason = !businessOk
-      ? "Business documents must be approved before bidding."
-      : !vehiclesOk
-        ? "Add at least one vehicle with an approved RC before bidding."
-        : !driversOk
-          ? "Add at least one driver with an approved driving license before bidding."
-          : derivedOverall !== "completed"
-            ? "Finish onboarding to place bids."
-            : "Bidding is currently unavailable.";
+    if (!blockingReason) {
+      blockingReason = !businessOk
+        ? "Business documents must be approved before bidding."
+        : !vehiclesOk
+          ? "Add at least one vehicle with an approved RC before bidding."
+          : !driversOk
+            ? "Add at least one driver with an approved driving license before bidding."
+            : overallStatus !== "COMPLETED"
+              ? "Finish onboarding to place bids."
+              : null;
+    }
 
-    return { canBid: false, blockingReason, transporterType };
+    const canBid = overallStatus === "COMPLETED" && transporterStatus === "active" && verificationStatus === "approved";
+
+    return {
+      canBid,
+      blockingReason,
+      transporterType,
+      requireBusinessDocs,
+      businessOk,
+      vehiclesOk,
+      driversOk,
+      overallStatus,
+      transporterStatus,
+      verificationStatus,
+    };
+  };
+
+  const getTransporterBidEligibilitySnapshot = async (transporterId: string) => {
+    const [transporter, onboarding] = await Promise.all([
+      storage.getTransporter(transporterId),
+      storage.getTransporterOnboardingStatus(transporterId)
+    ]);
+
+    if (!transporter) {
+      return {
+        canBid: false,
+        blockingReason: "Transporter not found",
+        transporterType: "individual",
+        requireBusinessDocs: false,
+        businessOk: false,
+        vehiclesOk: false,
+        driversOk: false,
+        overallStatus: "BLOCKED" as const,
+        transporterStatus: "not_found",
+        verificationStatus: "not_found",
+        onboardingStatus: onboarding?.onboardingStatus || "unknown",
+      };
+    }
+
+    const eligibility = evaluateBidEligibility(transporter, onboarding || {});
+    return {
+      ...eligibility,
+      onboardingStatus: onboarding?.onboardingStatus ?? transporter.onboardingStatus ?? "unknown",
+    };
   };
 
   // GET /api/transporter/bidding-eligibility - Check if transporter can bid
@@ -2815,18 +2886,42 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
     
     try {
-      const [transporter, onboarding] = await Promise.all([
-        storage.getTransporter(user.transporterId),
-        storage.getTransporterOnboardingStatus(user.transporterId)
-      ]);
-
-      const transporterType = normalizeTransporterType(onboarding?.transporterType || transporter?.transporterType);
-      const overallStatus = deriveOverallStatus(onboarding, transporterType);
-      const { canBid, blockingReason } = evaluateBidEligibility(transporter, { ...onboarding, overallStatus, transporterType });
-      res.json({ canBid, blockingReason, transporterType });
+      const eligibility = await getTransporterBidEligibilitySnapshot(user.transporterId);
+      res.json({
+        ...eligibility,
+        eligible: eligibility.canBid,
+        reason: eligibility.blockingReason,
+        overallStatusLegacy: eligibility.overallStatus.toLowerCase(),
+      });
     } catch (error) {
       console.error("[GET /api/transporter/bidding-eligibility] Error:", error);
       res.status(500).json({ error: "Failed to check bidding eligibility" });
+    }
+  });
+
+  // GET /api/transporters/:id/bid-eligibility - Admins or the transporter themselves
+  app.get("/api/transporters/:id/bid-eligibility", requireAuth, async (req, res) => {
+    const sessionUser = getCurrentUser(req);
+    const requestedTransporterId = req.params.id;
+
+    const isAdmin = sessionUser?.isSuperAdmin || sessionUser?.role === "admin";
+    const isSelf = sessionUser?.transporterId === requestedTransporterId;
+
+    if (!isAdmin && !isSelf) {
+      return res.status(403).json({ error: "Access denied. You can only view your transporter eligibility." });
+    }
+
+    try {
+      const eligibility = await getTransporterBidEligibilitySnapshot(requestedTransporterId);
+      res.json({
+        ...eligibility,
+        eligible: eligibility.canBid,
+        reason: eligibility.blockingReason,
+        overallStatusLegacy: eligibility.overallStatus.toLowerCase(),
+      });
+    } catch (error) {
+      console.error("[GET /api/transporters/:id/bid-eligibility] Error:", error);
+      res.status(500).json({ error: "Failed to fetch bid eligibility" });
     }
   });
 
@@ -2918,23 +3013,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       
       // PHASE C: VERIFICATION GATES - Comprehensive checks before allowing bid
       if (!sessionUser.isSuperAdmin) {
-        const transporter = await storage.getTransporter(effectiveTransporterId);
+        const [transporter, onboardingSnapshot, vehicles] = await Promise.all([
+          storage.getTransporter(effectiveTransporterId),
+          storage.getTransporterOnboardingStatus(effectiveTransporterId),
+          storage.getTransporterVehicles(effectiveTransporterId),
+        ]);
+
         if (!transporter) {
           return res.status(403).json({ error: "Transporter account not found." });
         }
 
-        const onboardingSnapshot = await storage.getTransporterOnboardingStatus(effectiveTransporterId);
-        const vehicles = await storage.getTransporterVehicles(effectiveTransporterId);
-
-        const businessDocumentsStatus = normalizeTransporterType(onboardingSnapshot?.transporterType || transporter.transporterType) === "business"
-          ? (onboardingSnapshot?.hasBusinessDocs ? "approved" : "pending")
-          : "not_required";
-
-        const eligibility = evaluateBidEligibility(transporter, {
-          ...onboardingSnapshot,
-          businessDocuments: { status: businessDocumentsStatus },
-          overallStatus: onboardingSnapshot?.onboardingStatus === "completed" ? "completed" : "in_progress",
-        });
+        const eligibility = evaluateBidEligibility(transporter, onboardingSnapshot || {});
 
         if (!eligibility.canBid) {
           return res.status(403).json({ error: eligibility.blockingReason || "You are not eligible to bid yet." });

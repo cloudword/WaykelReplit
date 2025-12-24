@@ -12,6 +12,7 @@ import { api, API_BASE, transporterApi } from "@/lib/api";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTransporterSessionGate } from "@/hooks/useTransporterSession";
+import { useBidEligibility } from "@/hooks/useBidEligibility";
 
 interface MarketplaceRide {
   id: string;
@@ -42,17 +43,20 @@ export default function TransporterMarketplace() {
   const [transporter, setTransporter] = useState<any>(null);
   const [permissions, setPermissions] = useState<any>(null);
   const [vehicles, setVehicles] = useState<any[]>([]);
+  const [bids, setBids] = useState<any[]>([]);
   const { user: sessionUser, isReady: sessionReady, isChecking: sessionChecking } = useTransporterSessionGate();
   const user = sessionUser;
   // Onboarding status (authoritative)
   const { data: onboarding, isLoading: onboardingLoading } = useOnboardingStatus(transporter?.id);
+  const { data: bidEligibility, isLoading: bidEligibilityLoading, refetch: refetchBidEligibility } = useBidEligibility(transporter?.id || sessionUser?.transporterId);
 
-  const onboardingComplete = onboarding?.overallStatus === "completed";
+  const onboardingComplete = onboarding?.overallStatus === "completed" || onboarding?.overallStatusCode === "COMPLETED";
   const permissionsAllowBid = permissions?.canBid !== false;
-  const canBid = (onboarding?.canBid ?? onboardingComplete) && permissionsAllowBid;
-  const showVerificationWarning = Boolean(onboarding && !canBid);
-  const backendBlocked = onboarding && onboarding.canBid === false;
-  const blockingReason = onboarding?.blockingReason || (backendBlocked ? "Bidding is temporarily disabled for your account." : undefined);
+  const eligibilityCanBid = bidEligibility?.eligible ?? bidEligibility?.canBid;
+  const canBid = (eligibilityCanBid ?? onboarding?.canBid ?? onboardingComplete) && permissionsAllowBid;
+  const showVerificationWarning = Boolean((bidEligibility && !eligibilityCanBid) || (onboarding && !canBid));
+  const backendBlocked = bidEligibility ? eligibilityCanBid === false : onboarding?.canBid === false;
+  const blockingReason = bidEligibility?.reason || bidEligibility?.blockingReason || onboarding?.blockingReason || (backendBlocked ? "Bidding is temporarily disabled for your account." : undefined);
 
   const loadRides = async () => {
     setLoading(true);
@@ -78,6 +82,11 @@ export default function TransporterMarketplace() {
   const matchedRides = rides.filter(r => r.matchScore && r.matchScore > 0);
   const allRides = rides;
 
+  const bidByRideId = new Map<string, any>();
+  for (const bid of bids) {
+    if (bid?.rideId) bidByRideId.set(bid.rideId, bid);
+  }
+
   const loadVehicles = async () => {
     if (!sessionUser?.transporterId) return;
     try {
@@ -96,11 +105,23 @@ export default function TransporterMarketplace() {
     }
   };
 
+  const loadBids = async () => {
+    if (!sessionUser?.transporterId) return;
+    try {
+      const data = await api.bids.list({ transporterId: sessionUser.transporterId });
+      setBids(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Failed to load bids:", error);
+      setBids([]);
+    }
+  };
+
   useEffect(() => {
     if (!sessionReady || !sessionUser?.transporterId) return;
     loadRides();
     api.transporters.get(sessionUser.transporterId).then(setTransporter);
     loadVehicles();
+    loadBids();
     transporterApi.getPermissions()
       .then((data) => {
         setPermissions(data?.permissions ?? data);
@@ -109,6 +130,7 @@ export default function TransporterMarketplace() {
         console.warn("Failed to load transporter permissions", error);
         setPermissions(null);
       });
+    refetchBidEligibility();
   }, [sessionReady, sessionUser?.transporterId]);
 
   const handlePlaceBid = (rideId: string, price: number) => {
@@ -358,18 +380,31 @@ export default function TransporterMarketplace() {
                         {parseFloat(ride.price).toLocaleString()}
                       </p>
                     </div>
-                    <Button
-                      onClick={() => handlePlaceBid(ride.id, parseFloat(ride.price))}
-                      data-testid={`button-bid-${ride.id}`}
-                      className="bg-blue-600 hover:bg-blue-700"
-                      disabled={!canBid}
-                    >
-                      Place Bid
-                    </Button>
-                    {!canBid && (
-                      <p className="text-sm text-muted mt-2">
-                        {blockingReason || "Bidding is currently unavailable."}
-                      </p>
+                    {bidByRideId.has(ride.id) ? (
+                      <Button
+                        onClick={() => setLocation("/transporter/bids")}
+                        data-testid={`button-bid-placed-${ride.id}`}
+                        variant="outline"
+                        className="border-green-600 text-green-700 hover:text-green-800 hover:border-green-700"
+                      >
+                        Bid Already Placed
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          onClick={() => handlePlaceBid(ride.id, parseFloat(ride.price))}
+                          data-testid={`button-bid-${ride.id}`}
+                          className="bg-blue-600 hover:bg-blue-700"
+                          disabled={!canBid}
+                        >
+                          Place Bid
+                        </Button>
+                        {!canBid && (
+                          <p className="text-sm text-muted mt-2">
+                            {blockingReason || "Bidding is currently unavailable."}
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                 </CardContent>

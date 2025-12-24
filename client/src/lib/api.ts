@@ -563,4 +563,12 @@ export const transporterApi = {
     const res = await apiFetch(`${API_BASE}/transporter/permissions`);
     return res.json();
   },
+  getBidEligibility: async (transporterId?: string) => {
+    // Prefer the admin/self endpoint when transporterId is provided; fallback to self route
+    const path = transporterId
+      ? `${API_BASE}/transporters/${transporterId}/bid-eligibility`
+      : `${API_BASE}/transporter/bidding-eligibility`;
+    const res = await apiFetch(path);
+    return res.json();
+  },
 };
