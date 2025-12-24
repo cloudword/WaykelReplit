@@ -57,10 +57,7 @@ import TransporterAddresses from "@/pages/transporter/addresses";
 import TransporterAnalytics from "@/pages/transporter/analytics";
 import TransporterSettings from "@/pages/transporter/settings";
 
-import CustomerDashboard from "@/pages/customer/dashboard";
-import CustomerRides from "@/pages/customer/rides";
-import CustomerProfile from "@/pages/customer/profile";
-import CustomerAuthPage from "@/pages/customer/auth";
+import CustomerPortalApp from "./customer-portal/CustomerPortalApp";
 
 function Router() {
   return (
@@ -95,12 +92,9 @@ function Router() {
       <Route path="/transporter/analytics" component={TransporterAnalytics} />
       <Route path="/transporter/settings" component={TransporterSettings} />
 
-      {/* Customer/Rider App Routes */}
-      <Route path="/customer/auth" component={CustomerAuthPage} />
-      <Route path="/customer" component={CustomerDashboard} />
-      <Route path="/customer/rides" component={CustomerRides} />
-      <Route path="/customer/profile" component={CustomerProfile} />
-      <Route path="/customer/notifications" component={Notifications} />
+      {/* Customer/Rider Portal */}
+      <Route path="/customer/:rest*" component={CustomerPortalApp} />
+      <Route path="/customer" component={CustomerPortalApp} />
 
       {/* Super Admin Panel Routes */}
       <Route path="/admin" component={AdminDashboard} />
