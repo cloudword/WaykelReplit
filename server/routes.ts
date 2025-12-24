@@ -2843,9 +2843,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (sessionUser) {
         const isSuperAdmin = sessionUser.isSuperAdmin;
         const userRole = sessionUser.role;
+        const isAdmin = isSuperAdmin || userRole === "admin";
         
-        // Super Admin can access all bids
-        if (isSuperAdmin) {
+        // Admins and Super Admins can access all bids with optional filters
+        if (isAdmin) {
           if (rideId) {
             result = await storage.getRideBids(rideId as string);
           } else if (userId) {

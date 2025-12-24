@@ -8,6 +8,7 @@ import { Gavel, MapPin, IndianRupee, Clock, Truck, RefreshCw } from "lucide-reac
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { useTransporterSessionGate } from "@/hooks/useTransporterSession";
 
 export default function TransporterBids() {
   const [_, setLocation] = useLocation();
@@ -15,19 +16,17 @@ export default function TransporterBids() {
   const [rides, setRides] = useState<any[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [user] = useState<any>(() => {
-    const stored = localStorage.getItem("currentUser");
-    return stored ? JSON.parse(stored) : null;
-  });
+  const { user: sessionUser, isReady: sessionReady, isChecking: sessionChecking } = useTransporterSessionGate();
+  const user = sessionUser;
 
   const loadData = async () => {
-    if (!user?.transporterId) return;
+    if (!sessionReady || !sessionUser?.transporterId) return;
     setLoading(true);
     try {
       const [bidsData, ridesData, vehiclesData] = await Promise.all([
-        api.bids.list({ transporterId: user.transporterId }),
+        api.bids.list({ transporterId: sessionUser.transporterId }),
         api.rides.list(),
-        api.vehicles.list({ transporterId: user.transporterId }),
+        api.vehicles.list({ transporterId: sessionUser.transporterId }),
       ]);
       setBids(Array.isArray(bidsData) ? bidsData : []);
       setRides(Array.isArray(ridesData) ? ridesData : []);
@@ -42,7 +41,7 @@ export default function TransporterBids() {
 
   useEffect(() => {
     loadData();
-  }, [user?.transporterId]);
+  }, [sessionReady, sessionUser?.transporterId]);
 
   const getRideDetails = (rideId: string) => {
     return rides.find(r => r.id === rideId);
@@ -138,9 +137,18 @@ export default function TransporterBids() {
     );
   };
 
-  if (!user) {
+  if (!sessionUser && !sessionChecking) {
     setLocation("/auth");
     return null;
+  }
+
+  if (sessionChecking || !sessionReady) {
+    return (
+      <div className="min-h-screen bg-gray-50 pl-64 flex items-center justify-center text-gray-500">
+        <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+        Checking session...
+      </div>
+    );
   }
 
   return (
