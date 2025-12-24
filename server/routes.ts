@@ -25,9 +25,15 @@ import { createRoleAwareNotification, createSimpleNotification } from "./notific
 import { assertRideTransition, RideTransitionError, isValidStatus, type RideStatus } from "./rideLifecycle";
 import { lockTripFinancialsAtomic, computeTripFinancials, computeTripFinancialsWithSettings, settingsToFeeConfig } from "./tripFinancials";
 import { sendTransactionalSms, SmsEvent } from "./sms/smsService";
+import crypto from "crypto";
 
 // JWT Configuration
-const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "waykel-jwt-secret-change-in-production";
+const envJwtSecret = process.env.JWT_SECRET || process.env.SESSION_SECRET;
+const JWT_SECRET = envJwtSecret || (() => {
+  const generated = crypto.randomBytes(64).toString("hex");
+  console.warn("[jwt] JWT_SECRET not set. Using a randomly generated secret for this process only.");
+  return generated;
+})();
 const JWT_CUSTOMER_EXPIRES_IN = "1h";      // Customer portal: 1 hour
 const JWT_ADMIN_EXPIRES_IN = "30m";        // Admin/Transporter: 30 minutes
 const JWT_EXPIRES_IN = JWT_CUSTOMER_EXPIRES_IN; // Default for backward compatibility
@@ -62,6 +68,30 @@ const normalizePhone = (phone: string): string => {
   }
   return normalized;
 };
+
+// Redact PII for public marketplace responses
+const sanitizePublicRide = (ride: Ride) => ({
+  id: ride.id,
+  pickupLocation: ride.pickupLocation,
+  dropLocation: ride.dropLocation,
+  pickupPincode: ride.pickupPincode,
+  dropPincode: ride.dropPincode,
+  pickupTime: ride.pickupTime,
+  dropTime: ride.dropTime,
+  date: ride.date,
+  status: ride.status,
+  price: ride.price,
+  distance: ride.distance,
+  cargoType: ride.cargoType,
+  weight: ride.weight,
+  weightKg: ride.weightKg,
+  weightTons: ride.weightTons,
+  weightUnit: ride.weightUnit,
+  requiredVehicleType: ride.requiredVehicleType,
+  requiredVehicleCategory: ride.requiredVehicleCategory,
+  biddingStatus: ride.biddingStatus,
+  createdAt: ride.createdAt,
+});
 
 // Extend Request type to include tokenUser
 declare global {
@@ -859,7 +889,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { sendOtpSms } = await import("./sms/smsService");
       await sendOtpSms(normalizedPhone, otp);
       
-      console.log(`[OTP] Generated for ${normalizedPhone} (${purpose}): ${otp}`);
       
       res.json({ 
         success: true, 
@@ -1617,7 +1646,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       } else {
         // Unauthenticated - only show pending rides for marketplace (public view)
         if (status === "pending") {
-          result = await storage.getPendingRides();
+          const pending = await storage.getPendingRides();
+          result = pending.map(sanitizePublicRide);
         } else {
           result = [];
         }
@@ -1679,9 +1709,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(403).json({ error: "Access denied" });
       }
       
-      // Unauthenticated - only allow viewing pending rides (marketplace)
+      // Unauthenticated - only allow viewing pending rides (marketplace) with redaction
       if (ride.status === "pending") {
-        return res.json(ride);
+        return res.json(sanitizePublicRide(ride));
       }
       
       return res.status(401).json({ error: "Authentication required" });
@@ -3368,120 +3398,141 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // DELETE /api/vehicles/:id - Remove vehicle when onboarding flow fails (owner or admin only)
-  app.delete("/api/vehicles/:id", requireDriverOrTransporter, async (req, res) => {
-    const user = getCurrentUser(req);
-    if (!user) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
-    const { id } = req.params;
-
+  app.post("/api/auth/register", authLimiter, async (req, res) => {
     try {
-      const vehicle = await storage.getVehicle(id);
-      if (!vehicle) {
-        return res.status(404).json({ error: "Vehicle not found" });
+      // Normalize phone before parsing
+      if (req.body.phone) {
+        req.body.phone = normalizePhone(req.body.phone);
       }
 
-      const isAdmin = user.isSuperAdmin || user.role === "admin";
-      if (!isAdmin) {
-        if (!user.transporterId || vehicle.transporterId !== user.transporterId) {
-          return res.status(403).json({ error: "Not authorized to delete this vehicle" });
+      // Enforce role safety: default to customer; only super-admins can create admins/super-admins
+      const requestedRole = req.body.role || "customer";
+      const sessionUser = req.session?.user;
+      const allowedSelfServeRoles: Array<"customer" | "driver" | "transporter"> = ["customer", "driver", "transporter"];
+
+      const isSuperAdminRequest = Boolean(req.body.isSuperAdmin);
+      const isPrivilegedRole = requestedRole === "admin" || isSuperAdminRequest;
+
+      if (isPrivilegedRole && !(sessionUser?.isSuperAdmin)) {
+        return res.status(403).json({ error: "Only super admins can create admin accounts" });
+      }
+
+      if (!allowedSelfServeRoles.includes(requestedRole as any) && !sessionUser?.isSuperAdmin) {
+        return res.status(400).json({ error: "Invalid role" });
+      }
+
+      // Strip unsafe fields before validation
+      const { isSuperAdmin: _ignoredIsSuperAdmin, role: _incomingRole, ...rest } = req.body;
+      const parsedBody = { ...rest, role: sessionUser?.isSuperAdmin ? requestedRole : (requestedRole as any) };
+
+      const data = insertUserSchema.parse(parsedBody);
+      const hashedPassword = await bcrypt.hash(data.password, 10);
+      
+      if (data.email) {
+        const existingEmail = await storage.getUserByEmail(data.email);
+        if (existingEmail) {
+          return res.status(400).json({ error: "Email already registered" });
         }
       }
 
-      await storage.deleteVehicle(id);
-      res.json({ success: true });
-    } catch (error) {
-      console.error("[DELETE /api/vehicles/:id] Error:", error);
-      res.status(500).json({ error: "Failed to delete vehicle" });
-    }
-  });
-
-  // Transporter routes
-  // GET /api/transporters - Admin only (with defensive aggregates)
-  app.get("/api/transporters", requireAdmin, async (req, res) => {
-    const { status } = req.query;
-    
-    try {
-      let result;
-      if (status === "pending_approval") {
-        result = await storage.getPendingTransporters();
-      } else {
-        // Use safe method with LEFT JOINs and COALESCE for production robustness
-        result = await storage.getAllTransportersSafe();
+      const existingPhone = await storage.getUserByPhone(data.phone);
+      if (existingPhone) {
+        return res.status(400).json({ error: "Phone number already registered" });
       }
-      res.json(result);
-    } catch (error) {
-      console.error("❌ /api/transporters failed:", error);
-      res.status(500).json({ error: "Failed to fetch transporters" });
+
+      let transporterId: string | undefined;
+      
+      // If registering as transporter, create a transporter record first
+      if (data.role === "transporter") {
+        // Get transporter type (business or individual) from request
+        const transporterType = req.body.transporterType === "business" ? "business" : "individual";
+        
+        const transporterData = {
+          companyName: req.body.companyName || `${data.name}'s Transport`,
+          ownerName: data.name,
+          contact: data.phone,
+          email: data.email,
+          location: req.body.location || req.body.city || "India",
+          baseCity: req.body.city || req.body.location || "India",
+          fleetSize: req.body.fleetSize || 1,
+          status: "pending_approval" as const,
+          verificationStatus: 'unverified',
+          transporterType, // Set entity type (business/individual)
+          onboardingStatus: "incomplete" as const,
+        };
+        
+        const transporter = await storage.createTransporter(transporterData);
+        transporterId = transporter.id;
+      }
+
+      const user = await storage.createUser({ 
+        ...data, 
+        password: hashedPassword,
+        transporterId,
+        isSuperAdmin: sessionUser?.isSuperAdmin ? Boolean(req.body.isSuperAdmin) : false,
+      });
+      const { password, ...userWithoutPassword } = user;
+      
+      // If an admin is already logged in (creating a user on behalf of someone),
+      // don't regenerate the session - just return the new user data
+      if (sessionUser?.isSuperAdmin) {
+        return res.json(userWithoutPassword);
+      }
+      
+      // Check if this is a cross-origin request (from customer portal)
+      // In that case, return a JWT token for immediate authentication
+      const origin = req.headers.origin;
+      const isCrossOrigin = origin && !origin.includes(req.headers.host || '');
+      
+      if (isCrossOrigin) {
+        // Generate JWT token for cross-origin registration (customer portal)
+        const tokenPayload = {
+          id: user.id,
+          role: user.role,
+          isSuperAdmin: user.isSuperAdmin || false,
+          isSelfDriver: user.isSelfDriver || false,
+          transporterId: user.transporterId || undefined,
+        };
+        // Use role-based expiry
+        const expiresIn = (user.role === "admin" || user.role === "transporter") 
+          ? JWT_ADMIN_EXPIRES_IN 
+          : JWT_CUSTOMER_EXPIRES_IN;
+        const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn });
+        
+        return res.json({
+          ...userWithoutPassword,
+          token,
+          tokenType: "Bearer",
+          expiresIn
+        });
+      }
+      
+      // For same-origin self-registration, create a session for the new user
+      req.session.user = {
+        id: user.id,
+        role: user.role,
+        isSuperAdmin: user.isSuperAdmin || false,
+        isSelfDriver: user.isSelfDriver || false,
+        transporterId: transporterId || user.transporterId || undefined,
+      };
+
+      req.session.save((saveErr) => {
+        if (saveErr) {
+          console.error("Session save error during registration:", saveErr);
+          return res.status(500).json({ error: "Session save failed" });
+        }
+        res.json({ ...userWithoutPassword, transporterId });
+      });
+    } catch (error: any) {
+      console.error("[auth/register] Registration error:", error);
+      
+      // Handle Zod validation errors
+      if (error?.name === 'ZodError' || error?.issues) {
+        return res.status(400).json({ error: "Invalid input", details: error.issues });
+      }
+      res.status(500).json({ error: "Registration failed" });
     }
   });
-
-  // POST /api/transporters - Public (for registration)
-  app.post("/api/transporters", async (req, res) => {
-    try {
-      const data = insertTransporterSchema.parse(req.body);
-      const transporter = await storage.createTransporter(data);
-      res.status(201).json(transporter);
-    } catch (error) {
-      res.status(400).json({ error: "Invalid transporter data" });
-    }
-  });
-
-  // GET /api/transporters/:id/onboarding-status - Authoritative onboarding status for a transporter (admin or owner)
-  app.get(
-    "/api/transporters/:id/onboarding-status",
-    requireAdminOrOwner(req => req.params.id),
-    async (req, res) => {
-      try {
-        const transporterId = req.params.id;
-
-        const transporter = await storage.getTransporterById(transporterId);
-        const onboardingSnapshot = await storage.getTransporterOnboardingStatus(transporterId);
-
-        // HARD FAIL SAFE
-        if (!transporter || !transporter.entityId) {
-          return res.json({
-            transporter: { completed: false },
-            transporterType: "individual",
-            businessDocuments: { status: "not_started" },
-            vehicles: { count: 0, completed: false },
-            drivers: { count: 0, completed: false },
-            overallStatus: "not_started",
-            canBid: false,
-            blockingReason: "Transporter not found",
-          });
-        }
-
-        const transporterType = normalizeTransporterType(onboardingSnapshot?.transporterType || transporter.transporterType);
-
-        // ---- BUSINESS DOCS ----
-        // Extend enum to include `not_required` for individual transporters
-        let businessDocumentsStatus: "not_required" | "not_started" | "pending" | "approved" | "rejected";
-
-        if (transporterType === "individual") {
-          businessDocumentsStatus = "not_required";
-        } else {
-          const businessDocs = await storage.getDocumentsByEntity(
-            transporter.entityId,
-            "transporter"
-          );
-
-          if (businessDocs.length === 0) {
-            businessDocumentsStatus = "not_started";
-          } else if (businessDocs.some(d => d.status === "rejected")) {
-            businessDocumentsStatus = "rejected";
-          } else if (businessDocs.every(d => d.status === "approved" || d.status === "verified")) {
-            businessDocumentsStatus = "approved";
-          } else {
-            businessDocumentsStatus = "pending";
-          }
-        }
-
-        const vehicleCount = onboardingSnapshot?.vehicleCount ?? 0;
-        const driverCount = onboardingSnapshot?.driverCount ?? 0;
-
-        const vehiclesCompleted = onboardingSnapshot?.hasApprovedVehicle === true;
         const driversCompleted = onboardingSnapshot?.hasApprovedDriver === true;
 
         // ---- OVERALL ----
