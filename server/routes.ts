@@ -2647,6 +2647,21 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // ===== TRANSPORTER ONBOARDING API =====
+  const deriveOverallStatus = (flags: {
+    transporterStatus?: string;
+    verificationStatus?: string;
+    businessOk: boolean;
+    vehiclesOk: boolean;
+    driversOk: boolean;
+  }): "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED" | "BLOCKED" => {
+    const { transporterStatus, verificationStatus, businessOk, vehiclesOk, driversOk } = flags;
+
+    if (transporterStatus && transporterStatus !== "active") return "BLOCKED";
+    if (verificationStatus && verificationStatus !== "approved") return "BLOCKED";
+    if (businessOk && vehiclesOk && driversOk) return "COMPLETED";
+    if (businessOk || vehiclesOk || driversOk) return "IN_PROGRESS";
+    return "NOT_STARTED";
+  };
   
   // GET /api/transporter/onboarding-status - Get current onboarding status
   app.get("/api/transporter/onboarding-status", requireAuth, requireTransporterWithVerification, async (req, res) => {
@@ -3507,58 +3522,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ error: "Registration failed" });
     }
   });
-        const driversCompleted = onboardingSnapshot?.hasApprovedDriver === true;
-
-        // ---- OVERALL ----
-        let completed = false;
-        const businessCompleted = transporterType === "individual"
-          ? true
-          : businessDocumentsStatus === "approved";
-
-        completed = businessCompleted && vehiclesCompleted && driversCompleted;
-
-        let overallStatus: "not_started" | "in_progress" | "completed" = "not_started";
-        if (completed) {
-          overallStatus = "completed";
-        } else if (
-          vehiclesCompleted ||
-          driversCompleted ||
-          (transporterType !== "individual" && businessDocumentsStatus !== "not_started")
-        ) {
-          overallStatus = "in_progress";
-        }
-
-        return res.json({
-          transporter: {
-            completed: overallStatus === "completed",
-          },
-          transporterType,
-          businessDocuments: {
-            status: businessDocumentsStatus,
-          },
-          vehicles: {
-            count: vehicleCount,
-            completed: vehiclesCompleted,
-          },
-          drivers: {
-            count: driverCount,
-            completed: driversCompleted,
-          },
-          overallStatus,
-        });
-      } catch (err) {
-        console.error("[onboarding-status] unexpected error:", err);
-
-        return res.json({
-          transporter: { completed: false },
-          businessDocuments: { status: "not_started" },
-          vehicles: { count: 0, completed: false },
-          drivers: { count: 0, completed: false },
-          overallStatus: "not_started",
-        });
-      }
-    }
-  );
 
   // GET /api/transporters/:id - Get single transporter (admin or owner/transporter)
   app.get('/api/transporters/:id', requireAdminOrOwner(req => req.params.id), async (req, res) => {
