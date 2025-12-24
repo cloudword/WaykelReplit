@@ -41,6 +41,7 @@ export default function TransporterMarketplace() {
   const [viewMode, setViewMode] = useState<"matched" | "all">("matched");
   const [transporter, setTransporter] = useState<any>(null);
   const [permissions, setPermissions] = useState<any>(null);
+  const [vehicles, setVehicles] = useState<any[]>([]);
   const { user: sessionUser, isReady: sessionReady, isChecking: sessionChecking } = useTransporterSessionGate();
   const user = sessionUser;
   // Onboarding status (authoritative)
@@ -77,10 +78,29 @@ export default function TransporterMarketplace() {
   const matchedRides = rides.filter(r => r.matchScore && r.matchScore > 0);
   const allRides = rides;
 
+  const loadVehicles = async () => {
+    if (!sessionUser?.transporterId) return;
+    try {
+      const res = await fetch(`${API_BASE}/vehicles?transporterId=${sessionUser.transporterId}`, {
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setVehicles(Array.isArray(data) ? data : []);
+      } else {
+        setVehicles([]);
+      }
+    } catch (error) {
+      console.error("Failed to load vehicles:", error);
+      setVehicles([]);
+    }
+  };
+
   useEffect(() => {
     if (!sessionReady || !sessionUser?.transporterId) return;
     loadRides();
     api.transporters.get(sessionUser.transporterId).then(setTransporter);
+    loadVehicles();
     transporterApi.getPermissions()
       .then((data) => {
         setPermissions(data?.permissions ?? data);
@@ -383,6 +403,7 @@ export default function TransporterMarketplace() {
         onOpenChange={setShowVehicleSelector}
         basePrice={selectedRidePrice}
         onConfirm={handleBidConfirm}
+        vehicles={vehicles}
       />
     </div>
   );

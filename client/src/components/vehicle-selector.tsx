@@ -1,25 +1,40 @@
-import { MOCK_USER } from "@/lib/mockData";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Truck, IndianRupee, CheckCircle2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 interface VehicleSelectorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: (vehicleId: string, bidAmount: string) => void;
   basePrice?: number;
+  vehicles: Array<{ id: string; plateNumber: string; type?: string; capacity?: string; documentStatus?: string }>;
 }
 
-export function VehicleSelector({ open, onOpenChange, onConfirm, basePrice }: VehicleSelectorProps) {
-  const [selectedVehicle, setSelectedVehicle] = useState(MOCK_USER.vehicles[0].id);
+export function VehicleSelector({ open, onOpenChange, onConfirm, basePrice, vehicles }: VehicleSelectorProps) {
+  const approvedVehicles = useMemo(() => {
+    // Prefer RC/document approved vehicles; fallback to all if none approved
+    const rcApproved = vehicles?.filter(v => (v.documentStatus || "").toLowerCase() === "approved");
+    if (rcApproved?.length) return rcApproved;
+    return vehicles || [];
+  }, [vehicles]);
+
+  const [selectedVehicle, setSelectedVehicle] = useState<string | null>(approvedVehicles[0]?.id || null);
   const [bidAmount, setBidAmount] = useState(basePrice ? basePrice.toString() : "");
   const [isBidSent, setIsBidSent] = useState(false);
 
+  useEffect(() => {
+    // Reset selected vehicle when list changes or dialog opens
+    if (open) {
+      setSelectedVehicle((prev) => prev && approvedVehicles.some(v => v.id === prev) ? prev : (approvedVehicles[0]?.id || null));
+    }
+  }, [open, approvedVehicles]);
+
   const handleConfirm = () => {
+    if (!selectedVehicle) return;
     setIsBidSent(true);
     setTimeout(() => {
       onConfirm(selectedVehicle, bidAmount);
@@ -58,22 +73,26 @@ export function VehicleSelector({ open, onOpenChange, onConfirm, basePrice }: Ve
         <div className="py-4 space-y-6">
           <div className="space-y-3">
             <Label className="text-sm font-medium text-gray-700">Select Vehicle</Label>
-            <RadioGroup value={selectedVehicle} onValueChange={setSelectedVehicle} className="space-y-3">
-              {MOCK_USER.vehicles.map((vehicle) => (
-                <div key={vehicle.id} className="flex items-center space-x-2 border p-3 rounded-lg hover:bg-gray-50 cursor-pointer [&:has(:checked)]:border-primary [&:has(:checked)]:bg-primary/5">
-                  <RadioGroupItem value={vehicle.id} id={vehicle.id} />
-                  <Label htmlFor={vehicle.id} className="flex-1 flex items-center cursor-pointer">
-                    <div className="bg-gray-100 p-2 rounded-full mr-3">
-                      <Truck className="h-5 w-5 text-gray-600" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{vehicle.plateNumber}</p>
-                      <p className="text-xs text-muted-foreground">{vehicle.type} • {vehicle.capacity}</p>
-                    </div>
-                  </Label>
-                </div>
-              ))}
-            </RadioGroup>
+            {approvedVehicles.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No vehicles available. Please add a vehicle and get RC approved.</p>
+            ) : (
+              <RadioGroup value={selectedVehicle || undefined} onValueChange={setSelectedVehicle} className="space-y-3">
+                {approvedVehicles.map((vehicle) => (
+                  <div key={vehicle.id} className="flex items-center space-x-2 border p-3 rounded-lg hover:bg-gray-50 cursor-pointer [&:has(:checked)]:border-primary [&:has(:checked)]:bg-primary/5">
+                    <RadioGroupItem value={vehicle.id} id={vehicle.id} />
+                    <Label htmlFor={vehicle.id} className="flex-1 flex items-center cursor-pointer">
+                      <div className="bg-gray-100 p-2 rounded-full mr-3">
+                        <Truck className="h-5 w-5 text-gray-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{vehicle.plateNumber}</p>
+                        <p className="text-xs text-muted-foreground">{vehicle.type || "Vehicle"}{vehicle.capacity ? ` • ${vehicle.capacity}` : ""}</p>
+                      </div>
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+            )}
           </div>
 
           <div className="space-y-3">
@@ -97,7 +116,7 @@ export function VehicleSelector({ open, onOpenChange, onConfirm, basePrice }: Ve
         
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleConfirm} disabled={!bidAmount}>
+          <Button onClick={handleConfirm} disabled={!bidAmount || !selectedVehicle || approvedVehicles.length === 0}>
             Place Bid
           </Button>
         </DialogFooter>

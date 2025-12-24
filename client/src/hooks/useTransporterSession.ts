@@ -17,13 +17,17 @@ export function useTransporterSessionGate() {
     retry: false,
   });
 
-  const user = data?.user;
-  const isReady = Boolean(user && user.role === "transporter");
+  const rawUser = data?.user;
+  const isTransporter = rawUser?.role === "transporter";
+  const user = isTransporter ? rawUser : null;
+  const isReady = Boolean(isTransporter);
+  const roleMismatch = Boolean(rawUser && !isTransporter);
 
   return {
     user,
     isReady,
     isChecking: isLoading,
     error: error ? (error as Error).message : null,
+    roleMismatch,
   };
 }
