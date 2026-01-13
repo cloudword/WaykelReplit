@@ -165,6 +165,8 @@ export const rides = pgTable("rides", {
   assignedVehicleId: varchar("assigned_vehicle_id").references(() => vehicles.id),
   acceptedBidId: varchar("accepted_bid_id"),
   createdById: varchar("created_by_id").references(() => users.id),
+  customerId: varchar("customer_id").references(() => users.id),
+  customerEntityId: text("customer_entity_id"),
   biddingStatus: text("bidding_status").$type<"open" | "closed" | "self_assigned">().default("open"),
   acceptedByUserId: varchar("accepted_by_user_id").references(() => users.id),
   acceptedAt: timestamp("accepted_at"),

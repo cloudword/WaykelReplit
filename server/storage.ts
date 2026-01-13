@@ -688,7 +688,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCustomerRides(customerId: string): Promise<Ride[]> {
-    return await db.select().from(rides).where(eq(rides.createdById, customerId)).orderBy(desc(rides.createdAt));
+    return await db
+      .select()
+      .from(rides)
+      .where(or(eq(rides.customerId, customerId), eq(rides.createdById, customerId)))
+      .orderBy(desc(rides.createdAt));
   }
 
   async createRide(insertRide: InsertRide): Promise<Ride> {

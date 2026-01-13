@@ -109,7 +109,10 @@ export const db = drizzle(pool, { schema });
 async function ensureSchemaPatches(): Promise<void> {
   const statements = [
     // Documents table on prod is missing this column even though schema expects it
-    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS verification_status TEXT DEFAULT 'unverified'"
+    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS verification_status TEXT DEFAULT 'unverified'",
+    // Ensure customer linkage columns exist on rides for customer dashboards
+    "ALTER TABLE rides ADD COLUMN IF NOT EXISTS customer_id varchar",
+    "ALTER TABLE rides ADD COLUMN IF NOT EXISTS customer_entity_id text"
   ];
 
   for (const statement of statements) {

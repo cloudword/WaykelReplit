@@ -1402,6 +1402,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const rideData = {
         ...req.body,
         createdById: user.id,
+        customerId: user.id,
+        customerEntityId: user.entityId,
         status: "pending",
         // Provide defaults for fields that may not be sent by customer portal
         distance: distance || "TBD",
@@ -1439,7 +1441,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!ride) {
         return res.status(404).json({ error: "Ride not found" });
       }
-      if (ride.createdById !== user.id) {
+      if (ride.customerId !== user.id && ride.createdById !== user.id) {
         return res.status(403).json({ error: "Access denied" });
       }
 
@@ -1468,7 +1470,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       // Verify the ride belongs to this customer
       const ride = await storage.getRide(bid.rideId);
-      if (!ride || ride.createdById !== user.id) {
+      if (!ride || (ride.customerId !== user.id && ride.createdById !== user.id)) {
         return res.status(403).json({ error: "Access denied" });
       }
 
@@ -1700,7 +1702,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         
         // Customer can only access their own created rides
         if (userRole === "customer") {
-          if (ride.createdById === sessionUser.id) {
+          if (ride.customerId === sessionUser.id || ride.createdById === sessionUser.id) {
             return res.json(ride);
           }
           return res.status(403).json({ error: "Access denied" });
@@ -1725,8 +1727,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const data = insertRideSchema.parse(req.body);
       
       const user = getCurrentUser(req);
-      if (user?.id && !data.createdById) {
-        data.createdById = user.id;
+      if (user?.id) {
+        data.createdById ??= user.id;
+        data.customerId ??= user.id;
+        if (user.entityId) {
+          data.customerEntityId ??= user.entityId;
+        }
       }
       
       const ride = await storage.createRide(data);
@@ -4202,7 +4208,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         fileData, 
         fileName, 
         contentType,
-        entityType,
+        entityType: incomingEntityType,
         type,
         entityId: incomingEntityId,
         expiryDate,
@@ -4211,8 +4217,21 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         driverId: bodyDriverId
       } = req.body;
 
-      // BACKWARD COMPAT SAFETY: Recover missing entityId from vehicleId, driverId or session transporter
+      // Normalize entity type to fix incorrect driver uploads (drivers are users, not transporters)
+      let entityType = incomingEntityType;
+      if (entityType === "user") {
+        entityType = "driver";
+      }
+
       let entityId = incomingEntityId;
+
+      // If a driver sends transporter as entityType, correct it and use their own ID/entity
+      if (sessionUser.role === "driver" && entityType === "transporter") {
+        entityType = "driver";
+        entityId = entityId || sessionUser.id || sessionUser.entityId;
+      }
+
+      // BACKWARD COMPAT SAFETY: Recover missing entityId from vehicleId, driverId or session transporter
 
       if (!entityId && entityType === "vehicle" && bodyVehicleId) {
         try {
@@ -4549,7 +4568,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
 
     // Customer can access their own trips
-    if (user.role === "customer" && ride.createdById === user.id) {
+    if (user.role === "customer" && (ride.customerId === user.id || ride.createdById === user.id)) {
       return { ride, hasAccess: true };
     }
 

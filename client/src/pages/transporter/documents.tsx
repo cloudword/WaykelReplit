@@ -14,6 +14,7 @@ import { DocumentUpload } from "@/components/document-upload";
 import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 import { useTransporterSessionGate } from "@/hooks/useTransporterSession";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 function DocumentThumbnail({ doc, onView }: { doc: any; onView: () => void }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -123,6 +124,9 @@ export default function TransporterDocuments() {
 
   const { data: onboardingStatus } = useOnboardingStatus(user?.transporterId);
 
+  const isBusinessTransporter = transporter?.transporterType === "business";
+  const defaultTab = isBusinessTransporter ? "business" : "driver";
+
   const loadData = async () => {
     if (!sessionReady || !user?.transporterId) {
       console.log("No transporterId found in user:", user);
@@ -199,6 +203,12 @@ export default function TransporterDocuments() {
     if (!sessionReady) return;
     loadData();
   }, [sessionReady, user?.transporterId]);
+
+  useEffect(() => {
+    if (!isBusinessTransporter && showBusinessUpload) {
+      setShowBusinessUpload(false);
+    }
+  }, [isBusinessTransporter, showBusinessUpload]);
 
   // optionally show tracker for incomplete onboardings
   // displayed above page content
@@ -306,6 +316,22 @@ export default function TransporterDocuments() {
     return null;
   }
 
+  if (!loading && transporter && !transporter.entityId) {
+    return (
+      <div className="min-h-screen bg-gray-50 pl-64">
+        <TransporterSidebar />
+        <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <Alert variant="destructive">
+            <AlertTitle>Account setup incomplete</AlertTitle>
+            <AlertDescription>
+              Account setup incomplete. Please contact Waykel support.
+            </AlertDescription>
+          </Alert>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 pl-64">
       <TransporterSidebar />
@@ -360,8 +386,8 @@ export default function TransporterDocuments() {
           </Card>
         )}
 
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          {onboardingStatus?.businessDocuments?.status !== "not_required" && (
+        <div className={`grid ${isBusinessTransporter ? "grid-cols-3" : "grid-cols-2"} gap-4 mb-6`}>
+          {isBusinessTransporter && onboardingStatus?.businessDocuments?.status !== "not_required" && (
             <Card className="cursor-pointer hover:bg-gray-50" onClick={() => setShowBusinessUpload(true)} data-testid="card-upload-business">
               <CardContent className="p-6 flex items-center gap-4">
                 <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
@@ -403,12 +429,14 @@ export default function TransporterDocuments() {
           </Card>
         </div>
 
-        <Tabs defaultValue="business" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
-            <TabsTrigger value="business" data-testid="tab-business-docs">
-              <Building2 className="h-4 w-4 mr-2" />
-              Business ({businessDocs.length})
-            </TabsTrigger>
+        <Tabs defaultValue={defaultTab} className="w-full">
+          <TabsList className={`grid w-full ${isBusinessTransporter ? "grid-cols-3" : "grid-cols-2"} mb-6`}>
+            {isBusinessTransporter && (
+              <TabsTrigger value="business" data-testid="tab-business-docs">
+                <Building2 className="h-4 w-4 mr-2" />
+                Business ({businessDocs.length})
+              </TabsTrigger>
+            )}
             <TabsTrigger value="driver" data-testid="tab-driver-docs">
               <Users className="h-4 w-4 mr-2" />
               Drivers ({driverDocs.length})
@@ -419,6 +447,7 @@ export default function TransporterDocuments() {
             </TabsTrigger>
           </TabsList>
 
+          {isBusinessTransporter && (
           <TabsContent value="business">
             {loading ? (
               <div className="flex items-center justify-center py-12">
@@ -484,6 +513,7 @@ export default function TransporterDocuments() {
               </div>
             )}
           </TabsContent>
+          )}
 
           <TabsContent value="driver">
             {loading ? (
@@ -631,6 +661,7 @@ export default function TransporterDocuments() {
       )}
 
       {showBusinessUpload && (
+        isBusinessTransporter && (
         <DocumentUpload
           open={showBusinessUpload}
           onOpenChange={setShowBusinessUpload}
@@ -640,6 +671,7 @@ export default function TransporterDocuments() {
           onSuccess={loadData}
           existingDocuments={businessDocs.map(d => ({ id: d.id, type: d.type, status: d.status, documentName: d.documentName, url: d.url, expiryDate: d.expiryDate }))}
         />
+        )
       )}
 
       <Dialog open={!!previewUrl} onOpenChange={() => setPreviewUrl(null)}>
