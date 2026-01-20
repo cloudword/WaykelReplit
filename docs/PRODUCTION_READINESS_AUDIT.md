@@ -98,12 +98,14 @@
 
 ## 1.6 Dependency Vulnerabilities (npm audit)
 `npm audit --audit-level=high` results (20 Jan 2026):
-- **High:** `qs <6.14.1`, `tar <=7.5.2`, `hono <=4.11.3`, `preact 10.28.0-10.28.1`
-- **Moderate:** `esbuild <=0.24.2` via vite/vitest/drizzle-kit
+- **Remaining High:** `tar <=7.5.2` (via `@capacitor/cli`, requires breaking update)
+- **Remaining Moderate:** `esbuild <=0.24.2` (via `vite`/`vitest`/`drizzle-kit`, requires breaking update)
+
+**Fixes applied:**
+- Ran `npm audit fix` (non-breaking). Reduced total issues to 9 (2 high, 7 moderate).
 
 **Recommended remediation:**
-- Run `npm audit fix` then evaluate breaking updates.
-- Upgrade `vite`, `vitest`, `drizzle-kit`, `@capacitor/cli` and re-test.
+- Plan a dependency upgrade window to move `vite`, `vitest`, `drizzle-kit`, and `@capacitor/cli` to patched versions.
 
 ## 1.7 Input Validation & Output Encoding
 - Zod used for inserts, but **PATCH routes do not consistently validate** all fields.
@@ -416,6 +418,7 @@ Key gaps:
 4. **Enforce minimum password length (8) at backend and align UI validation**.
 5. **Add optional pagination (limit/offset) for high-volume list endpoints**.
 6. **Add CSRF protection for session-authenticated state-changing requests**.
+7. **Apply non-breaking dependency security fixes (npm audit fix)**.
 
 Files:
 - [waykelwebsite/server/routes.ts](waykelwebsite/server/routes.ts#L360-L420)
