@@ -415,6 +415,7 @@ Key gaps:
 3. **Restrict admin storage + platform settings endpoints to admin middleware** (main API).
 4. **Enforce minimum password length (8) at backend and align UI validation**.
 5. **Add optional pagination (limit/offset) for high-volume list endpoints**.
+6. **Add CSRF protection for session-authenticated state-changing requests**.
 
 Files:
 - [waykelwebsite/server/routes.ts](waykelwebsite/server/routes.ts#L360-L420)
@@ -425,6 +426,7 @@ Files:
 - [waykelwebsite/client/src/components/PhoneLoginModal.tsx](waykelwebsite/client/src/components/PhoneLoginModal.tsx#L115-L135)
 - [server/storage.ts](server/storage.ts#L360-L850)
 - [server/routes.ts](server/routes.ts#L1605-L4250)
+- [server/index.ts](server/index.ts#L120-L240)
 
 ---
 

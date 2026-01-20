@@ -8,6 +8,7 @@ import pgSession from "connect-pg-simple";
 import { Pool } from "pg";
 import { storage, sanitizeRequestBody } from "./storage";
 import { globalLimiter } from "./rate-limiter";
+import crypto from "crypto";
 
 const app = express();
 const httpServer = createServer(app);
@@ -108,6 +109,15 @@ app.set("trust proxy", 1);
 const isProduction = process.env.NODE_ENV === "production";
 const needsCrossOriginCookies = isProduction || !!process.env.CUSTOMER_PORTAL_URL;
 
+const CSRF_COOKIE_NAME = "waykel.csrf";
+const CSRF_HEADER_NAME = "x-csrf-token";
+
+const getCookieValue = (cookieHeader: string | undefined, name: string): string | null => {
+  if (!cookieHeader) return null;
+  const match = cookieHeader.split(";").map(c => c.trim()).find(c => c.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.split("=")[1] || "") : null;
+};
+
 // Create session store
 // Production: Use PostgreSQL for persistent sessions (with SSL for DigitalOcean)
 // Development: Use MemoryStore
@@ -196,6 +206,54 @@ app.use(
     },
   })
 );
+
+// CSRF protection (double-submit cookie) for session-authenticated requests
+app.use((req, res, next) => {
+  const csrfCookie = getCookieValue(req.headers.cookie, CSRF_COOKIE_NAME);
+  if (!csrfCookie) {
+    const newToken = crypto.randomBytes(32).toString("hex");
+    res.cookie(CSRF_COOKIE_NAME, newToken, {
+      httpOnly: false,
+      secure: isProduction,
+      sameSite: needsCrossOriginCookies ? "none" : "lax",
+      domain: isProduction ? ".waykel.com" : undefined,
+    });
+  }
+
+  const method = req.method.toUpperCase();
+  const isUnsafe = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+  const hasBearer = Boolean(req.headers.authorization?.startsWith("Bearer "));
+  const hasSessionUser = Boolean(req.session?.user);
+
+  const csrfExemptPaths = new Set([
+    "/api/health",
+    "/api/health/db",
+    "/api/auth/login",
+    "/api/auth/register",
+    "/api/auth/request-otp",
+    "/api/auth/verify-otp",
+    "/api/auth/reset-password-with-token",
+    "/api/auth/token",
+    "/api/auth/token/refresh",
+    "/api/customer/login",
+    "/api/customer/register",
+    "/api/customer/auth/request-otp",
+    "/api/customer/auth/verify-otp",
+    "/api/customer/forgot-password/request-otp",
+    "/api/customer/forgot-password/verify-otp",
+    "/api/customer/forgot-password/reset",
+  ]);
+
+  if (isUnsafe && hasSessionUser && !hasBearer && !csrfExemptPaths.has(req.path)) {
+    const headerToken = req.headers[CSRF_HEADER_NAME] as string | undefined;
+    const cookieToken = getCookieValue(req.headers.cookie, CSRF_COOKIE_NAME);
+    if (!headerToken || !cookieToken || headerToken !== cookieToken) {
+      return res.status(403).json({ error: "CSRF validation failed" });
+    }
+  }
+
+  next();
+});
 
 // Global rate limiter - applies to all API routes
 app.use(globalLimiter);
