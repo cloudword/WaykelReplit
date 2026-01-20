@@ -470,6 +470,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Apply JWT token extraction middleware to all routes
   app.use(extractTokenUser);
 
+  const parsePagination = (req: Request, options?: { maxLimit?: number }) => {
+    const maxLimit = options?.maxLimit ?? 200;
+    const limitParam = req.query.limit as string | undefined;
+    const offsetParam = req.query.offset as string | undefined;
+
+    const limit = limitParam ? Math.min(parseInt(limitParam, 10), maxLimit) : undefined;
+    const offset = offsetParam ? Math.max(parseInt(offsetParam, 10), 0) : undefined;
+
+    return {
+      limit: Number.isFinite(limit as number) ? (limit as number) : undefined,
+      offset: Number.isFinite(offset as number) ? (offset as number) : undefined,
+    };
+  };
+
   // API Logging Middleware - logs all API requests
   app.use(async (req: Request, res: Response, next: NextFunction) => {
     // Skip logging for health checks and static assets
@@ -1600,6 +1614,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Covers: customer/trips (customer role), transporter/rides (transporter role)
   app.get("/api/rides", async (req, res) => {
     const { status, driverId, transporterId, createdById } = req.query;
+    const { limit, offset } = parsePagination(req, { maxLimit: 200 });
     const sessionUser = getCurrentUser(req);
     
     try {
@@ -1627,7 +1642,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           } else if (status === "completed") {
             result = await storage.getCompletedRides();
           } else {
-            result = await storage.getAllRides();
+            result = await storage.getAllRides(limit, offset);
           }
         }
         // Transporters can only see their own rides (derived from session)
@@ -2958,6 +2973,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/bids", async (req, res) => {
     const sessionUser = getCurrentUser(req);
     const { rideId, userId, transporterId } = req.query;
+    const { limit, offset } = parsePagination(req, { maxLimit: 200 });
     
     try {
       let result: any[] = [];
@@ -2977,7 +2993,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           } else if (transporterId) {
             result = await storage.getTransporterBids(transporterId as string);
           } else {
-            result = await storage.getAllBids();
+            result = await storage.getAllBids(limit, offset);
           }
         }
         // Transporters can only see their own bids
@@ -3332,7 +3348,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // GET /api/vehicles/all - Admin only
   app.get("/api/vehicles/all", requireAdmin, async (req, res) => {
     try {
-      const result = await storage.getAllVehicles();
+      const { limit, offset } = parsePagination(req, { maxLimit: 200 });
+      const result = await storage.getAllVehicles(limit, offset);
       res.json(result);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch all vehicles" });
@@ -3533,6 +3550,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/transporters", requireAdmin, async (req, res) => {
     try {
       const { status, search } = req.query as { status?: string; search?: string };
+      const { limit, offset } = parsePagination(req, { maxLimit: 200 });
 
       const all = await storage.getAllTransporters();
 
@@ -3553,6 +3571,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           ]
             .some(val => (val || "").toLowerCase().includes(needle))
         );
+      }
+
+      if (typeof limit === "number" || typeof offset === "number") {
+        const start = offset || 0;
+        const end = typeof limit === "number" ? start + limit : undefined;
+        filtered = filtered.slice(start, end);
       }
 
       res.json(filtered);
@@ -3811,6 +3835,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/users", requireAuth, async (req, res) => {
     try {
       const { transporterId: queryTransporterId, role } = req.query;
+      const { limit, offset } = parsePagination(req, { maxLimit: 200 });
       const user = getCurrentUser(req)!;
       const isAdmin = user.isSuperAdmin || user.role === "admin";
       const isTransporter = user.role === "transporter";
@@ -3874,6 +3899,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       const usersWithoutPasswords = users.map(({ password, ...u }) => u);
+      if (typeof limit === "number" || typeof offset === "number") {
+        const start = offset || 0;
+        const end = typeof limit === "number" ? start + limit : undefined;
+        return res.json(usersWithoutPasswords.slice(start, end));
+      }
       res.json(usersWithoutPasswords);
     } catch (error) {
       console.error("[GET /api/users] Error:", error);
@@ -3884,7 +3914,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Get all customers (for admin panel) with trip counts - Admin only
   app.get("/api/customers", requireAdmin, async (req, res) => {
     try {
-      const customers = await storage.getCustomers();
+      const { limit, offset } = parsePagination(req, { maxLimit: 200 });
+      const customers = await storage.getCustomers(limit, offset);
       const allRides = await storage.getAllRides();
       
       const customersWithStats = await Promise.all(
@@ -3906,6 +3937,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Get drivers - supports transporterId or entityId (Phase-1 compatibility)
   app.get("/api/drivers", requireAuth, async (req, res) => {
     try {
+      const { limit, offset } = parsePagination(req, { maxLimit: 200 });
       const user = getCurrentUser(req)!;
       const isAdmin = user.isSuperAdmin || user.role === "admin";
 
@@ -3936,6 +3968,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       const driversWithoutPasswords = drivers.map(({ password, ...d }) => d);
+      if (typeof limit === "number" || typeof offset === "number") {
+        const start = offset || 0;
+        const end = typeof limit === "number" ? start + limit : undefined;
+        return res.json((driversWithoutPasswords ?? []).slice(start, end));
+      }
       res.json(driversWithoutPasswords ?? []);
     } catch (error) {
       console.error("[GET /api/drivers] Error:", error);
@@ -4134,6 +4171,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/documents", requireAuth, async (req, res) => {
     const { userId, vehicleId, transporterId } = req.query;
     const user = getCurrentUser(req);
+    const { limit, offset } = parsePagination(req, { maxLimit: 200 });
     // Warn if customer tries to use global document API
     if (user?.role === 'customer') {
       console.warn('[DEPRECATED] Customer used global document API. Use trip-scoped APIs: /api/trips/:tripId/documents');
@@ -4186,7 +4224,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         if (!isAdmin) {
           return res.status(403).json({ error: "Admin access required to view all documents" });
         }
-        result = await storage.getAllDocuments();
+        result = await storage.getAllDocuments(limit, offset);
       }
       res.json(result);
     } catch (error) {

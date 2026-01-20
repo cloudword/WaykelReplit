@@ -414,6 +414,7 @@ Key gaps:
 2. **Disable /api/test-cookie in production** (waykelwebsite).
 3. **Restrict admin storage + platform settings endpoints to admin middleware** (main API).
 4. **Enforce minimum password length (8) at backend and align UI validation**.
+5. **Add optional pagination (limit/offset) for high-volume list endpoints**.
 
 Files:
 - [waykelwebsite/server/routes.ts](waykelwebsite/server/routes.ts#L360-L420)
@@ -422,6 +423,8 @@ Files:
 - [client/src/pages/forgot-password.tsx](client/src/pages/forgot-password.tsx#L80-L110)
 - [client/src/pages/admin/customers.tsx](client/src/pages/admin/customers.tsx#L90-L110)
 - [waykelwebsite/client/src/components/PhoneLoginModal.tsx](waykelwebsite/client/src/components/PhoneLoginModal.tsx#L115-L135)
+- [server/storage.ts](server/storage.ts#L360-L850)
+- [server/routes.ts](server/routes.ts#L1605-L4250)
 
 ---
 

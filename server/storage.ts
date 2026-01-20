@@ -49,10 +49,10 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByPhone(phone: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
-  getAllUsers(): Promise<User[]>;
+  getAllUsers(limit?: number, offset?: number): Promise<User[]>;
   getSuperAdmins(): Promise<User[]>;
-  getCustomers(): Promise<User[]>;
-  getDrivers(): Promise<User[]>;
+  getCustomers(limit?: number, offset?: number): Promise<User[]>;
+  getDrivers(limit?: number, offset?: number): Promise<User[]>;
   getUsersByTransporter(transporterId: string): Promise<User[]>;
   getUsersByTransporterAndRole(transporterId: string, role: string): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
@@ -64,7 +64,7 @@ export interface IStorage {
   getTransporter(id: string): Promise<Transporter | undefined>;
   getTransporterById(id: string): Promise<Transporter | undefined>;
   getTransporterByEntityId(entityId: string): Promise<Transporter | undefined>;
-  getAllTransporters(): Promise<Transporter[]>;
+  getAllTransporters(limit?: number, offset?: number): Promise<Transporter[]>;
   getAllTransportersSafe(): Promise<{
     id: string;
     companyName: string;
@@ -96,14 +96,14 @@ export interface IStorage {
   getVehicle(id: string): Promise<Vehicle | undefined>;
   getUserVehicles(userId: string): Promise<Vehicle[]>;
   getTransporterVehicles(transporterId: string): Promise<Vehicle[]>;
-  getAllVehicles(): Promise<Vehicle[]>;
+  getAllVehicles(limit?: number, offset?: number): Promise<Vehicle[]>;
   createVehicle(vehicle: InsertVehicle): Promise<Vehicle>;
   deleteVehicle(id: string): Promise<void>;
   updateVehicleStatus(id: string, status: "active" | "inactive" | "maintenance"): Promise<void>;
   
   // Rides
   getRide(id: string): Promise<Ride | undefined>;
-  getAllRides(): Promise<Ride[]>;
+  getAllRides(limit?: number, offset?: number): Promise<Ride[]>;
   getPendingRides(): Promise<Ride[]>;
   getScheduledRides(): Promise<Ride[]>;
   getActiveRides(): Promise<Ride[]>;
@@ -156,7 +156,7 @@ export interface IStorage {
   getCheapestRideBids(rideId: string, limit?: number): Promise<Bid[]>;
   getUserBids(userId: string): Promise<Bid[]>;
   getTransporterBids(transporterId: string): Promise<Bid[]>;
-  getAllBids(): Promise<Bid[]>;
+  getAllBids(limit?: number, offset?: number): Promise<Bid[]>;
   createBid(bid: InsertBid): Promise<Bid>;
   updateBidStatus(id: string, status: "pending" | "accepted" | "rejected"): Promise<void>;
   
@@ -166,7 +166,7 @@ export interface IStorage {
   getTransporterDocuments(transporterId: string): Promise<Document[]>;
   getVehicleDocuments(vehicleId: string): Promise<Document[]>;
   getTripDocuments(tripId: string): Promise<Document[]>;
-  getAllDocuments(): Promise<Document[]>;
+  getAllDocuments(limit?: number, offset?: number): Promise<Document[]>;
   createDocument(document: InsertDocument): Promise<Document>;
   replaceDocumentAtomically(oldDocumentId: string | undefined, insertDocument: InsertDocument, replacedById?: string | null): Promise<Document>;
   updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced" | "deleted", reviewedById?: string | null, rejectionReason?: string | null): Promise<void>;
@@ -365,20 +365,29 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
-  async getAllUsers(): Promise<User[]> {
-    return await db.select().from(users);
+  async getAllUsers(limit?: number, offset?: number): Promise<User[]> {
+    const query = db.select().from(users);
+    if (typeof limit === "number") query.limit(limit);
+    if (typeof offset === "number") query.offset(offset);
+    return await query;
   }
 
   async getSuperAdmins(): Promise<User[]> {
     return await db.select().from(users).where(eq(users.isSuperAdmin, true));
   }
 
-  async getCustomers(): Promise<User[]> {
-    return await db.select().from(users).where(eq(users.role, "customer")).orderBy(desc(users.createdAt));
+  async getCustomers(limit?: number, offset?: number): Promise<User[]> {
+    const query = db.select().from(users).where(eq(users.role, "customer")).orderBy(desc(users.createdAt));
+    if (typeof limit === "number") query.limit(limit);
+    if (typeof offset === "number") query.offset(offset);
+    return await query;
   }
 
-  async getDrivers(): Promise<User[]> {
-    return await db.select().from(users).where(eq(users.role, "driver")).orderBy(desc(users.createdAt));
+  async getDrivers(limit?: number, offset?: number): Promise<User[]> {
+    const query = db.select().from(users).where(eq(users.role, "driver")).orderBy(desc(users.createdAt));
+    if (typeof limit === "number") query.limit(limit);
+    if (typeof offset === "number") query.offset(offset);
+    return await query;
   }
 
   async getUsersByTransporter(transporterId: string): Promise<User[]> {
@@ -412,8 +421,11 @@ export class DatabaseStorage implements IStorage {
     return transporter || undefined;
   }
 
-  async getAllTransporters(): Promise<Transporter[]> {
-    return await db.select().from(transporters).orderBy(desc(transporters.createdAt));
+  async getAllTransporters(limit?: number, offset?: number): Promise<Transporter[]> {
+    const query = db.select().from(transporters).orderBy(desc(transporters.createdAt));
+    if (typeof limit === "number") query.limit(limit);
+    if (typeof offset === "number") query.offset(offset);
+    return await query;
   }
 
   // Onboarding helpers
@@ -631,8 +643,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(vehicles).where(eq(vehicles.transporterId, transporterId));
   }
 
-  async getAllVehicles(): Promise<Vehicle[]> {
-    return await db.select().from(vehicles).orderBy(desc(vehicles.createdAt));
+  async getAllVehicles(limit?: number, offset?: number): Promise<Vehicle[]> {
+    const query = db.select().from(vehicles).orderBy(desc(vehicles.createdAt));
+    if (typeof limit === "number") query.limit(limit);
+    if (typeof offset === "number") query.offset(offset);
+    return await query;
   }
 
   async getVehiclesByEntity(entityId: string): Promise<Vehicle[]> {
@@ -659,8 +674,11 @@ export class DatabaseStorage implements IStorage {
     return ride || undefined;
   }
 
-  async getAllRides(): Promise<Ride[]> {
-    return await db.select().from(rides).orderBy(desc(rides.createdAt));
+  async getAllRides(limit?: number, offset?: number): Promise<Ride[]> {
+    const query = db.select().from(rides).orderBy(desc(rides.createdAt));
+    if (typeof limit === "number") query.limit(limit);
+    if (typeof offset === "number") query.offset(offset);
+    return await query;
   }
 
   async getPendingRides(): Promise<Ride[]> {
@@ -795,8 +813,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(bids).where(eq(bids.transporterId, transporterId)).orderBy(desc(bids.createdAt));
   }
 
-  async getAllBids(): Promise<Bid[]> {
-    return await db.select().from(bids).orderBy(desc(bids.createdAt));
+  async getAllBids(limit?: number, offset?: number): Promise<Bid[]> {
+    const query = db.select().from(bids).orderBy(desc(bids.createdAt));
+    if (typeof limit === "number") query.limit(limit);
+    if (typeof offset === "number") query.offset(offset);
+    return await query;
   }
 
   async createBid(insertBid: InsertBid): Promise<Bid> {
@@ -837,8 +858,11 @@ export class DatabaseStorage implements IStorage {
     ).orderBy(desc(documents.createdAt));
   }
 
-  async getAllDocuments(): Promise<Document[]> {
-    return await db.select().from(documents).orderBy(desc(documents.createdAt));
+  async getAllDocuments(limit?: number, offset?: number): Promise<Document[]> {
+    const query = db.select().from(documents).orderBy(desc(documents.createdAt));
+    if (typeof limit === "number") query.limit(limit);
+    if (typeof offset === "number") query.offset(offset);
+    return await query;
   }
 
   async createDocument(insertDocument: InsertDocument): Promise<Document> {
