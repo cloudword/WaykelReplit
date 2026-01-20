@@ -882,18 +882,24 @@ paths:
       summary: API logs
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /api/admin/logs/stats:
     get:
       tags: [admin]
       summary: API log stats
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /api/admin/stats:
     get:
       tags: [admin]
       summary: Admin stats
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /api/users/{id}:
     patch:
       tags: [users]
@@ -1132,6 +1138,7 @@ paths:
       summary: List notifications
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /api/notifications/unread-count:
     get:
       tags: [notifications]
@@ -1149,12 +1156,14 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /api/notifications/mark-all-read:
     patch:
       tags: [notifications]
       summary: Mark all notifications read
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /api/permissions:
     get:
       tags: [rbac]
@@ -1333,47 +1342,63 @@ paths:
       summary: List storage files
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /api/admin/storage/file:
     get:
       tags: [admin]
       summary: Get storage file info
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
     delete:
       tags: [admin]
       summary: Delete storage file
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /api/admin/storage/directories:
     get:
       tags: [admin]
       summary: List storage directories
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /api/admin/verification/overview:
     get:
       tags: [admin]
       summary: Verification overview
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /api/admin/verification/transporters:
     get:
       tags: [admin]
       summary: Verification transporters
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /api/admin/verification/drivers:
     get:
       tags: [admin]
       summary: Verification drivers
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /api/admin/verification/vehicles:
     get:
       tags: [admin]
       summary: Verification vehicles
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /api/admin/verification/logs/{entityType}/{entityId}:
     get:
       tags: [admin]
@@ -1389,17 +1414,23 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /api/admin/platform-settings:
     get:
       tags: [admin]
       summary: Get platform settings
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
     patch:
       tags: [admin]
       summary: Update platform settings
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /api/admin/platform-settings/preview/{amount}:
     get:
       tags: [admin]
@@ -1411,6 +1442,8 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /api/transporter/trips:
     post:
       tags: [transporter, trips]
