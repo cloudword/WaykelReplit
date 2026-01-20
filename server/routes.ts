@@ -5992,7 +5992,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ============== ADMIN STORAGE MANAGEMENT ==============
 
   // List all files in Spaces storage (super admin only)
-  app.get("/api/admin/storage", requireAuth, async (req: Request, res: Response) => {
+  app.get("/api/admin/storage", requireAdmin, async (req: Request, res: Response) => {
     try {
       const sessionUser = getCurrentUser(req);
       if (!sessionUser.isSuperAdmin) {
@@ -6032,7 +6032,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Get file details and signed URL (super admin only)
-  app.get("/api/admin/storage/file", requireAuth, async (req: Request, res: Response) => {
+  app.get("/api/admin/storage/file", requireAdmin, async (req: Request, res: Response) => {
     try {
       const sessionUser = getCurrentUser(req);
       if (!sessionUser.isSuperAdmin) {
@@ -6071,7 +6071,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Delete a file from Spaces storage (super admin only)
-  app.delete("/api/admin/storage/file", requireAuth, async (req: Request, res: Response) => {
+  app.delete("/api/admin/storage/file", requireAdmin, async (req: Request, res: Response) => {
     try {
       const sessionUser = getCurrentUser(req);
       if (!sessionUser.isSuperAdmin) {
@@ -6098,7 +6098,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Get storage directories/prefixes (super admin only)
-  app.get("/api/admin/storage/directories", requireAuth, async (req: Request, res: Response) => {
+  app.get("/api/admin/storage/directories", requireAdmin, async (req: Request, res: Response) => {
     try {
       const sessionUser = getCurrentUser(req);
       if (!sessionUser.isSuperAdmin) {
@@ -6462,7 +6462,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // ============== PLATFORM SETTINGS (Super Admin Only) ==============
 
-  app.get("/api/admin/platform-settings", requireAuth, async (req: Request, res: Response) => {
+  app.get("/api/admin/platform-settings", requireAdmin, async (req: Request, res: Response) => {
     try {
       const sessionUser = getCurrentUser(req);
       
@@ -6537,7 +6537,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     smsTemplates: z.record(z.string(), z.string()).optional()
   }).passthrough();
 
-  app.patch("/api/admin/platform-settings", requireAuth, async (req: Request, res: Response) => {
+  app.patch("/api/admin/platform-settings", requireAdmin, async (req: Request, res: Response) => {
     try {
       const sessionUser = getCurrentUser(req);
       
@@ -6581,7 +6581,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Get calculated fees preview for a given amount (for admin testing)
-  app.get("/api/admin/platform-settings/preview/:amount", requireAuth, async (req: Request, res: Response) => {
+  app.get("/api/admin/platform-settings/preview/:amount", requireAdmin, async (req: Request, res: Response) => {
     try {
       const sessionUser = getCurrentUser(req);
       

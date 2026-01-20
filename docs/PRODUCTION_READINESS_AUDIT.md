@@ -412,9 +412,11 @@ Key gaps:
 # FIXES APPLIED IN THIS PR
 1. **Remove hardcoded session secret fallback** and require `SESSION_SECRET` in production (waykelwebsite).
 2. **Disable /api/test-cookie in production** (waykelwebsite).
+3. **Restrict admin storage + platform settings endpoints to admin middleware** (main API).
 
 Files:
 - [waykelwebsite/server/routes.ts](waykelwebsite/server/routes.ts#L360-L420)
+- [server/routes.ts](server/routes.ts#L5995-L6584)
 
 ---
 
