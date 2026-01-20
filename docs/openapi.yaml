@@ -441,6 +441,9 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/rides/{id}/status:
     patch:
       tags: [rides]
@@ -629,6 +632,9 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/transporters/{id}/status:
     patch:
       tags: [transporters]
@@ -640,6 +646,9 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/transporters/{id}/verify:
     post:
       tags: [transporters]
@@ -796,6 +805,8 @@ paths:
           schema: { type: integer, minimum: 0 }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /api/users:
     get:
       tags: [users]
@@ -821,6 +832,8 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /api/customers:
     get:
       tags: [users]
@@ -959,6 +972,9 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/documents/{id}/status:
     patch:
       tags: [documents]

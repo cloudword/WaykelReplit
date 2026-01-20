@@ -427,6 +427,7 @@ Key gaps:
 11. **Add response schemas/examples for key endpoints in OpenAPI**.
 12. **Add request schemas for key endpoints in OpenAPI**.
 13. **Document pagination and filters in OpenAPI**.
+14. **Add common error responses to key OpenAPI endpoints**.
 
 Files:
 - [waykelwebsite/server/routes.ts](waykelwebsite/server/routes.ts#L360-L420)
