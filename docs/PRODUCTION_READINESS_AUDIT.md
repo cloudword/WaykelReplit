@@ -430,6 +430,7 @@ Key gaps:
 14. **Add common error responses to key OpenAPI endpoints**.
 15. **Expand OpenAPI error responses for auth and customer endpoints**.
 16. **Add OpenAPI error responses for admin and notification endpoints**.
+17. **Add OpenAPI error responses for ride and bid lifecycle endpoints**.
 
 Files:
 - [waykelwebsite/server/routes.ts](waykelwebsite/server/routes.ts#L360-L420)
