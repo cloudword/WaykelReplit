@@ -344,6 +344,8 @@
   - `transporters` table has `is_verified` in migration but schema uses `verificationStatus` in [shared/schema.ts](shared/schema.ts#L63-L106).
   - `rides` migration missing `customer_id` and `customer_entity_id` columns (patched at runtime in [server/db.ts](server/db.ts#L85-L104)).
 
+**SQL patch provided:** [docs/SCHEMA_PATCHES_2026_01_20.sql](docs/SCHEMA_PATCHES_2026_01_20.sql)
+
 ## 3.2 Data Integrity Constraints
 - Foreign key references are defined in schema, but SQL migration file does not show FK constraints for many tables.
 - No explicit CHECK constraints for enums in migrations.
