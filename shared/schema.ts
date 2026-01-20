@@ -61,7 +61,10 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertUserSchema = createInsertSchema(users).omit({ id: true, entityId: true, createdAt: true });
+const baseInsertUserSchema = createInsertSchema(users).omit({ id: true, entityId: true, createdAt: true });
+export const insertUserSchema = baseInsertUserSchema.extend({
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 

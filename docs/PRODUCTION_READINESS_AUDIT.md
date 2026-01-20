@@ -413,10 +413,15 @@ Key gaps:
 1. **Remove hardcoded session secret fallback** and require `SESSION_SECRET` in production (waykelwebsite).
 2. **Disable /api/test-cookie in production** (waykelwebsite).
 3. **Restrict admin storage + platform settings endpoints to admin middleware** (main API).
+4. **Enforce minimum password length (8) at backend and align UI validation**.
 
 Files:
 - [waykelwebsite/server/routes.ts](waykelwebsite/server/routes.ts#L360-L420)
 - [server/routes.ts](server/routes.ts#L5995-L6584)
+- [shared/schema.ts](shared/schema.ts#L40-L75)
+- [client/src/pages/forgot-password.tsx](client/src/pages/forgot-password.tsx#L80-L110)
+- [client/src/pages/admin/customers.tsx](client/src/pages/admin/customers.tsx#L90-L110)
+- [waykelwebsite/client/src/components/PhoneLoginModal.tsx](waykelwebsite/client/src/components/PhoneLoginModal.tsx#L115-L135)
 
 ---
 

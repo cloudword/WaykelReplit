@@ -83,8 +83,8 @@ export default function ForgotPasswordPage() {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword.length < 6) {
-      toast.error("Password must be at least 6 characters");
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
       return;
     }
     if (newPassword !== confirmPassword) {
