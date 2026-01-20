@@ -405,6 +405,13 @@ paths:
     get:
       tags: [rides]
       summary: List rides
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0 }
       responses:
         "200":
           description: OK
@@ -580,6 +587,19 @@ paths:
     get:
       tags: [transporters]
       summary: List transporters
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0 }
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: search
+          in: query
+          schema: { type: string }
       responses:
         "200":
           description: OK
@@ -679,6 +699,22 @@ paths:
     get:
       tags: [bids]
       summary: List bids
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0 }
+        - name: rideId
+          in: query
+          schema: { type: string }
+        - name: userId
+          in: query
+          schema: { type: string }
+        - name: transporterId
+          in: query
+          schema: { type: string }
       responses:
         "200": { description: OK }
     post:
@@ -728,6 +764,13 @@ paths:
     get:
       tags: [vehicles]
       summary: List vehicles
+      parameters:
+        - name: transporterId
+          in: query
+          schema: { type: string }
+        - name: entityId
+          in: query
+          schema: { type: string }
       responses:
         "200": { description: OK }
     post:
@@ -744,12 +787,32 @@ paths:
     get:
       tags: [vehicles]
       summary: List all vehicles (admin)
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0 }
       responses:
         "200": { description: OK }
   /api/users:
     get:
       tags: [users]
       summary: List users
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0 }
+        - name: transporterId
+          in: query
+          schema: { type: string }
+        - name: role
+          in: query
+          schema: { type: string }
       responses:
         "200":
           description: OK
@@ -762,12 +825,32 @@ paths:
     get:
       tags: [users]
       summary: List customers
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0 }
       responses:
         "200": { description: OK }
   /api/drivers:
     get:
       tags: [users]
       summary: List drivers
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0 }
+        - name: transporterId
+          in: query
+          schema: { type: string }
+        - name: entityId
+          in: query
+          schema: { type: string }
       responses:
         "200": { description: OK }
   /api/admin/logs:
@@ -825,6 +908,22 @@ paths:
     get:
       tags: [documents]
       summary: List documents
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0 }
+        - name: userId
+          in: query
+          schema: { type: string }
+        - name: vehicleId
+          in: query
+          schema: { type: string }
+        - name: transporterId
+          in: query
+          schema: { type: string }
       responses:
         "200":
           description: OK
