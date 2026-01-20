@@ -419,6 +419,7 @@ Key gaps:
 5. **Add optional pagination (limit/offset) for high-volume list endpoints**.
 6. **Add CSRF protection for session-authenticated state-changing requests**.
 7. **Apply non-breaking dependency security fixes (npm audit fix)**.
+8. **Harden CSP by removing unsafe script directives**.
 
 Files:
 - [waykelwebsite/server/routes.ts](waykelwebsite/server/routes.ts#L360-L420)
@@ -430,6 +431,7 @@ Files:
 - [server/storage.ts](server/storage.ts#L360-L850)
 - [server/routes.ts](server/routes.ts#L1605-L4250)
 - [server/index.ts](server/index.ts#L120-L240)
+- [nginx.conf](nginx.conf#L35-L85)
 
 ---
 
