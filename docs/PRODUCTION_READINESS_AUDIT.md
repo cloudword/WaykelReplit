@@ -332,7 +332,7 @@
 - Pagination is not standardized (many lists return full arrays).
 
 ## 2.4 API Documentation
-- API docs exist as markdown in [docs/](docs) but no OpenAPI/Swagger generator.
+- OpenAPI inventory added: [docs/openapi.yaml](docs/openapi.yaml).
 
 ---
 
@@ -423,6 +423,7 @@ Key gaps:
 7. **Apply non-breaking dependency security fixes (npm audit fix)**.
 8. **Harden CSP by removing unsafe script directives**.
 9. **Disable runtime schema patches by default (require explicit opt-in)**.
+10. **Add initial OpenAPI inventory file**.
 
 Files:
 - [waykelwebsite/server/routes.ts](waykelwebsite/server/routes.ts#L360-L420)

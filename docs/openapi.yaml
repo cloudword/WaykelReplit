@@ -1,0 +1,1031 @@
+openapi: 3.0.3
+info:
+  title: Waykel API
+  version: "1.0.0"
+  description: "Waykel B2B Logistics API (generated inventory)"
+servers:
+  - url: https://api.waykel.com
+  - url: https://dev.waykel.com
+security:
+  - cookieAuth: []
+  - bearerAuth: []
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: waykel.sid
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+paths:
+  /api/health:
+    get:
+      tags: [health]
+      summary: Health check
+      responses:
+        "200": { description: OK }
+  /api/health/db:
+    get:
+      tags: [health]
+      summary: Database connectivity check
+      responses:
+        "200": { description: OK }
+  /api/auth/register:
+    post:
+      tags: [auth]
+      summary: Register user
+      responses:
+        "200": { description: OK }
+  /api/auth/login:
+    post:
+      tags: [auth]
+      summary: Login (session)
+      responses:
+        "200": { description: OK }
+  /api/auth/token:
+    post:
+      tags: [auth]
+      summary: Issue JWT token
+      responses:
+        "200": { description: OK }
+  /api/auth/token/refresh:
+    post:
+      tags: [auth]
+      summary: Refresh JWT token
+      responses:
+        "200": { description: OK }
+  /api/auth/request-otp:
+    post:
+      tags: [auth]
+      summary: Request OTP
+      responses:
+        "200": { description: OK }
+  /api/auth/verify-otp:
+    post:
+      tags: [auth]
+      summary: Verify OTP
+      responses:
+        "200": { description: OK }
+  /api/auth/reset-password-with-token:
+    post:
+      tags: [auth]
+      summary: Reset password with token
+      responses:
+        "200": { description: OK }
+  /api/auth/logout:
+    post:
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200": { description: OK }
+  /api/auth/session:
+    get:
+      tags: [auth]
+      summary: Session check
+      responses:
+        "200": { description: OK }
+  /api/auth/change-password:
+    post:
+      tags: [auth]
+      summary: Change password
+      responses:
+        "200": { description: OK }
+  /api/auth/profile:
+    patch:
+      tags: [auth]
+      summary: Update profile
+      responses:
+        "200": { description: OK }
+  /api/customer/register:
+    post:
+      tags: [customer]
+      summary: Customer registration
+      responses:
+        "200": { description: OK }
+  /api/customer/login:
+    post:
+      tags: [customer]
+      summary: Customer login
+      responses:
+        "200": { description: OK }
+  /api/customer/logout:
+    post:
+      tags: [customer]
+      summary: Customer logout
+      responses:
+        "200": { description: OK }
+  /api/customer/session:
+    get:
+      tags: [customer]
+      summary: Customer session
+      responses:
+        "200": { description: OK }
+  /api/customer/rides:
+    get:
+      tags: [customer, rides]
+      summary: List customer rides
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [customer, rides]
+      summary: Create customer ride
+      responses:
+        "201": { description: Created }
+  /api/customer/rides/{rideId}/bids:
+    get:
+      tags: [customer, bids]
+      summary: List bids for customer ride
+      parameters:
+        - name: rideId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/customer/bids/{bidId}/accept:
+    patch:
+      tags: [customer, bids]
+      summary: Accept bid (customer)
+      parameters:
+        - name: bidId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/customer/addresses:
+    get:
+      tags: [customer, addresses]
+      summary: List customer addresses
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [customer, addresses]
+      summary: Create customer address
+      responses:
+        "201": { description: Created }
+  /api/customer/addresses/{id}:
+    patch:
+      tags: [customer, addresses]
+      summary: Update customer address
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+    delete:
+      tags: [customer, addresses]
+      summary: Delete customer address
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/rides:
+    get:
+      tags: [rides]
+      summary: List rides
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [rides]
+      summary: Create ride
+      responses:
+        "201": { description: Created }
+  /api/rides/{id}:
+    get:
+      tags: [rides]
+      summary: Get ride
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/rides/{id}/status:
+    patch:
+      tags: [rides]
+      summary: Update ride status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/rides/{id}/assign:
+    patch:
+      tags: [rides]
+      summary: Assign ride to driver/vehicle
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/rides/{id}/pickup-complete:
+    patch:
+      tags: [rides]
+      summary: Mark pickup complete
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/rides/{id}/delivery-complete:
+    patch:
+      tags: [rides]
+      summary: Mark delivery complete
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/rides/{id}/start:
+    patch:
+      tags: [rides]
+      summary: Start ride
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/rides/{id}/accept:
+    post:
+      tags: [rides]
+      summary: Accept ride
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/rides/{id}/complete:
+    patch:
+      tags: [rides]
+      summary: Complete ride
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/transporter/marketplace:
+    get:
+      tags: [transporter]
+      summary: Transporter marketplace
+      responses:
+        "200": { description: OK }
+  /api/transporter/analytics:
+    get:
+      tags: [transporter]
+      summary: Transporter analytics
+      responses:
+        "200": { description: OK }
+  /api/transporter/drivers:
+    get:
+      tags: [transporter, drivers]
+      summary: List transporter drivers
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [transporter, drivers]
+      summary: Create transporter driver
+      responses:
+        "201": { description: Created }
+  /api/transporter/vehicles/active:
+    get:
+      tags: [transporter, vehicles]
+      summary: List active transporter vehicles
+      responses:
+        "200": { description: OK }
+  /api/transporter/vehicles:
+    get:
+      tags: [transporter, vehicles]
+      summary: List transporter vehicles
+      responses:
+        "200": { description: OK }
+  /api/transporter/permissions:
+    get:
+      tags: [transporter]
+      summary: Transporter permissions
+      responses:
+        "200": { description: OK }
+  /api/transporter/onboarding-status:
+    get:
+      tags: [transporter]
+      summary: Transporter onboarding status
+      responses:
+        "200": { description: OK }
+  /api/transporter/transporter-type:
+    put:
+      tags: [transporter]
+      summary: Update transporter type
+      responses:
+        "200": { description: OK }
+  /api/transporter/complete-onboarding:
+    post:
+      tags: [transporter]
+      summary: Complete onboarding
+      responses:
+        "200": { description: OK }
+  /api/transporter/bidding-eligibility:
+    get:
+      tags: [transporter]
+      summary: Transporter bidding eligibility
+      responses:
+        "200": { description: OK }
+  /api/transporters:
+    get:
+      tags: [transporters]
+      summary: List transporters
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [transporters]
+      summary: Create transporter
+      responses:
+        "201": { description: Created }
+  /api/transporters/{id}:
+    get:
+      tags: [transporters]
+      summary: Get transporter
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/transporters/{id}/status:
+    patch:
+      tags: [transporters]
+      summary: Update transporter status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/transporters/{id}/verify:
+    post:
+      tags: [transporters]
+      summary: Verify transporter
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/transporters/{id}/approve:
+    post:
+      tags: [transporters]
+      summary: Approve transporter
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/transporters/{id}/reject:
+    post:
+      tags: [transporters]
+      summary: Reject transporter
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/transporters/{id}/bid-eligibility:
+    get:
+      tags: [transporters]
+      summary: Transporter bid eligibility
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/transporters/{id}/eligibility:
+    get:
+      tags: [transporters]
+      summary: Transporter eligibility
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/bids:
+    get:
+      tags: [bids]
+      summary: List bids
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [bids]
+      summary: Create bid
+      responses:
+        "201": { description: Created }
+  /api/bids/{id}/status:
+    patch:
+      tags: [bids]
+      summary: Update bid status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/rides/{rideId}/cheapest-bids:
+    get:
+      tags: [bids, rides]
+      summary: Cheapest bids for ride
+      parameters:
+        - name: rideId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/bids/{bidId}/accept:
+    post:
+      tags: [bids]
+      summary: Accept bid
+      parameters:
+        - name: bidId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/vehicles:
+    get:
+      tags: [vehicles]
+      summary: List vehicles
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [vehicles]
+      summary: Create vehicle
+      responses:
+        "201": { description: Created }
+  /api/vehicles/all:
+    get:
+      tags: [vehicles]
+      summary: List all vehicles (admin)
+      responses:
+        "200": { description: OK }
+  /api/users:
+    get:
+      tags: [users]
+      summary: List users
+      responses:
+        "200": { description: OK }
+  /api/customers:
+    get:
+      tags: [users]
+      summary: List customers
+      responses:
+        "200": { description: OK }
+  /api/drivers:
+    get:
+      tags: [users]
+      summary: List drivers
+      responses:
+        "200": { description: OK }
+  /api/admin/logs:
+    get:
+      tags: [admin]
+      summary: API logs
+      responses:
+        "200": { description: OK }
+  /api/admin/logs/stats:
+    get:
+      tags: [admin]
+      summary: API log stats
+      responses:
+        "200": { description: OK }
+  /api/admin/stats:
+    get:
+      tags: [admin]
+      summary: Admin stats
+      responses:
+        "200": { description: OK }
+  /api/users/{id}:
+    patch:
+      tags: [users]
+      summary: Update user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/users/{id}/reset-password:
+    post:
+      tags: [users]
+      summary: Reset user password
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/users/{id}/online-status:
+    patch:
+      tags: [users]
+      summary: Update user online status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/documents:
+    get:
+      tags: [documents]
+      summary: List documents
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [documents]
+      summary: Create document
+      responses:
+        "201": { description: Created }
+  /api/documents/upload:
+    post:
+      tags: [documents]
+      summary: Upload document file
+      responses:
+        "200": { description: OK }
+  /api/documents/{id}/preview:
+    get:
+      tags: [documents]
+      summary: Preview document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/documents/{id}/status:
+    patch:
+      tags: [documents]
+      summary: Update document status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/trips/{tripId}/documents:
+    get:
+      tags: [trips, documents]
+      summary: List trip documents
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [trips, documents]
+      summary: Create trip document
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "201": { description: Created }
+  /api/trips/{tripId}/documents/upload-url:
+    post:
+      tags: [trips, documents]
+      summary: Create trip document upload URL
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/trips/{tripId}/documents/{documentId}:
+    delete:
+      tags: [trips, documents]
+      summary: Delete trip document
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: documentId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/trips/{tripId}/documents/{documentId}/status:
+    patch:
+      tags: [trips, documents]
+      summary: Update trip document status
+      parameters:
+        - name: tripId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: documentId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/objects/upload:
+    post:
+      tags: [objects]
+      summary: Get upload URL (Replit object storage)
+      responses:
+        "200": { description: OK }
+  /objects/{objectPath}:
+    get:
+      tags: [objects]
+      summary: Download object (Replit object storage)
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/objects/confirm:
+    post:
+      tags: [objects]
+      summary: Confirm object upload (Replit object storage)
+      responses:
+        "200": { description: OK }
+  /api/spaces/upload:
+    post:
+      tags: [spaces]
+      summary: Upload to DigitalOcean Spaces
+      responses:
+        "200": { description: OK }
+  /api/spaces/download/{key}:
+    get:
+      tags: [spaces]
+      summary: Download from DigitalOcean Spaces
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/spaces/signed-url:
+    post:
+      tags: [spaces]
+      summary: Get Spaces signed URL
+      responses:
+        "200": { description: OK }
+  /api/rides/{rideId}/matches:
+    get:
+      tags: [rides]
+      summary: Find matching transporters for ride
+      parameters:
+        - name: rideId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/rides/{rideId}/notify-transporters:
+    post:
+      tags: [rides, notifications]
+      summary: Notify matching transporters
+      parameters:
+        - name: rideId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/notifications:
+    get:
+      tags: [notifications]
+      summary: List notifications
+      responses:
+        "200": { description: OK }
+  /api/notifications/unread-count:
+    get:
+      tags: [notifications]
+      summary: Unread notifications count
+      responses:
+        "200": { description: OK }
+  /api/notifications/{id}/read:
+    patch:
+      tags: [notifications]
+      summary: Mark notification read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/notifications/mark-all-read:
+    patch:
+      tags: [notifications]
+      summary: Mark all notifications read
+      responses:
+        "200": { description: OK }
+  /api/permissions:
+    get:
+      tags: [rbac]
+      summary: List permissions
+      responses:
+        "200": { description: OK }
+  /api/roles:
+    get:
+      tags: [rbac]
+      summary: List roles
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [rbac]
+      summary: Create role
+      responses:
+        "201": { description: Created }
+  /api/roles/{id}:
+    patch:
+      tags: [rbac]
+      summary: Update role
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+    delete:
+      tags: [rbac]
+      summary: Delete role
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/users/{userId}/roles:
+    get:
+      tags: [rbac]
+      summary: List user roles
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [rbac]
+      summary: Assign role to user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/users/{userId}/roles/{roleId}:
+    delete:
+      tags: [rbac]
+      summary: Remove role from user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: roleId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/saved-addresses:
+    get:
+      tags: [addresses]
+      summary: List saved addresses
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [addresses]
+      summary: Create saved address
+      responses:
+        "201": { description: Created }
+  /api/saved-addresses/{id}:
+    patch:
+      tags: [addresses]
+      summary: Update saved address
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+    delete:
+      tags: [addresses]
+      summary: Delete saved address
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/driver-applications:
+    get:
+      tags: [drivers]
+      summary: List driver applications
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [drivers]
+      summary: Create driver application
+      responses:
+        "201": { description: Created }
+  /api/driver-applications/{id}:
+    get:
+      tags: [drivers]
+      summary: Get driver application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+    patch:
+      tags: [drivers]
+      summary: Update driver application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/driver-applications/{id}/withdraw:
+    post:
+      tags: [drivers]
+      summary: Withdraw driver application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/driver-applications/{id}/hire:
+    post:
+      tags: [drivers]
+      summary: Hire driver
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/my-driver-application:
+    get:
+      tags: [drivers]
+      summary: Get current user driver application
+      responses:
+        "200": { description: OK }
+  /api/vehicle-types:
+    get:
+      tags: [vehicles]
+      summary: List vehicle types
+      responses:
+        "200": { description: OK }
+  /api/admin/storage:
+    get:
+      tags: [admin]
+      summary: List storage files
+      responses:
+        "200": { description: OK }
+  /api/admin/storage/file:
+    get:
+      tags: [admin]
+      summary: Get storage file info
+      responses:
+        "200": { description: OK }
+    delete:
+      tags: [admin]
+      summary: Delete storage file
+      responses:
+        "200": { description: OK }
+  /api/admin/storage/directories:
+    get:
+      tags: [admin]
+      summary: List storage directories
+      responses:
+        "200": { description: OK }
+  /api/admin/verification/overview:
+    get:
+      tags: [admin]
+      summary: Verification overview
+      responses:
+        "200": { description: OK }
+  /api/admin/verification/transporters:
+    get:
+      tags: [admin]
+      summary: Verification transporters
+      responses:
+        "200": { description: OK }
+  /api/admin/verification/drivers:
+    get:
+      tags: [admin]
+      summary: Verification drivers
+      responses:
+        "200": { description: OK }
+  /api/admin/verification/vehicles:
+    get:
+      tags: [admin]
+      summary: Verification vehicles
+      responses:
+        "200": { description: OK }
+  /api/admin/verification/logs/{entityType}/{entityId}:
+    get:
+      tags: [admin]
+      summary: Verification logs
+      parameters:
+        - name: entityType
+          in: path
+          required: true
+          schema: { type: string }
+        - name: entityId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/admin/platform-settings:
+    get:
+      tags: [admin]
+      summary: Get platform settings
+      responses:
+        "200": { description: OK }
+    patch:
+      tags: [admin]
+      summary: Update platform settings
+      responses:
+        "200": { description: OK }
+  /api/admin/platform-settings/preview/{amount}:
+    get:
+      tags: [admin]
+      summary: Preview platform fee
+      parameters:
+        - name: amount
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK }
+  /api/transporter/trips:
+    post:
+      tags: [transporter, trips]
+      summary: Create transporter trip
+      responses:
+        "201": { description: Created }
