@@ -19,19 +19,123 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+        details: { type: string }
+      required: [error]
+    HealthResponse:
+      type: object
+      properties:
+        status: { type: string }
+        service: { type: string }
+        uptime: { type: number }
+        timestamp: { type: string, format: date-time }
+      required: [status, service, uptime, timestamp]
+    AuthTokenResponse:
+      type: object
+      properties:
+        token: { type: string }
+        tokenType: { type: string }
+        expiresIn: { type: string }
+      required: [token, tokenType, expiresIn]
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string, nullable: true }
+        phone: { type: string }
+        role: { type: string }
+        isSuperAdmin: { type: boolean }
+        transporterId: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+    Transporter:
+      type: object
+      properties:
+        id: { type: string }
+        companyName: { type: string }
+        ownerName: { type: string }
+        contact: { type: string }
+        email: { type: string, nullable: true }
+        status: { type: string }
+        location: { type: string }
+        fleetSize: { type: integer }
+        createdAt: { type: string, format: date-time }
+    Ride:
+      type: object
+      properties:
+        id: { type: string }
+        status: { type: string }
+        pickupLocation: { type: string }
+        dropLocation: { type: string }
+        date: { type: string }
+        price: { type: string }
+        transporterId: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+    Document:
+      type: object
+      properties:
+        id: { type: string }
+        entityType: { type: string }
+        type: { type: string }
+        url: { type: string }
+        status: { type: string }
+        createdAt: { type: string, format: date-time }
+  responses:
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          examples:
+            default: { value: { error: "Authentication required" } }
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          examples:
+            default: { value: { error: "Access denied" } }
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+          examples:
+            default: { value: { error: "Not found" } }
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
 paths:
   /api/health:
     get:
       tags: [health]
       summary: Health check
       responses:
-        "200": { description: OK }
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthResponse" }
   /api/health/db:
     get:
       tags: [health]
       summary: Database connectivity check
       responses:
-        "200": { description: OK }
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  database: { type: string }
+                  timestamp: { type: string, format: date-time }
   /api/auth/register:
     post:
       tags: [auth]
@@ -43,19 +147,34 @@ paths:
       tags: [auth]
       summary: Login (session)
       responses:
-        "200": { description: OK }
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /api/auth/token:
     post:
       tags: [auth]
       summary: Issue JWT token
       responses:
-        "200": { description: OK }
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthTokenResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /api/auth/token/refresh:
     post:
       tags: [auth]
       summary: Refresh JWT token
       responses:
-        "200": { description: OK }
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthTokenResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /api/auth/request-otp:
     post:
       tags: [auth]
@@ -192,7 +311,13 @@ paths:
       tags: [rides]
       summary: List rides
       responses:
-        "200": { description: OK }
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Ride" }
     post:
       tags: [rides]
       summary: Create ride
@@ -356,7 +481,13 @@ paths:
       tags: [transporters]
       summary: List transporters
       responses:
-        "200": { description: OK }
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Transporter" }
     post:
       tags: [transporters]
       summary: Create transporter
@@ -505,7 +636,13 @@ paths:
       tags: [users]
       summary: List users
       responses:
-        "200": { description: OK }
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/User" }
   /api/customers:
     get:
       tags: [users]
@@ -574,7 +711,13 @@ paths:
       tags: [documents]
       summary: List documents
       responses:
-        "200": { description: OK }
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Document" }
     post:
       tags: [documents]
       summary: Create document
