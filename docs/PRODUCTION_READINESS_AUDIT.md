@@ -431,6 +431,7 @@ Key gaps:
 15. **Expand OpenAPI error responses for auth and customer endpoints**.
 16. **Add OpenAPI error responses for admin and notification endpoints**.
 17. **Add OpenAPI error responses for ride and bid lifecycle endpoints**.
+18. **Add OpenAPI error responses for transporter, vehicle, and document endpoints**.
 
 Files:
 - [waykelwebsite/server/routes.ts](waykelwebsite/server/routes.ts#L360-L420)

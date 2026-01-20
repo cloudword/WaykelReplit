@@ -691,6 +691,9 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/transporters/{id}/approve:
     post:
       tags: [transporters]
@@ -702,6 +705,9 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/transporters/{id}/reject:
     post:
       tags: [transporters]
@@ -713,6 +719,9 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/transporters/{id}/bid-eligibility:
     get:
       tags: [transporters]
@@ -829,6 +838,9 @@ paths:
             schema: { $ref: "#/components/schemas/VehicleCreateRequest" }
       responses:
         "201": { description: Created }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /api/vehicles/all:
     get:
       tags: [vehicles]
@@ -998,12 +1010,17 @@ paths:
             schema: { $ref: "#/components/schemas/DocumentCreateRequest" }
       responses:
         "201": { description: Created }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /api/documents/upload:
     post:
       tags: [documents]
       summary: Upload document file
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /api/documents/{id}/preview:
     get:
       tags: [documents]
@@ -1029,6 +1046,9 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/trips/{tripId}/documents:
     get:
       tags: [trips, documents]
@@ -1040,6 +1060,9 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
     post:
       tags: [trips, documents]
       summary: Create trip document
@@ -1050,6 +1073,9 @@ paths:
           schema: { type: string }
       responses:
         "201": { description: Created }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /api/trips/{tripId}/documents/upload-url:
     post:
       tags: [trips, documents]
@@ -1061,6 +1087,9 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /api/trips/{tripId}/documents/{documentId}:
     delete:
       tags: [trips, documents]
@@ -1076,6 +1105,9 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/trips/{tripId}/documents/{documentId}/status:
     patch:
       tags: [trips, documents]
@@ -1091,6 +1123,9 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/objects/upload:
     post:
       tags: [objects]
