@@ -422,6 +422,7 @@ Key gaps:
 6. **Add CSRF protection for session-authenticated state-changing requests**.
 7. **Apply non-breaking dependency security fixes (npm audit fix)**.
 8. **Harden CSP by removing unsafe script directives**.
+9. **Disable runtime schema patches by default (require explicit opt-in)**.
 
 Files:
 - [waykelwebsite/server/routes.ts](waykelwebsite/server/routes.ts#L360-L420)
@@ -434,6 +435,7 @@ Files:
 - [server/routes.ts](server/routes.ts#L1605-L4250)
 - [server/index.ts](server/index.ts#L120-L240)
 - [nginx.conf](nginx.conf#L35-L85)
+- [server/db.ts](server/db.ts#L70-L120)
 
 ---
 

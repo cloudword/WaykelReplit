@@ -107,6 +107,11 @@ export async function safeLog<T>(fn: () => Promise<T>): Promise<T | null> {
 export const db = drizzle(pool, { schema });
 
 async function ensureSchemaPatches(): Promise<void> {
+  if (process.env.ALLOW_RUNTIME_SCHEMA_PATCHES !== "true") {
+    console.warn("[db] Runtime schema patches are disabled. Apply SQL migrations instead.");
+    return;
+  }
+
   const statements = [
     // Documents table on prod is missing this column even though schema expects it
     "ALTER TABLE documents ADD COLUMN IF NOT EXISTS verification_status TEXT DEFAULT 'unverified'",
