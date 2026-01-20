@@ -425,6 +425,7 @@ Key gaps:
 9. **Disable runtime schema patches by default (require explicit opt-in)**.
 10. **Add initial OpenAPI inventory file**.
 11. **Add response schemas/examples for key endpoints in OpenAPI**.
+12. **Add request schemas for key endpoints in OpenAPI**.
 
 Files:
 - [waykelwebsite/server/routes.ts](waykelwebsite/server/routes.ts#L360-L420)

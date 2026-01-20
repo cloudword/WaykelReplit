@@ -84,6 +84,81 @@ components:
         url: { type: string }
         status: { type: string }
         createdAt: { type: string, format: date-time }
+    RegisterRequest:
+      type: object
+      properties:
+        name: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        password: { type: string }
+        role: { type: string, enum: [customer, driver, transporter, admin] }
+      required: [name, phone, password, role]
+    LoginRequest:
+      type: object
+      properties:
+        phone: { type: string }
+        username: { type: string }
+        password: { type: string }
+      required: [password]
+    TokenRequest:
+      type: object
+      properties:
+        phone: { type: string }
+        username: { type: string }
+        password: { type: string }
+      required: [password]
+    ChangePasswordRequest:
+      type: object
+      properties:
+        currentPassword: { type: string }
+        newPassword: { type: string }
+      required: [currentPassword, newPassword]
+    RideCreateRequest:
+      type: object
+      properties:
+        pickupLocation: { type: string }
+        dropLocation: { type: string }
+        pickupTime: { type: string }
+        date: { type: string }
+        price: { type: string }
+        distance: { type: string }
+        cargoType: { type: string }
+        weight: { type: string }
+      required: [pickupLocation, dropLocation, pickupTime, date, price, distance, cargoType, weight]
+    BidCreateRequest:
+      type: object
+      properties:
+        rideId: { type: string }
+        vehicleId: { type: string }
+        amount: { type: string }
+      required: [rideId, vehicleId, amount]
+    TransporterCreateRequest:
+      type: object
+      properties:
+        companyName: { type: string }
+        ownerName: { type: string }
+        contact: { type: string }
+        email: { type: string }
+        location: { type: string }
+        baseCity: { type: string }
+        fleetSize: { type: integer }
+      required: [companyName, ownerName, contact, location]
+    VehicleCreateRequest:
+      type: object
+      properties:
+        type: { type: string }
+        plateNumber: { type: string }
+        model: { type: string }
+        capacity: { type: string }
+      required: [type, plateNumber, model, capacity]
+    DocumentCreateRequest:
+      type: object
+      properties:
+        entityType: { type: string }
+        type: { type: string }
+        url: { type: string }
+        documentName: { type: string }
+      required: [entityType, type, url, documentName]
   responses:
     Unauthorized:
       description: Unauthorized
@@ -140,12 +215,22 @@ paths:
     post:
       tags: [auth]
       summary: Register user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
       responses:
         "200": { description: OK }
   /api/auth/login:
     post:
       tags: [auth]
       summary: Login (session)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
       responses:
         "200":
           description: OK
@@ -157,6 +242,11 @@ paths:
     post:
       tags: [auth]
       summary: Issue JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TokenRequest" }
       responses:
         "200":
           description: OK
@@ -209,6 +299,11 @@ paths:
     post:
       tags: [auth]
       summary: Change password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChangePasswordRequest" }
       responses:
         "200": { description: OK }
   /api/auth/profile:
@@ -321,6 +416,11 @@ paths:
     post:
       tags: [rides]
       summary: Create ride
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RideCreateRequest" }
       responses:
         "201": { description: Created }
   /api/rides/{id}:
@@ -491,6 +591,11 @@ paths:
     post:
       tags: [transporters]
       summary: Create transporter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TransporterCreateRequest" }
       responses:
         "201": { description: Created }
   /api/transporters/{id}:
@@ -579,6 +684,11 @@ paths:
     post:
       tags: [bids]
       summary: Create bid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BidCreateRequest" }
       responses:
         "201": { description: Created }
   /api/bids/{id}/status:
@@ -623,6 +733,11 @@ paths:
     post:
       tags: [vehicles]
       summary: Create vehicle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VehicleCreateRequest" }
       responses:
         "201": { description: Created }
   /api/vehicles/all:
@@ -721,6 +836,11 @@ paths:
     post:
       tags: [documents]
       summary: Create document
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DocumentCreateRequest" }
       responses:
         "201": { description: Created }
   /api/documents/upload:
