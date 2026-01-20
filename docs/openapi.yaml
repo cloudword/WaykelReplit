@@ -222,6 +222,7 @@ paths:
             schema: { $ref: "#/components/schemas/RegisterRequest" }
       responses:
         "200": { description: OK }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /api/auth/login:
     post:
       tags: [auth]
@@ -283,6 +284,7 @@ paths:
       summary: Reset password with token
       responses:
         "200": { description: OK }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /api/auth/logout:
     post:
       tags: [auth]
@@ -306,6 +308,8 @@ paths:
             schema: { $ref: "#/components/schemas/ChangePasswordRequest" }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /api/auth/profile:
     patch:
       tags: [auth]
@@ -324,6 +328,7 @@ paths:
       summary: Customer login
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /api/customer/logout:
     post:
       tags: [customer]
@@ -336,6 +341,7 @@ paths:
       summary: Customer session
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /api/customer/rides:
     get:
       tags: [customer, rides]
@@ -391,6 +397,8 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
     delete:
       tags: [customer, addresses]
       summary: Delete customer address
@@ -401,6 +409,8 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /api/rides:
     get:
       tags: [rides]
