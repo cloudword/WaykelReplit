@@ -950,6 +950,10 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /api/users/{id}/reset-password:
     post:
       tags: [users]
@@ -961,6 +965,10 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /api/users/{id}/online-status:
     patch:
       tags: [users]
@@ -972,6 +980,10 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /api/documents:
     get:
       tags: [documents]
@@ -1132,6 +1144,8 @@ paths:
       summary: Get upload URL (Replit object storage)
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /objects/{objectPath}:
     get:
       tags: [objects]
@@ -1149,12 +1163,16 @@ paths:
       summary: Confirm object upload (Replit object storage)
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /api/spaces/upload:
     post:
       tags: [spaces]
       summary: Upload to DigitalOcean Spaces
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /api/spaces/download/{key}:
     get:
       tags: [spaces]
@@ -1166,12 +1184,16 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/spaces/signed-url:
     post:
       tags: [spaces]
       summary: Get Spaces signed URL
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /api/rides/{rideId}/matches:
     get:
       tags: [rides]
@@ -1183,6 +1205,9 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/rides/{rideId}/notify-transporters:
     post:
       tags: [rides, notifications]
@@ -1194,6 +1219,9 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/notifications:
     get:
       tags: [notifications]
@@ -1207,6 +1235,7 @@ paths:
       summary: Unread notifications count
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
   /api/notifications/{id}/read:
     patch:
       tags: [notifications]
@@ -1232,17 +1261,24 @@ paths:
       summary: List permissions
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /api/roles:
     get:
       tags: [rbac]
       summary: List roles
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
     post:
       tags: [rbac]
       summary: Create role
       responses:
         "201": { description: Created }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /api/roles/{id}:
     patch:
       tags: [rbac]
@@ -1254,6 +1290,10 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/ValidationError" }
     delete:
       tags: [rbac]
       summary: Delete role
@@ -1264,6 +1304,9 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/users/{userId}/roles:
     get:
       tags: [rbac]
@@ -1275,6 +1318,9 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
     post:
       tags: [rbac]
       summary: Assign role to user
@@ -1285,6 +1331,10 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /api/users/{userId}/roles/{roleId}:
     delete:
       tags: [rbac]
@@ -1300,17 +1350,23 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/saved-addresses:
     get:
       tags: [addresses]
       summary: List saved addresses
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
     post:
       tags: [addresses]
       summary: Create saved address
       responses:
         "201": { description: Created }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /api/saved-addresses/{id}:
     patch:
       tags: [addresses]
@@ -1322,6 +1378,9 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/ValidationError" }
     delete:
       tags: [addresses]
       summary: Delete saved address
@@ -1332,17 +1391,23 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/driver-applications:
     get:
       tags: [drivers]
       summary: List driver applications
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
     post:
       tags: [drivers]
       summary: Create driver application
       responses:
         "201": { description: Created }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /api/driver-applications/{id}:
     get:
       tags: [drivers]
@@ -1354,6 +1419,9 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
     patch:
       tags: [drivers]
       summary: Update driver application
@@ -1364,6 +1432,10 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /api/driver-applications/{id}/withdraw:
     post:
       tags: [drivers]
@@ -1375,6 +1447,9 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/driver-applications/{id}/hire:
     post:
       tags: [drivers]
@@ -1386,12 +1461,17 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/my-driver-application:
     get:
       tags: [drivers]
       summary: Get current user driver application
       responses:
         "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/vehicle-types:
     get:
       tags: [vehicles]
