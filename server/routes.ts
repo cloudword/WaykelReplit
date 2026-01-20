@@ -3529,6 +3529,56 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // GET /api/transporters - Admin-only list with optional filters
+  app.get("/api/transporters", requireAdmin, async (req, res) => {
+    try {
+      const { status, search } = req.query as { status?: string; search?: string };
+
+      const all = await storage.getAllTransporters();
+
+      let filtered = all;
+      if (status && status !== "all") {
+        filtered = filtered.filter(t => t.status === status);
+      }
+      if (search) {
+        const needle = search.toLowerCase();
+        filtered = filtered.filter(t =>
+          [
+            t.companyName,
+            t.ownerName,
+            t.contact,
+            t.email || "",
+            t.location || "",
+            t.baseCity || ""
+          ]
+            .some(val => (val || "").toLowerCase().includes(needle))
+        );
+      }
+
+      res.json(filtered);
+    } catch (error) {
+      console.error("[GET /api/transporters] Error:", error);
+      res.status(500).json({ error: "Failed to fetch transporters" });
+    }
+  });
+
+  // POST /api/transporters - Admin-only create
+  app.post("/api/transporters", requireAdmin, async (req, res) => {
+    try {
+      const data = insertTransporterSchema.parse(req.body);
+      const transporter = await storage.createTransporter(data);
+      res.status(201).json(transporter);
+    } catch (error: any) {
+      console.error("[POST /api/transporters] Error:", error);
+
+      if (error?.name === "ZodError" || error?.issues) {
+        return res.status(400).json({ error: "Invalid transporter data", details: error.issues });
+      }
+
+      res.status(400).json({ error: error?.message || "Failed to create transporter" });
+    }
+  });
+
   // GET /api/transporters/:id - Get single transporter (admin or owner/transporter)
   app.get('/api/transporters/:id', requireAdminOrOwner(req => req.params.id), async (req, res) => {
     try {
