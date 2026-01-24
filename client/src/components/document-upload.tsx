@@ -400,6 +400,7 @@ export function DocumentUpload({
     const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
 
   useEffect(() => {
     if (!open) {
@@ -428,7 +429,6 @@ export function DocumentUpload({
 
   const availableDocTypes = docTypes.filter(type => !isDocTypeDisabled(type.value));
   const disabledDocTypes = docTypes.filter(type => isDocTypeDisabled(type.value));
-              headers: withCsrfHeader({ "Content-Type": "application/json" }),
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
