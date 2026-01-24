@@ -371,7 +371,7 @@ export function DocumentUpload({
         status: "error", 
         error: error instanceof Error ? error.message : "Upload failed" 
       } : f));
-            headers: withCsrfHeader({ "Content-Type": "application/json" }),
+      toast.error(
         getFriendlyErrorMessage(
           error instanceof Error ? error.message : "Upload failed"
         )
@@ -400,7 +400,6 @@ export function DocumentUpload({
     const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-              headers: withCsrfHeader({ "Content-Type": "application/json" }),
 
   useEffect(() => {
     if (!open) {
