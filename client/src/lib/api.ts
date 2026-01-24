@@ -432,7 +432,7 @@ export const api = {
   documents: {
     list: async (filters?: { userId?: string; vehicleId?: string; transporterId?: string }) => {
       const params = new URLSearchParams(filters as any || {});
-      const res = await apiFetch(`${API_BASE}/documents?${params}`);
+      const res = await apiFetch(`${API_BASE}/documents?${params}`, { cache: "no-store" });
       return res.json();
     },
     create: async (data: any) => {
