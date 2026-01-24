@@ -82,6 +82,7 @@ export function DocumentUpload({
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [replacingDoc, setReplacingDoc] = useState<ExistingDocument | null>(null);
   const [viewingDoc, setViewingDoc] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const docTypes = entityType === "driver" 
@@ -119,7 +120,7 @@ export function DocumentUpload({
       if (doc.url.startsWith("private/")) {
         const response = await fetch(`${API_BASE}/spaces/signed-url`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: withCsrfHeader({ "Content-Type": "application/json" }),
           credentials: "include",
           body: JSON.stringify({ key: doc.url }),
         });
@@ -499,8 +500,8 @@ export function DocumentUpload({
                   const styles = getStatusStyles(doc.status);
                   
                   return (
-            headers: withCsrfHeader({ "Content-Type": "application/json" }),
-                      key={doc.id} 
+                    <div
+                      key={doc.id}
                       className={`p-3 rounded-lg border ${styles.container}`}
                       data-testid={`existing-doc-${doc.id}`}
                     >
