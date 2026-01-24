@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Search, Building2, CheckCircle, XCircle, Loader2, Eye, Clock, FileText, RefreshCw, ExternalLink, AlertTriangle } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { API_BASE } from "@/lib/api";
+import { API_BASE, withCsrfHeader } from "@/lib/api";
 import { useAdminSessionGate } from "@/hooks/useAdminSession";
 
 interface Document {
@@ -114,7 +114,7 @@ export default function VerificationTransporters() {
     try {
       const response = await fetch(`${API_BASE}/documents/${docId}/status`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: withCsrfHeader({ "Content-Type": "application/json" }),
         credentials: "include",
         body: JSON.stringify({ status: "verified" })
       });
@@ -138,7 +138,7 @@ export default function VerificationTransporters() {
     try {
       const response = await fetch(`${API_BASE}/documents/${rejectingDocId}/status`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: withCsrfHeader({ "Content-Type": "application/json" }),
         credentials: "include",
         body: JSON.stringify({ status: "rejected", rejectionReason: rejectionReason.trim() })
       });
@@ -159,6 +159,7 @@ export default function VerificationTransporters() {
     try {
       const response = await fetch(`${API_BASE}/transporters/${id}/approve`, {
         method: "POST",
+        headers: withCsrfHeader(),
         credentials: "include"
       });
       if (!response.ok) throw new Error("Failed to approve");
@@ -177,7 +178,7 @@ export default function VerificationTransporters() {
     try {
       const response = await fetch(`${API_BASE}/transporters/${rejectingTransporterId}/reject`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withCsrfHeader({ "Content-Type": "application/json" }),
         credentials: "include",
         body: JSON.stringify({ reason: transporterRejectionReason.trim() })
       });
@@ -200,7 +201,7 @@ export default function VerificationTransporters() {
     try {
       const response = await fetch(`${API_BASE}/spaces/signed-url`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withCsrfHeader({ "Content-Type": "application/json" }),
         credentials: "include",
         body: JSON.stringify({ key: url })
       });
