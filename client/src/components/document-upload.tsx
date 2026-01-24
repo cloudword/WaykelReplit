@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileText, Upload, Loader2, X, File, CheckCircle, AlertCircle, Clock, Info, Eye, RefreshCw } from "lucide-react";
-import { api, API_BASE } from "@/lib/api";
+import { api, API_BASE, withCsrfHeader } from "@/lib/api";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -325,14 +325,12 @@ export function DocumentUpload({
       // Convert file to base64
       const file = files[0].file;
       const fileData = await fileToBase64(file);
-      
-    import { api, API_BASE, withCsrfHeader } from "@/lib/api";
 
       // 2️⃣ SINGLE API CALL - Backend handles everything atomically
       // Include replaceDocumentId if we're replacing a rejected document
       const response = await fetch(`${API_BASE}/documents/upload`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withCsrfHeader({ "Content-Type": "application/json" }),
         credentials: "include",
         body: JSON.stringify({
           fileData,
@@ -342,7 +340,6 @@ export function DocumentUpload({
           type: docType,
           entityId,
           expiryDate: expiryDate || undefined,
-              headers: withCsrfHeader({ "Content-Type": "application/json" }),
         }),
       });
 
