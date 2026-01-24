@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Plus, Users, Phone, Mail, Search, FileText, CheckCircle, Clock, AlertCircle, Copy, Key, RotateCcw, Upload, Loader2 } from "lucide-react";
-import { api, API_BASE } from "@/lib/api";
+import { api, API_BASE, withCsrfHeader } from "@/lib/api";
 import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 import { OnboardingTracker } from "@/components/onboarding/OnboardingTracker";
@@ -136,9 +136,9 @@ export default function TransporterDrivers() {
       
       const uploadRes = await fetch(`${API_BASE}/documents/upload`, {
         method: "POST",
-        headers: {
+        headers: withCsrfHeader({
           "Content-Type": "application/json",
-        },
+        }),
         body: JSON.stringify({
           fileData,
           fileName: licenseFile.name,

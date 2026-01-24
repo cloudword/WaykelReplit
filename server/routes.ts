@@ -589,7 +589,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           location: req.body.location || req.body.city || "India",
           baseCity: req.body.city || req.body.location || "India",
           fleetSize: req.body.fleetSize || 1,
-          status: "pending_approval" as const,
+          status: "pending_verification" as const,
           verificationStatus: 'unverified',
           transporterType, // Set entity type (business/individual)
           onboardingStatus: "incomplete" as const,
@@ -3467,7 +3467,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           location: req.body.location || req.body.city || "India",
           baseCity: req.body.city || req.body.location || "India",
           fleetSize: req.body.fleetSize || 1,
-          status: "pending_approval" as const,
+          status: "pending_verification" as const,
           verificationStatus: 'unverified',
           transporterType, // Set entity type (business/individual)
           onboardingStatus: "incomplete" as const,

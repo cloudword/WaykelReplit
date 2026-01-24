@@ -2,6 +2,31 @@
 // In development (Replit), use relative /api path
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 
+const CSRF_COOKIE_NAME = "waykel.csrf";
+const CSRF_HEADER_NAME = "x-csrf-token";
+
+function getCookieValue(name: string): string | undefined {
+  if (typeof document === "undefined") return undefined;
+  const escaped = name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+  const match = document.cookie.match(new RegExp(`(?:^|; )${escaped}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : undefined;
+}
+
+export function withCsrfHeader(headers: HeadersInit = {}): HeadersInit {
+  const token = getCookieValue(CSRF_COOKIE_NAME);
+  if (!token) return headers;
+  if (headers instanceof Headers) {
+    if (!headers.has(CSRF_HEADER_NAME)) {
+      headers.set(CSRF_HEADER_NAME, token);
+    }
+    return headers;
+  }
+  return {
+    [CSRF_HEADER_NAME]: token,
+    ...(headers as Record<string, string>),
+  } as Record<string, string>;
+}
+
 // Global 401 handler - redirects to login when session expires
 // Prevents "data vanishing" by forcing re-authentication
 let isRedirectingToLogin = false;
@@ -75,7 +100,7 @@ export async function safeFetch<T = any>(
       ...options,
       headers: {
         "Content-Type": "application/json",
-        ...(options.headers || {}),
+        ...(withCsrfHeader(options.headers || {}) as Record<string, string>),
       },
       credentials: "include",
     });
@@ -118,6 +143,7 @@ async function apiFetch(
   const res = await fetch(url, {
     ...options,
     credentials: "include",
+    headers: withCsrfHeader(options.headers || {}),
   });
   
   // Handle 401 globally unless this is an auth endpoint

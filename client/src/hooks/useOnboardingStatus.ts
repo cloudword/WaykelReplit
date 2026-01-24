@@ -21,7 +21,7 @@ export function useOnboardingStatus(transporterId?: string) {
     enabled: !!transporterId,
     staleTime: 30_000,
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/transporters/${transporterId}/onboarding-status`, {
+      const res = await fetch(`${API_BASE}/transporter/onboarding-status`, {
         credentials: "include",
       });
       if (!res.ok) {

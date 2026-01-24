@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Truck, Plus, Search, FileText, CheckCircle, Clock, AlertCircle, Upload, Loader2 } from "lucide-react";
-import { api, API_BASE } from "@/lib/api";
+import { api, API_BASE, withCsrfHeader } from "@/lib/api";
 import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 import { OnboardingTracker } from "@/components/onboarding/OnboardingTracker";
@@ -187,7 +187,7 @@ export default function TransporterVehicles() {
       const fileData = await fileToBase64(rcFile);
       const uploadRes = await fetch(`${API_BASE}/documents/upload`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: withCsrfHeader({ "Content-Type": "application/json" }),
         credentials: "include",
         body: JSON.stringify({
           fileData,

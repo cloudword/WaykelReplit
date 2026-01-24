@@ -326,7 +326,7 @@ export function DocumentUpload({
       const file = files[0].file;
       const fileData = await fileToBase64(file);
       
-      setFiles(prev => prev.map((f, i) => i === 0 ? { ...f, progress: 30 } : f));
+    import { api, API_BASE, withCsrfHeader } from "@/lib/api";
 
       // 2️⃣ SINGLE API CALL - Backend handles everything atomically
       // Include replaceDocumentId if we're replacing a rejected document
@@ -342,7 +342,7 @@ export function DocumentUpload({
           type: docType,
           entityId,
           expiryDate: expiryDate || undefined,
-          replaceDocumentId: replacingDoc?.id,
+              headers: withCsrfHeader({ "Content-Type": "application/json" }),
         }),
       });
 
@@ -374,7 +374,7 @@ export function DocumentUpload({
         status: "error", 
         error: error instanceof Error ? error.message : "Upload failed" 
       } : f));
-      toast.error(
+            headers: withCsrfHeader({ "Content-Type": "application/json" }),
         getFriendlyErrorMessage(
           error instanceof Error ? error.message : "Upload failed"
         )
@@ -403,7 +403,7 @@ export function DocumentUpload({
     const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  };
+              headers: withCsrfHeader({ "Content-Type": "application/json" }),
 
   useEffect(() => {
     if (!open) {
@@ -432,7 +432,7 @@ export function DocumentUpload({
 
   const availableDocTypes = docTypes.filter(type => !isDocTypeDisabled(type.value));
   const disabledDocTypes = docTypes.filter(type => isDocTypeDisabled(type.value));
-
+              headers: withCsrfHeader({ "Content-Type": "application/json" }),
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -503,7 +503,7 @@ export function DocumentUpload({
                   const styles = getStatusStyles(doc.status);
                   
                   return (
-                    <div 
+            headers: withCsrfHeader({ "Content-Type": "application/json" }),
                       key={doc.id} 
                       className={`p-3 rounded-lg border ${styles.container}`}
                       data-testid={`existing-doc-${doc.id}`}
