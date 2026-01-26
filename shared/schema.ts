@@ -14,7 +14,7 @@ export type OnboardingStatus = typeof ONBOARDING_STATUS[number];
 // Document verification status enum (for vehicles/drivers onboarding)
 export const DOCUMENT_VERIFICATION_STATUS = [
   "document_missing",
-  "verification_pending", 
+  "verification_pending",
   "approved",
   "rejected"
 ] as const;
@@ -24,7 +24,7 @@ export type DocumentVerificationStatus = typeof DOCUMENT_VERIFICATION_STATUS[num
 export const VEHICLE_TYPES = [
   "mini_truck",
   "pickup",
-  "small_truck", 
+  "small_truck",
   "medium_truck",
   "large_truck",
   "trailer",
@@ -143,6 +143,7 @@ export type Vehicle = typeof vehicles.$inferSelect;
 // CREATE INDEX idx_bids_user_id ON bids(user_id);
 export const rides = pgTable("rides", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entityId: text("entity_id").unique(),
   pickupLocation: text("pickup_location").notNull(),
   dropLocation: text("drop_location").notNull(),
   pickupPincode: text("pickup_pincode"),
@@ -150,7 +151,7 @@ export const rides = pgTable("rides", {
   pickupTime: text("pickup_time").notNull(),
   dropTime: text("drop_time"),
   date: text("date").notNull(),
-  status: text("status").notNull().$type<"pending" | "bidding" | "accepted" | "assigned" | "active" | "pickup_done" | "delivery_done" | "completed" | "cancelled" | "scheduled">().default("pending"),
+  status: text("status").notNull().$type<"open_for_bidding" | "bidding" | "accepted" | "assigned" | "active" | "pickup_done" | "delivery_done" | "completed" | "cancelled" | "scheduled">().default("open_for_bidding"),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   distance: text("distance").notNull(),
   cargoType: text("cargo_type").notNull(),
@@ -196,6 +197,7 @@ export type Ride = typeof rides.$inferSelect;
 // Bids table
 export const bids = pgTable("bids", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entityId: text("entity_id").unique(),
   rideId: varchar("ride_id").references(() => rides.id).notNull(),
   userId: varchar("user_id").references(() => users.id).notNull(),
   transporterId: varchar("transporter_id").references(() => transporters.id),
@@ -244,7 +246,7 @@ export type LedgerEntry = typeof ledgerEntries.$inferSelect;
 // Document types enum
 export const DOCUMENT_TYPES = [
   "license",
-  "aadhar", 
+  "aadhar",
   "pan",
   "insurance",
   "fitness",
@@ -380,7 +382,7 @@ export type UserRole = typeof userRoles.$inferSelect;
 // Available permissions
 export const PERMISSIONS = [
   "approve_transporters",
-  "approve_drivers", 
+  "approve_drivers",
   "manage_bids",
   "accept_bids",
   "view_reports",

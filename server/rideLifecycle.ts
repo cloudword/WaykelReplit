@@ -1,5 +1,5 @@
 export const RIDE_STATUSES = [
-  "pending",
+  "open_for_bidding",
   "bidding",
   "accepted",
   "assigned",
@@ -14,9 +14,9 @@ export const RIDE_STATUSES = [
 export type RideStatus = typeof RIDE_STATUSES[number];
 
 export const VALID_TRANSITIONS: Record<RideStatus, RideStatus[]> = {
-  pending: ["bidding", "assigned", "cancelled", "scheduled"],
-  scheduled: ["pending", "bidding", "assigned", "cancelled"],
-  bidding: ["accepted", "pending", "cancelled"],
+  open_for_bidding: ["bidding", "assigned", "cancelled", "scheduled"],
+  scheduled: ["open_for_bidding", "bidding", "assigned", "cancelled"],
+  bidding: ["accepted", "open_for_bidding", "cancelled"],
   accepted: ["assigned", "cancelled"],
   assigned: ["active", "cancelled"],
   active: ["pickup_done", "cancelled"],
@@ -27,7 +27,7 @@ export const VALID_TRANSITIONS: Record<RideStatus, RideStatus[]> = {
 };
 
 export const STATUS_LABELS: Record<RideStatus, string> = {
-  pending: "Pending",
+  open_for_bidding: "Open for Bidding",
   bidding: "Bidding",
   accepted: "Accepted",
   assigned: "Assigned",

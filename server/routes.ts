@@ -54,6 +54,8 @@ const sanitizeRequestBody = (body: any): any => {
 // Redact PII for public marketplace responses
 const sanitizePublicRide = (ride: Ride) => ({
   id: ride.id,
+  entityId: (ride as any).entityId,
+  customerEntityId: (ride as any).customerEntityId,
   pickupLocation: ride.pickupLocation,
   dropLocation: ride.dropLocation,
   pickupPincode: ride.pickupPincode,
@@ -84,6 +86,7 @@ declare global {
         role: string;
         isSuperAdmin?: boolean;
         transporterId?: string | null;
+        entityId?: string | null;
         isSelfDriver?: boolean;
         name?: string;
       };
@@ -1414,7 +1417,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         createdById: user.id,
         customerId: user.id,
         customerEntityId: user.entityId,
-        status: "pending",
+        status: "open_for_bidding",
         // Provide defaults for fields that may not be sent by customer portal
         distance: distance || "TBD",
         cargoType: cargoType || "General",
@@ -1426,7 +1429,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       };
 
       const ride = await storage.createRide(rideData);
-      res.status(201).json(ride);
+      res.status(201).json(sanitizePublicRide(ride as any));
     } catch (error: any) {
       console.error("[customer/rides] Failed to create ride:", error);
       res.status(500).json({
@@ -1456,70 +1459,25 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       const bids = await storage.getRideBids(rideId);
-      res.json(bids);
+      // Mask transporter info if this is the customer viewing their own bids before acceptance
+      const maskedBids = bids.map(bid => ({
+        id: bid.id,
+        entityId: (bid as any).entityId,
+        amount: bid.amount,
+        status: bid.status,
+        createdAt: bid.createdAt,
+        // Mask specific details if not accepted
+        transporterId: bid.status === "accepted" ? bid.transporterId : null,
+        userId: bid.status === "accepted" ? bid.userId : null,
+        vehicleId: bid.status === "accepted" ? bid.vehicleId : null,
+      }));
+      res.json(maskedBids);
     } catch (error) {
       console.error("Failed to get ride bids:", error);
       res.status(500).json({ error: "Failed to get bids" });
     }
   });
 
-  // Accept a bid
-  app.patch("/api/customer/bids/:bidId/accept", async (req, res) => {
-    const user = getCurrentUser(req);
-    if (!user?.id) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
-    try {
-      const { bidId } = req.params;
-
-      const bid = await storage.getBid(bidId);
-      if (!bid) {
-        return res.status(404).json({ error: "Bid not found" });
-      }
-
-      // Verify the ride belongs to this customer
-      const ride = await storage.getRide(bid.rideId);
-      if (!ride || (ride.customerId !== user.id && ride.createdById !== user.id)) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-
-      // Verify transporter is still active/verified before accepting their bid
-      if (bid.transporterId) {
-        const transporter = await storage.getTransporter(bid.transporterId);
-        if (!transporter) {
-          return res.status(400).json({ error: "Transporter account not found. Cannot accept this bid." });
-        }
-        if (transporter.status !== "active") {
-          return res.status(400).json({ error: "This transporter's account is not verified. Cannot accept their bid." });
-        }
-      }
-
-      // Compute financials with platform settings before atomic operation
-      const financials = await computeTripFinancialsWithSettings(bid.amount);
-
-      // Atomically: update bid, ride, close bidding, lock financials, create ledger, reject other bids
-      await storage.acceptBidAtomic({
-        bidId,
-        rideId: bid.rideId,
-        transporterId: bid.transporterId || null,
-        acceptedByUserId: user.id,
-        financials: {
-          finalPrice: financials.finalPrice.toString(),
-          platformFee: financials.platformFee.toString(),
-          transporterEarning: financials.transporterEarning.toString(),
-          platformFeePercent: financials.platformFeePercent.toString(),
-          shadowPlatformFee: financials.shadowPlatformFee.toString(),
-          shadowPlatformFeePercent: financials.shadowPlatformFeePercent.toString()
-        }
-      });
-
-      res.json({ success: true, message: "Bid accepted successfully", financials });
-    } catch (error) {
-      console.error("Failed to accept bid:", error);
-      res.status(500).json({ error: "Failed to accept bid" });
-    }
-  });
 
   // Customer addresses
   app.get("/api/customer/addresses", async (req, res) => {
@@ -1618,7 +1576,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       // Handle unauthenticated marketplace view (pending rides only)
       if (!sessionUser) {
-        if (status === "pending") {
+        if (status === "open_for_bidding") {
           const pending = await storage.getPendingRides();
           result = pending.map(sanitizePublicRide);
         } else {
@@ -1638,7 +1596,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             result = await storage.getTransporterRides(transporterId as string);
           } else if (createdById) {
             result = await storage.getCustomerRides(createdById as string);
-          } else if (status === "pending") {
+          } else if (status === "open_for_bidding") {
             result = await storage.getPendingRides();
           } else if (status === "scheduled") {
             result = await storage.getScheduledRides();
@@ -1653,7 +1611,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         // Logic for Transporters and Drivers
         else if (userRole === "transporter" || userRole === "driver") {
           // If explicitly asking for pending rides, show marketplace (even for logged in users)
-          if (status === "pending") {
+          if (status === "open_for_bidding") {
             result = await storage.getPendingRides();
           }
           // Otherwise show their own rides
@@ -1721,12 +1679,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           return res.status(403).json({ error: "Access denied" });
         }
 
+        // For other roles (e.g. transporters), if trip is open, show redacted view
+        if (ride.status === "open_for_bidding") {
+          return res.json(sanitizePublicRide(ride as any));
+        }
+
         return res.status(403).json({ error: "Access denied" });
       }
 
-      // Unauthenticated - only allow viewing pending rides (marketplace) with redaction
-      if (ride.status === "pending") {
-        return res.json(sanitizePublicRide(ride));
+      // Unauthenticated - only allow viewing marketplace rides with redaction
+      if (ride.status === "open_for_bidding") {
+        return res.json(sanitizePublicRide(ride as any));
       }
 
       return res.status(401).json({ error: "Authentication required" });
@@ -1917,6 +1880,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           if (!policyCheck.allowed) {
             return res.status(403).json({ error: policyCheck.error || "Driver assignment not allowed by transporter policy" });
           }
+        }
+
+        // Validate vehicle belongs to transporter and is active
+        const vehicle = await storage.getVehicle(vehicleId);
+        if (!vehicle) {
+          return res.status(404).json({ error: "Vehicle not found" });
+        }
+        if (vehicle.status !== "active") {
+          return res.status(400).json({ error: "Selected vehicle is not active/verified" });
+        }
+        if (vehicle.transporterId !== sessionUser.transporterId) {
+          return res.status(403).json({ error: "This vehicle does not belong to your transporter account" });
         }
       }
 
@@ -2292,7 +2267,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // Calculate ride statistics
       const completedRides = transporterRides.filter(r => r.status === "completed");
       const activeRides = transporterRides.filter(r => r.status === "active" || r.status === "assigned");
-      const pendingRides = transporterRides.filter(r => r.status === "pending");
+      const pendingRides = transporterRides.filter(r => r.status === "open_for_bidding");
       const cancelledRides = transporterRides.filter(r => r.status === "cancelled");
 
       // Calculate earnings
@@ -3090,7 +3065,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       };
       const bid = await storage.createBid(bidData);
 
-      if (ride.status === "pending") {
+      if (ride.status === "open_for_bidding") {
         try {
           assertRideTransition(ride.status, "bidding", ride.id);
           await storage.updateRideStatus(data.rideId, "bidding");
@@ -3242,7 +3217,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           }
           // Transporters can ONLY see bids on pending marketplace rides
           else if (userRole === "transporter") {
-            if (ride.status !== "pending") {
+            if (ride.status !== "open_for_bidding") {
               return res.status(403).json({ error: "Access denied - bids only visible for pending rides" });
             }
           }
@@ -3261,10 +3236,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // Enrich bids with transporter info
       const enrichedBids = await Promise.all(bids.map(async (bid) => {
         let transporterName = "Unknown Transporter";
+        let verificationStatus = "unverified";
         if (bid.transporterId) {
           const transporter = await storage.getTransporter(bid.transporterId);
           if (transporter) {
             transporterName = transporter.companyName;
+            verificationStatus = transporter.verificationStatus || "pending";
           }
         }
 
@@ -3272,19 +3249,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         if (bid.vehicleId) {
           const vehicle = await storage.getVehicle(bid.vehicleId);
           if (vehicle) {
+            // Mask plate number and details before acceptance
+            const isAccepted = bid.status === "accepted";
             vehicleInfo = {
               type: vehicle.type,
-              model: vehicle.model,
-              plateNumber: vehicle.plateNumber
+              model: isAccepted ? vehicle.model : "Masked",
+              plateNumber: isAccepted ? vehicle.plateNumber : "Masked"
             };
           }
         }
 
         return {
           id: bid.id,
+          entityId: (bid as any).entityId,
           amount: bid.amount,
           status: bid.status,
           transporterName,
+          verificationStatus,
           vehicle: vehicleInfo,
           createdAt: bid.createdAt
         };
@@ -4022,7 +4003,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const activeVehicles = vehicles.filter(v => v.status === "active");
       const completedRides = rides.filter(r => r.status === "completed");
       const activeRides = rides.filter(r => r.status === "active" || r.status === "assigned");
-      const pendingRides = rides.filter(r => r.status === "pending");
+      const pendingRides = rides.filter(r => r.status === "open_for_bidding");
 
       // Transporter verification counts
       const pendingVerifications = transporters.filter(t => t.status === "pending_verification").length;
@@ -4483,7 +4464,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         transporterId,
         expiryDate: expiryDate || undefined,
         documentName: docLabel,
-        status: "pending",
+        status: "open_for_bidding",
       };
 
       let document;
@@ -4791,7 +4772,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         userId: sessionUser.id,
         customerId,
         transporterId: transporterId || ride?.transporterId,
-        status: "pending",
+        status: "open_for_bidding",
       });
 
       res.status(201).json(document);
@@ -6695,7 +6676,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         transporterId: selfAssign ? verifiedTransporterId : undefined,
         assignedDriverId: selfAssign ? assignedDriverId : undefined,
         assignedVehicleId: selfAssign ? assignedVehicleId : undefined,
-        status: selfAssign ? "assigned" : "pending",
+        status: selfAssign ? "assigned" : "open_for_bidding",
         biddingStatus: selfAssign ? "self_assigned" : "open",
         isSelfAssigned: selfAssign || false
       });

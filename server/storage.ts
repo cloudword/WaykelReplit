@@ -1,4 +1,4 @@
-import { 
+import {
   users, vehicles, rides, bids, transporters, documents, notifications, apiLogs,
   roles, userRoles, savedAddresses, driverApplications, ledgerEntries, platformSettings, otpCodes,
   type User, type InsertUser,
@@ -24,10 +24,10 @@ import { generateEntityId } from "./utils/entityId";
 
 export function sanitizeRequestBody(body: any): any {
   if (!body || typeof body !== 'object') return body;
-  
+
   const sensitiveKeys = ['password', 'token', 'secret', 'authorization', 'apikey', 'api_key'];
   const sanitized: any = Array.isArray(body) ? [] : {};
-  
+
   for (const key of Object.keys(body)) {
     if (sensitiveKeys.some(sk => key.toLowerCase().includes(sk))) {
       sanitized[key] = '[REDACTED]';
@@ -37,7 +37,7 @@ export function sanitizeRequestBody(body: any): any {
       sanitized[key] = body[key];
     }
   }
-  
+
   return sanitized;
 }
 
@@ -60,7 +60,7 @@ export interface IStorage {
   updateUserEntityId(id: string, entityId: string): Promise<void>;
   updateUserPassword(id: string, hashedPassword: string): Promise<void>;
   updateUser(id: string, updates: { name?: string; email?: string; phone?: string; role?: string; isSelfDriver?: boolean }): Promise<User | undefined>;
-  
+
   // Transporters
   getTransporter(id: string): Promise<Transporter | undefined>;
   getTransporterById(id: string): Promise<Transporter | undefined>;
@@ -92,7 +92,7 @@ export interface IStorage {
   getDocumentsByEntity(entityId: string, entityType: "transporter"): Promise<Document[]>;
   countVehiclesByTransporter(transporterId: string): Promise<number>;
   countDriversByTransporter(transporterId: string): Promise<number>;
-  
+
   // Vehicles
   getVehicle(id: string): Promise<Vehicle | undefined>;
   getUserVehicles(userId: string): Promise<Vehicle[]>;
@@ -101,7 +101,7 @@ export interface IStorage {
   createVehicle(vehicle: InsertVehicle): Promise<Vehicle>;
   deleteVehicle(id: string): Promise<void>;
   updateVehicleStatus(id: string, status: "active" | "inactive" | "maintenance"): Promise<void>;
-  
+
   // Rides
   getRide(id: string): Promise<Ride | undefined>;
   getAllRides(limit?: number, offset?: number): Promise<Ride[]>;
@@ -128,12 +128,12 @@ export interface IStorage {
     financialLockedAt: Date;
   }): Promise<void>;
   updateRidePaymentStatus(rideId: string, paymentStatus: string): Promise<void>;
-  
+
   // Ledger
   createLedgerEntry(entry: InsertLedgerEntry): Promise<LedgerEntry>;
   getRideLedgerEntries(rideId: string): Promise<LedgerEntry[]>;
   getTransporterLedgerEntries(transporterId: string): Promise<LedgerEntry[]>;
-  
+
   // Atomic accepts
   acceptBidAtomic(params: {
     bidId: string;
@@ -149,7 +149,7 @@ export interface IStorage {
       shadowPlatformFeePercent?: string;
     };
   }): Promise<boolean>;
-  
+
   // Bids
   getBid(id: string): Promise<Bid | undefined>;
   getRideBids(rideId: string): Promise<Bid[]>;
@@ -159,7 +159,7 @@ export interface IStorage {
   getAllBids(limit?: number, offset?: number): Promise<Bid[]>;
   createBid(bid: InsertBid): Promise<Bid>;
   updateBidStatus(id: string, status: "pending" | "accepted" | "rejected"): Promise<void>;
-  
+
   // Documents
   getDocumentById(id: string): Promise<Document | undefined>;
   getUserDocuments(userId: string): Promise<Document[]>;
@@ -172,7 +172,7 @@ export interface IStorage {
   updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced" | "deleted", reviewedById?: string | null, rejectionReason?: string | null): Promise<void>;
   softDeleteDocument(id: string, deletedById: string): Promise<void>;
   findActiveDocumentByType(entityType: string, entityId: string, docType: string): Promise<Document | undefined>;
-  
+
   // Notifications
   createNotification(notification: InsertNotification): Promise<Notification>;
   getUserNotifications(userId: string): Promise<Notification[]>;
@@ -182,9 +182,9 @@ export interface IStorage {
   markNotificationRead(id: string): Promise<void>;
   markAllNotificationsRead(userId: string): Promise<void>;
   markAllNotificationsReadForUserOrTransporter(userId: string, transporterId?: string): Promise<void>;
-  
+
   // Smart Matching
-  findMatchingTransporters(ride: Ride): Promise<{transporter: Transporter; matchScore: number; matchReason: string; vehicles: Vehicle[]}[]>;
+  findMatchingTransporters(ride: Ride): Promise<{ transporter: Transporter; matchScore: number; matchReason: string; vehicles: Vehicle[] }[]>;
   getActiveTransporters(): Promise<Transporter[]>;
   getTransportersByStatus(status: string): Promise<Transporter[]>;
   verifyTransporter(id: string, verifiedById: string): Promise<void>;
@@ -194,39 +194,25 @@ export interface IStorage {
   getDriversByEntity(entityId: string): Promise<User[]>;
   updateRideAcceptedBid(rideId: string, bidId: string, transporterId: string): Promise<void>;
   closeBidding(rideId: string, acceptedByUserId: string): Promise<void>;
-  acceptBidAtomic(params: {
-    bidId: string;
-    rideId: string;
-    transporterId: string | null;
-    acceptedByUserId: string;
-    financials: {
-      finalPrice: string;
-      platformFee: string;
-      transporterEarning: string;
-      platformFeePercent: string;
-      shadowPlatformFee?: string;
-      shadowPlatformFeePercent?: string;
-    };
-  }): Promise<void>;
-  
+
   // API Logs
   createApiLog(log: InsertApiLog): Promise<ApiLog>;
   getApiLogs(limit?: number, offset?: number): Promise<ApiLog[]>;
   getApiLogsByPath(path: string): Promise<ApiLog[]>;
   getApiLogStats(): Promise<{ totalRequests: number; externalRequests: number; errorCount: number; avgResponseTime: number }>;
-  
+
   // Roles
   getRole(id: string): Promise<Role | undefined>;
   getAllRoles(): Promise<Role[]>;
   createRole(role: InsertRole): Promise<Role>;
   updateRole(id: string, updates: Partial<InsertRole>): Promise<Role | undefined>;
   deleteRole(id: string): Promise<void>;
-  
+
   // User Roles
   getUserRoles(userId: string): Promise<(UserRole & { role: Role })[]>;
   assignRoleToUser(data: InsertUserRole): Promise<UserRole>;
   removeRoleFromUser(userId: string, roleId: string): Promise<void>;
-  
+
   // Saved Addresses
   getSavedAddress(id: string): Promise<SavedAddress | undefined>;
   getTransporterSavedAddresses(transporterId: string): Promise<SavedAddress[]>;
@@ -234,7 +220,7 @@ export interface IStorage {
   createSavedAddress(address: InsertSavedAddress): Promise<SavedAddress>;
   updateSavedAddress(id: string, updates: Partial<InsertSavedAddress>): Promise<SavedAddress | undefined>;
   deleteSavedAddress(id: string): Promise<void>;
-  
+
   // Driver Applications
   getDriverApplication(id: string): Promise<DriverApplication | undefined>;
   getDriverApplicationByDriverId(driverId: string): Promise<DriverApplication | undefined>;
@@ -243,18 +229,18 @@ export interface IStorage {
   createDriverApplication(application: InsertDriverApplication): Promise<DriverApplication>;
   updateDriverApplication(id: string, updates: Partial<InsertDriverApplication>): Promise<DriverApplication | undefined>;
   hireDriver(applicationId: string, transporterId: string): Promise<void>;
-  
+
   // Platform Settings
   getPlatformSettings(): Promise<PlatformSettings>;
   updatePlatformSettings(updates: Partial<InsertPlatformSettings>, updatedByAdminId: string): Promise<PlatformSettings>;
-  
+
   // OTP Codes
   createOtpCode(otp: InsertOtpCode): Promise<OtpCode>;
   getActiveOtpCode(phone: string, purpose: "login" | "forgot_password" | "verify_phone"): Promise<OtpCode | undefined>;
   incrementOtpAttempts(id: string): Promise<void>;
   markOtpVerified(id: string): Promise<void>;
   invalidateOtpCodes(phone: string, purpose: "login" | "forgot_password" | "verify_phone"): Promise<void>;
-  
+
   // Onboarding
   getTransporterOnboardingStatus(transporterId: string): Promise<{
     transporterType: string;
@@ -314,7 +300,7 @@ export class DatabaseStorage implements IStorage {
           eq(verificationLogs.entityId, entityId)
         )
       )
-      .orderBy(desc(verificationLogs.createdAt));
+      .orderBy(desc(verificationLogs.performedAt));
   }
 
   // Users
@@ -376,7 +362,7 @@ export class DatabaseStorage implements IStorage {
     if (updates.phone !== undefined) updateData.phone = updates.phone;
     if (updates.role !== undefined) updateData.role = updates.role;
     if (updates.isSelfDriver !== undefined) updateData.isSelfDriver = updates.isSelfDriver;
-    
+
     const [user] = await db.update(users).set(updateData).where(eq(users.id, id)).returning();
     return user || undefined;
   }
@@ -490,7 +476,7 @@ export class DatabaseStorage implements IStorage {
     status: string;
     location: string;
     fleetSize: number | null;
-    isVerified: boolean | null;
+    verificationStatus: string | null;
     createdAt: Date | null;
     vehicleCount: number;
     driverCount: number;
@@ -518,7 +504,7 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(rides, eq(rides.transporterId, transporters.id))
       .groupBy(transporters.id)
       .orderBy(desc(transporters.createdAt));
-    
+
     return result;
   }
 
@@ -562,7 +548,7 @@ export class DatabaseStorage implements IStorage {
       verifiedAt: new Date(),
       verifiedBy: approvedById,
     }).where(eq(transporters.id, id));
-    
+
     // Update associated users' profile completion status
     await db.update(users).set({
       profileComplete: true
@@ -698,7 +684,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPendingRides(): Promise<Ride[]> {
-    return await db.select().from(rides).where(eq(rides.status, "pending")).orderBy(desc(rides.createdAt));
+    return await db.select().from(rides).where(eq(rides.status, "open_for_bidding")).orderBy(desc(rides.createdAt));
   }
 
   async getScheduledRides(): Promise<Ride[]> {
@@ -730,7 +716,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createRide(insertRide: InsertRide): Promise<Ride> {
-    const [ride] = await db.insert(rides).values(insertRide as any).returning();
+    const entityId = generateEntityId('R');
+    const [ride] = await db.insert(rides).values({ ...insertRide, entityId } as any).returning();
     return ride;
   }
 
@@ -739,7 +726,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async assignRideToDriver(rideId: string, driverId: string, vehicleId: string): Promise<void> {
-    await db.update(rides).set({ 
+    await db.update(rides).set({
       assignedDriverId: driverId,
       assignedVehicleId: vehicleId,
       status: "assigned"
@@ -747,21 +734,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async driverAcceptTrip(rideId: string, driverId: string): Promise<void> {
-    await db.update(rides).set({ 
+    await db.update(rides).set({
       acceptedByUserId: driverId,
       acceptedAt: new Date()
     }).where(eq(rides.id, rideId));
   }
 
   async markRidePickupComplete(rideId: string): Promise<void> {
-    await db.update(rides).set({ 
+    await db.update(rides).set({
       pickupCompleted: true,
       pickupCompletedAt: new Date()
     }).where(eq(rides.id, rideId));
   }
 
   async markRideDeliveryComplete(rideId: string): Promise<void> {
-    await db.update(rides).set({ 
+    await db.update(rides).set({
       deliveryCompleted: true,
       deliveryCompletedAt: new Date()
     }).where(eq(rides.id, rideId));
@@ -837,7 +824,30 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createBid(insertBid: InsertBid): Promise<Bid> {
-    const [bid] = await db.insert(bids).values(insertBid as any).returning();
+    const { rideId, transporterId, userId } = insertBid;
+
+    // Concurrency: check for existing non-rejected bids from this transporter OR user (driver) on this ride
+    const existing = await db
+      .select()
+      .from(bids)
+      .where(
+        and(
+          eq(bids.rideId, rideId),
+          or(
+            transporterId ? eq(bids.transporterId, transporterId) : undefined,
+            eq(bids.userId, userId)
+          ),
+          not(eq(bids.status, "rejected"))
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      throw new Error("You have already placed an active bid for this trip.");
+    }
+
+    const entityId = generateEntityId('B');
+    const [bid] = await db.insert(bids).values({ ...insertBid, entityId } as any).returning();
     return bid;
   }
 
@@ -912,7 +922,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateDocumentStatus(id: string, status: "verified" | "pending" | "expired" | "rejected" | "replaced" | "deleted", reviewedById?: string | null, rejectionReason?: string | null): Promise<void> {
-    await db.update(documents).set({ 
+    await db.update(documents).set({
       status,
       reviewedBy: reviewedById ?? null,
       reviewedAt: new Date(),
@@ -921,7 +931,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async softDeleteDocument(id: string, deletedById: string): Promise<void> {
-    await db.update(documents).set({ 
+    await db.update(documents).set({
       status: "deleted",
       reviewedBy: deletedById,
       reviewedAt: new Date()
@@ -984,7 +994,7 @@ export class DatabaseStorage implements IStorage {
       and(eq(notifications.recipientId, userId), eq(notifications.isRead, false))
     ).orderBy(desc(notifications.createdAt));
   }
-  
+
   // Get unread notifications for user OR their transporter (for transporter-scoped notifications)
   async getUnreadNotificationsForUserOrTransporter(userId: string, transporterId?: string): Promise<Notification[]> {
     if (transporterId) {
@@ -1012,7 +1022,7 @@ export class DatabaseStorage implements IStorage {
   async markAllNotificationsRead(userId: string): Promise<void> {
     await db.update(notifications).set({ isRead: true }).where(eq(notifications.recipientId, userId));
   }
-  
+
   // Mark all notifications read for user OR their transporter
   async markAllNotificationsReadForUserOrTransporter(userId: string, transporterId?: string): Promise<void> {
     if (transporterId) {
@@ -1047,38 +1057,38 @@ export class DatabaseStorage implements IStorage {
 
   async getVehiclesByTypeAndCapacity(vehicleType: string | null, minCapacityKg: number | null): Promise<Vehicle[]> {
     let query = db.select().from(vehicles).where(eq(vehicles.status, "active"));
-    
+
     if (vehicleType) {
       query = db.select().from(vehicles).where(
         and(eq(vehicles.status, "active"), eq(vehicles.type, vehicleType))
       );
     }
-    
+
     const allVehicles = await query;
-    
+
     if (minCapacityKg) {
       return allVehicles.filter(v => v.capacityKg && v.capacityKg >= minCapacityKg);
     }
-    
+
     return allVehicles;
   }
 
-  async findMatchingTransporters(ride: Ride): Promise<{transporter: Transporter; matchScore: number; matchReason: string; vehicles: Vehicle[]}[]> {
+  async findMatchingTransporters(ride: Ride): Promise<{ transporter: Transporter; matchScore: number; matchReason: string; vehicles: Vehicle[] }[]> {
     const activeTransporters = await this.getActiveTransporters();
-    const matches: {transporter: Transporter; matchScore: number; matchReason: string; vehicles: Vehicle[]}[] = [];
+    const matches: { transporter: Transporter; matchScore: number; matchReason: string; vehicles: Vehicle[] }[] = [];
 
     for (const transporter of activeTransporters) {
       let score = 0;
       const reasons: string[] = [];
-      
+
       const transporterVehicles = await this.getTransporterVehicles(transporter.id);
       const matchingVehicles: Vehicle[] = [];
-      
+
       for (const vehicle of transporterVehicles) {
         if (vehicle.status !== "active") continue;
-        
+
         let vehicleMatches = false;
-        
+
         if (ride.requiredVehicleType && vehicle.type === ride.requiredVehicleType) {
           score += 30;
           reasons.push(`Vehicle type matches (${vehicle.type})`);
@@ -1087,7 +1097,7 @@ export class DatabaseStorage implements IStorage {
           score += 10;
           vehicleMatches = true;
         }
-        
+
         if (ride.weightKg && vehicle.capacityKg && vehicle.capacityKg >= ride.weightKg) {
           score += 25;
           reasons.push(`Capacity sufficient (${vehicle.capacityKg}kg >= ${ride.weightKg}kg)`);
@@ -1096,30 +1106,30 @@ export class DatabaseStorage implements IStorage {
           score += 5;
           vehicleMatches = true;
         }
-        
+
         if (vehicle.currentPincode && ride.pickupPincode && vehicle.currentPincode === ride.pickupPincode) {
           score += 20;
           reasons.push(`Vehicle currently at pickup pincode (${ride.pickupPincode})`);
           vehicleMatches = true;
         }
-        
+
         if (vehicleMatches) {
           matchingVehicles.push(vehicle);
         }
       }
-      
+
       if (transporter.servicePincodes && ride.pickupPincode) {
         if (transporter.servicePincodes.includes(ride.pickupPincode)) {
           score += 15;
           reasons.push(`Services pickup pincode (${ride.pickupPincode})`);
         }
       }
-      
+
       if (transporter.basePincode && ride.pickupPincode && transporter.basePincode === ride.pickupPincode) {
         score += 10;
         reasons.push(`Based at pickup pincode`);
       }
-      
+
       if (transporter.preferredRoutes && ride.pickupLocation && ride.dropLocation) {
         const routes = transporter.preferredRoutes as string[];
         const routeKey = `${ride.pickupLocation}-${ride.dropLocation}`.toLowerCase();
@@ -1128,12 +1138,12 @@ export class DatabaseStorage implements IStorage {
           reasons.push(`Serves this route`);
         }
       }
-      
+
       if (transporter.isOwnerOperator) {
         score += 5;
         reasons.push(`Owner-operator (single fleet)`);
       }
-      
+
       if (score > 0 && matchingVehicles.length > 0) {
         matches.push({
           transporter,
@@ -1143,12 +1153,12 @@ export class DatabaseStorage implements IStorage {
         });
       }
     }
-    
+
     return matches.sort((a, b) => b.matchScore - a.matchScore);
   }
 
   async updateRideAcceptedBid(rideId: string, bidId: string, transporterId: string): Promise<void> {
-    await db.update(rides).set({ 
+    await db.update(rides).set({
       acceptedBidId: bidId,
       transporterId: transporterId,
       status: "assigned"
@@ -1156,7 +1166,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async closeBidding(rideId: string, acceptedByUserId: string): Promise<void> {
-    await db.update(rides).set({ 
+    await db.update(rides).set({
       biddingStatus: "closed",
       acceptedByUserId: acceptedByUserId,
       acceptedAt: new Date()
@@ -1350,7 +1360,7 @@ export class DatabaseStorage implements IStorage {
     }).from(userRoles)
       .innerJoin(roles, eq(userRoles.roleId, roles.id))
       .where(eq(userRoles.userId, userId));
-    
+
     return results.map(r => ({
       id: r.id,
       userId: r.userId,
@@ -1430,14 +1440,14 @@ export class DatabaseStorage implements IStorage {
   async hireDriver(applicationId: string, transporterId: string): Promise<void> {
     const application = await this.getDriverApplication(applicationId);
     if (!application) throw new Error("Application not found");
-    
+
     await db.update(driverApplications).set({
       status: "hired",
       acceptedByTransporterId: transporterId,
       acceptedAt: new Date(),
       updatedAt: new Date()
     }).where(eq(driverApplications.id, applicationId));
-    
+
     await db.update(users).set({
       transporterId: transporterId
     }).where(eq(users.id, application.driverId));
@@ -1447,7 +1457,7 @@ export class DatabaseStorage implements IStorage {
   async getPlatformSettings(): Promise<PlatformSettings> {
     const [settings] = await db.select().from(platformSettings).where(eq(platformSettings.id, "default"));
     if (settings) return settings;
-    
+
     const [newSettings] = await db.insert(platformSettings).values({
       id: "default",
       commissionEnabled: false,
@@ -1467,7 +1477,7 @@ export class DatabaseStorage implements IStorage {
 
   async updatePlatformSettings(updates: Partial<InsertPlatformSettings>, updatedByAdminId: string): Promise<PlatformSettings> {
     await this.getPlatformSettings();
-    
+
     const [updated] = await db.update(platformSettings).set({
       ...updates,
       updatedByAdminId,
@@ -1535,7 +1545,7 @@ export class DatabaseStorage implements IStorage {
 
       // Get all vehicles for this transporter
       const transporterVehicles = await this.getTransporterVehicles(transporterId);
-      
+
       // Get all drivers for this transporter
       const transporterDrivers = await db.select().from(users)
         .where(and(eq(users.transporterId, transporterId), eq(users.role, "driver")));
@@ -1548,43 +1558,43 @@ export class DatabaseStorage implements IStorage {
           eq(documents.status, "verified"),
           not(eq(documents.status, "deleted"))
         ));
-      
+
       const hasBusinessDocs = businessDocs.length > 0;
-      
+
       // Count approved vehicles - check vehicle.documentStatus OR verified RC in documents table
       const vehicleIds = transporterVehicles.map(v => v.id);
-      const vehicleIdsWithVerifiedRC = vehicleIds.length > 0 
+      const vehicleIdsWithVerifiedRC = vehicleIds.length > 0
         ? (await db.select({ vehicleId: documents.vehicleId }).from(documents)
-            .where(and(
-              eq(documents.entityType, "vehicle"),
-              or(inArray(documents.vehicleId, vehicleIds), inArray(documents.entityId, vehicleIds)),
-              eq(documents.status, "verified"),
-              sql`(lower(${documents.type}) IN ('rc', 'registration_certificate', 'vehicle_rc'))`
-            ))).map(d => d.vehicleId)
+          .where(and(
+            eq(documents.entityType, "vehicle"),
+            or(inArray(documents.vehicleId, vehicleIds), inArray(documents.entityId, vehicleIds)),
+            eq(documents.status, "verified"),
+            sql`(lower(${documents.type}) IN ('rc', 'registration_certificate', 'vehicle_rc'))`
+          ))).map(d => d.vehicleId)
         : [];
-      
-      const approvedVehicles = transporterVehicles.filter(v => 
+
+      const approvedVehicles = transporterVehicles.filter(v =>
         v.documentStatus === "approved" || vehicleIdsWithVerifiedRC.includes(v.id)
       );
-      
+
       // Count approved drivers - check driver.documentStatus OR verified license in documents table
       const driverIds = transporterDrivers.map(d => d.id);
       const driverIdsWithVerifiedLicense = driverIds.length > 0
         ? (await db.select({ userId: documents.userId }).from(documents)
-            .where(and(
-              eq(documents.entityType, "driver"),
-              or(inArray(documents.userId, driverIds), inArray(documents.entityId, driverIds)),
-              eq(documents.status, "verified"),
-              sql`(lower(${documents.type}) IN ('driving_license', 'license', 'dl'))`
-            ))).map(d => d.userId)
+          .where(and(
+            eq(documents.entityType, "driver"),
+            or(inArray(documents.userId, driverIds), inArray(documents.entityId, driverIds)),
+            eq(documents.status, "verified"),
+            sql`(lower(${documents.type}) IN ('driving_license', 'license', 'dl'))`
+          ))).map(d => d.userId)
         : [];
-      
-      const approvedDrivers = transporterDrivers.filter(d => 
+
+      const approvedDrivers = transporterDrivers.filter(d =>
         d.documentStatus === "approved" || driverIdsWithVerifiedLicense.includes(d.id)
       );
-      
+
       // Count pending vehicle documents (guard against empty array for inArray)
-      const pendingVehicleDocs = vehicleIds.length > 0 
+      const pendingVehicleDocs = vehicleIds.length > 0
         ? await db.select().from(documents)
           .where(and(
             eq(documents.entityType, "vehicle"),
@@ -1593,9 +1603,9 @@ export class DatabaseStorage implements IStorage {
             not(eq(documents.status, "deleted"))
           ))
         : [];
-      
+
       // Count pending driver documents (guard against empty array for inArray)
-      const pendingDriverDocs = driverIds.length > 0 
+      const pendingDriverDocs = driverIds.length > 0
         ? await db.select().from(documents)
           .where(and(
             eq(documents.entityType, "driver"),
@@ -1648,14 +1658,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateVehicleDocumentStatus(vehicleId: string, status: "document_missing" | "verification_pending" | "approved" | "rejected"): Promise<void> {
-    await db.update(vehicles).set({ 
+    await db.update(vehicles).set({
       documentStatus: status,
       isActiveForBidding: status === "approved"
     }).where(eq(vehicles.id, vehicleId));
   }
 
   async updateDriverDocumentStatus(driverId: string, status: "document_missing" | "verification_pending" | "approved" | "rejected"): Promise<void> {
-    await db.update(users).set({ 
+    await db.update(users).set({
       documentStatus: status,
       isActiveForBidding: status === "approved"
     }).where(eq(users.id, driverId));
@@ -1682,18 +1692,18 @@ export class DatabaseStorage implements IStorage {
 
     // Get approved vehicles - check documentStatus OR verified RC in documents table
     const transporterVehicles = await this.getTransporterVehicles(transporterId);
-    
-    const vehicleIdsWithVerifiedRC = transporterVehicles.length > 0 
+
+    const vehicleIdsWithVerifiedRC = transporterVehicles.length > 0
       ? (await db.select({ vehicleId: documents.vehicleId }).from(documents)
-          .where(and(
-            eq(documents.entityType, "vehicle"),
-            inArray(documents.vehicleId, transporterVehicles.map(v => v.id)),
-            eq(documents.status, "verified"),
-            sql`lower(${documents.type}) IN ('rc', 'registration_certificate', 'vehicle_rc')`
-          ))).map(d => d.vehicleId)
+        .where(and(
+          eq(documents.entityType, "vehicle"),
+          inArray(documents.vehicleId, transporterVehicles.map(v => v.id)),
+          eq(documents.status, "verified"),
+          sql`lower(${documents.type}) IN ('rc', 'registration_certificate', 'vehicle_rc')`
+        ))).map(d => d.vehicleId)
       : [];
-    
-    const approvedVehicles = transporterVehicles.filter(v => 
+
+    const approvedVehicles = transporterVehicles.filter(v =>
       v.documentStatus === "approved" || vehicleIdsWithVerifiedRC.includes(v.id)
     );
 
@@ -1704,21 +1714,21 @@ export class DatabaseStorage implements IStorage {
     // Get approved drivers - check documentStatus OR verified license in documents table
     const transporterDrivers = await db.select().from(users)
       .where(and(
-        eq(users.transporterId, transporterId), 
+        eq(users.transporterId, transporterId),
         eq(users.role, "driver")
       ));
-    
+
     const driverIdsWithVerifiedLicense = transporterDrivers.length > 0
       ? (await db.select({ userId: documents.userId }).from(documents)
-          .where(and(
-            eq(documents.entityType, "driver"),
-            inArray(documents.userId, transporterDrivers.map(d => d.id)),
-            eq(documents.status, "verified"),
-            sql`lower(${documents.type}) IN ('driving_license', 'license', 'dl')`
-          ))).map(d => d.userId)
+        .where(and(
+          eq(documents.entityType, "driver"),
+          inArray(documents.userId, transporterDrivers.map(d => d.id)),
+          eq(documents.status, "verified"),
+          sql`lower(${documents.type}) IN ('driving_license', 'license', 'dl')`
+        ))).map(d => d.userId)
       : [];
-    
-    const approvedDrivers = transporterDrivers.filter(d => 
+
+    const approvedDrivers = transporterDrivers.filter(d =>
       d.documentStatus === "approved" || driverIdsWithVerifiedLicense.includes(d.id)
     );
 
