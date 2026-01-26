@@ -148,8 +148,7 @@ export interface IStorage {
       shadowPlatformFee?: string;
       shadowPlatformFeePercent?: string;
     };
-  }): Promise<void>;
-  acceptBidAtomically(rideId: string, bidId: string, acceptedByUserId: string): Promise<boolean>;  
+  }): Promise<boolean>;
   
   // Bids
   getBid(id: string): Promise<Bid | undefined>;
@@ -1177,13 +1176,26 @@ export class DatabaseStorage implements IStorage {
       shadowPlatformFee?: string;
       shadowPlatformFeePercent?: string;
     };
-  }): Promise<void> {
+  }): Promise<boolean> {
     const { bidId, rideId, transporterId, acceptedByUserId, financials } = params;
     const now = new Date();
 
-    await db.transaction(async (tx) => {
+    return await db.transaction(async (tx) => {
+      // 1. Concurrency Check: Only proceed if bidding is still open
+      const [ride] = await tx
+        .select({ biddingStatus: rides.biddingStatus })
+        .from(rides)
+        .where(eq(rides.id, rideId))
+        .for("update"); // Lock the row
+
+      if (!ride || ride.biddingStatus === "closed" || ride.biddingStatus === "self_assigned") {
+        return false;
+      }
+
+      // 2. Accept the winning bid
       await tx.update(bids).set({ status: "accepted" }).where(eq(bids.id, bidId));
 
+      // 3. Update ride status and financials
       await tx.update(rides).set({
         acceptedBidId: bidId,
         transporterId: transporterId || undefined,
@@ -1200,6 +1212,7 @@ export class DatabaseStorage implements IStorage {
         financialLockedAt: now
       }).where(eq(rides.id, rideId));
 
+      // 4. Create ledger entries
       const entries = [
         {
           rideId,
@@ -1234,25 +1247,14 @@ export class DatabaseStorage implements IStorage {
         await tx.insert(ledgerEntries).values(entry);
       }
 
-      const allBids = await tx.select().from(bids).where(eq(bids.rideId, rideId));
-      for (const otherBid of allBids) {
-        if (otherBid.id !== bidId && otherBid.status === "pending") {
-          await tx.update(bids).set({ status: "rejected" }).where(eq(bids.id, otherBid.id));
-        }
-      }
+      // 5. Reject other pending bids
+      await tx
+        .update(bids)
+        .set({ status: "rejected" })
+        .where(and(eq(bids.rideId, rideId), eq(bids.status, "pending"), not(eq(bids.id, bidId))));
+
+      return true;
     });
-  }
-
-  async acceptBidAtomically(rideId: string, bidId: string, acceptedByUserId: string): Promise<boolean> {
-    // Atomically set the accepted bid and close bidding only if bidding is not already closed
-    const updated = await db.update(rides).set({
-      biddingStatus: "closed",
-      acceptedBidId: bidId,
-      acceptedByUserId: acceptedByUserId,
-      acceptedAt: new Date()
-    }).where(and(eq(rides.id, rideId), sql`${rides.biddingStatus} != 'closed'`)).returning();
-
-    return Array.isArray(updated) && updated.length === 1;
   }
 
   async selfAssignRide(rideId: string, transporterId: string, driverId: string, vehicleId: string): Promise<void> {
