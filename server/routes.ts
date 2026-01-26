@@ -575,6 +575,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       let transporterId: string | undefined;
+      let transporterEntityId: string | undefined;
       
       // If registering as transporter, create a transporter record first
       if (data.role === "transporter") {
@@ -597,6 +598,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         
         const transporter = await storage.createTransporter(transporterData);
         transporterId = transporter.id;
+        transporterEntityId = transporter.entityId || undefined;
       }
 
       const user = await storage.createUser({ 
@@ -626,6 +628,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           isSuperAdmin: user.isSuperAdmin || false,
           isSelfDriver: user.isSelfDriver || false,
           transporterId: user.transporterId || undefined,
+          entityId: user.entityId || transporterEntityId || undefined,
+          transporterEntityId: transporterEntityId || undefined,
         };
         // Use role-based expiry
         const expiresIn = (user.role === "admin" || user.role === "transporter") 
@@ -648,6 +652,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         isSuperAdmin: user.isSuperAdmin || false,
         isSelfDriver: user.isSelfDriver || false,
         transporterId: transporterId || user.transporterId || undefined,
+        entityId: user.entityId || transporterEntityId || undefined,
+        transporterEntityId: transporterEntityId || undefined,
       };
 
       req.session.save((saveErr) => {
@@ -711,9 +717,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
+      let transporterEntityId: string | undefined;
       if (user.role === "transporter" && user.transporterId) {
         const transporter = await storage.getTransporter(user.transporterId);
         if (transporter) {
+          transporterEntityId = transporter.entityId || undefined;
+          if (!user.entityId && transporterEntityId) {
+            await storage.updateUserEntityId(user.id, transporterEntityId);
+            user.entityId = transporterEntityId as any;
+          }
           // Only block suspended transporters - pending ones can login but with limited functionality
           if (transporter.status === "suspended") {
             return res.status(403).json({ error: "Your account has been suspended. Please contact support." });
@@ -729,6 +741,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         isSuperAdmin: user.isSuperAdmin || false,
         isSelfDriver: user.isSelfDriver || false,
         transporterId: user.transporterId || undefined,
+        entityId: user.entityId || transporterEntityId || undefined,
+        transporterEntityId: transporterEntityId || undefined,
       };
 
       // Regenerate session to prevent session fixation - CRITICAL for security

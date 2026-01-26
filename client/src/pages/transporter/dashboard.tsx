@@ -318,7 +318,7 @@ export default function TransporterDashboard() {
           </Card>
         )}
 
-        {transporter && transporter.verificationStatus === 'approved' && (
+        {transporter && transporter.verificationStatus === 'approved' && onboardingStatus?.overallStatus === "completed" && (
           <Card className="mb-6 border-green-200 bg-green-50" data-testid="verified-banner">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -326,6 +326,20 @@ export default function TransporterDashboard() {
                 <div>
                   <h3 className="font-semibold text-green-800">Verified Transporter</h3>
                   <p className="text-sm text-green-700">Your account is verified. You can access the marketplace and receive trip requests.</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {transporter && transporter.verificationStatus === 'approved' && onboardingStatus?.overallStatus !== "completed" && (
+          <Card className="mb-6 border-amber-200 bg-amber-50" data-testid="verified-pending-onboarding-banner">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <Clock className="h-6 w-6 text-amber-600" />
+                <div>
+                  <h3 className="font-semibold text-amber-800">Account Verified — Complete Onboarding</h3>
+                  <p className="text-sm text-amber-700">Your account is verified. Add required vehicles and drivers to complete onboarding and enable bidding.</p>
                 </div>
               </div>
             </CardContent>

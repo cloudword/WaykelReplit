@@ -57,6 +57,7 @@ export interface IStorage {
   getUsersByTransporterAndRole(transporterId: string, role: string): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   updateUserOnlineStatus(id: string, isOnline: boolean): Promise<void>;
+  updateUserEntityId(id: string, entityId: string): Promise<void>;
   updateUserPassword(id: string, hashedPassword: string): Promise<void>;
   updateUser(id: string, updates: { name?: string; email?: string; phone?: string; role?: string; isSelfDriver?: boolean }): Promise<User | undefined>;
   
@@ -339,10 +340,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const entityPrefix = insertUser.role === 'driver' ? 'D' : insertUser.role === 'customer' ? 'C' : null;
-    const entityId = entityPrefix ? generateEntityId(entityPrefix) : undefined;
+    let entityId: string | undefined;
+
+    if (insertUser.role === 'driver') {
+      entityId = generateEntityId('D');
+    } else if (insertUser.role === 'customer') {
+      entityId = generateEntityId('C');
+    } else if (insertUser.role === 'transporter' && insertUser.transporterId) {
+      const [transporter] = await db
+        .select({ entityId: transporters.entityId })
+        .from(transporters)
+        .where(eq(transporters.id, insertUser.transporterId));
+      entityId = transporter?.entityId || undefined;
+    }
+
     const [user] = await db.insert(users).values({ ...insertUser, entityId } as any).returning();
     return user;
+  }
+
+  async updateUserEntityId(id: string, entityId: string): Promise<void> {
+    await db.update(users).set({ entityId }).where(eq(users.id, id));
   }
 
   async updateUserOnlineStatus(id: string, isOnline: boolean): Promise<void> {
