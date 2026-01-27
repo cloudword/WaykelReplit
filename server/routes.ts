@@ -51,31 +51,72 @@ const sanitizeRequestBody = (body: any): any => {
 };
 
 
-// Redact PII for public marketplace responses
-const sanitizePublicRide = (ride: Ride) => ({
-  id: ride.id,
-  entityId: (ride as any).entityId,
-  customerEntityId: (ride as any).customerEntityId,
-  pickupLocation: ride.pickupLocation,
-  dropLocation: ride.dropLocation,
-  pickupPincode: ride.pickupPincode,
-  dropPincode: ride.dropPincode,
-  pickupTime: ride.pickupTime,
-  dropTime: ride.dropTime,
-  date: ride.date,
-  status: ride.status,
-  price: ride.price,
-  distance: ride.distance,
-  cargoType: ride.cargoType,
-  weight: ride.weight,
-  weightKg: ride.weightKg,
-  weightTons: ride.weightTons,
-  weightUnit: ride.weightUnit,
-  requiredVehicleType: ride.requiredVehicleType,
-  requiredVehicleCategory: ride.requiredVehicleCategory,
-  biddingStatus: ride.biddingStatus,
-  createdAt: ride.createdAt,
-});
+// Role-based serializer to prevent PII leakage
+const serializeRide = (ride: Ride, user?: any) => {
+  const base = {
+    id: ride.id,
+    entityId: (ride as any).entityId,
+    customerEntityId: (ride as any).customerEntityId,
+    pickupLocation: ride.pickupLocation,
+    dropLocation: ride.dropLocation,
+    pickupPincode: ride.pickupPincode,
+    dropPincode: ride.dropPincode,
+    pickupTime: ride.pickupTime,
+    dropTime: ride.dropTime,
+    date: ride.date,
+    status: ride.status,
+    price: ride.price,
+    distance: ride.distance,
+    cargoType: ride.cargoType,
+    weight: ride.weight,
+    weightKg: ride.weightKg,
+    weightTons: ride.weightTons,
+    weightUnit: ride.weightUnit,
+    requiredVehicleType: ride.requiredVehicleType,
+    requiredVehicleCategory: ride.requiredVehicleCategory,
+    biddingStatus: ride.biddingStatus,
+    createdAt: ride.createdAt,
+  };
+
+  // If no user, return minimal public view
+  if (!user) return base;
+
+  const isAdmin = user.isSuperAdmin || user.role === "admin";
+  const isOwner = ride.createdById === user.id || ride.customerId === user.id;
+  const isAssignedTransporter = user.transporterId && (ride.transporterId === user.transporterId);
+  const isAssignedDriver = ride.assignedDriverId === user.id;
+
+  // Show PII only to Admins, Owners, or Assigned parties
+  if (isAdmin || isOwner || isAssignedTransporter || isAssignedDriver) {
+    return {
+      ...base,
+      customerName: ride.customerName,
+      customerPhone: ride.customerPhone,
+      incentive: ride.incentive,
+      transporterId: ride.transporterId,
+      assignedDriverId: ride.assignedDriverId,
+      assignedVehicleId: ride.assignedVehicleId,
+      acceptedBidId: ride.acceptedBidId,
+      createdById: ride.createdById,
+      customerId: ride.customerId,
+      acceptedByUserId: ride.acceptedByUserId,
+      acceptedAt: ride.acceptedAt,
+      isSelfAssigned: ride.isSelfAssigned,
+      pickupCompleted: ride.pickupCompleted,
+      pickupCompletedAt: ride.pickupCompletedAt,
+      deliveryCompleted: ride.deliveryCompleted,
+      deliveryCompletedAt: ride.deliveryCompletedAt,
+      finalPrice: ride.finalPrice,
+      platformFee: ride.platformFee,
+      transporterEarning: ride.transporterEarning,
+      platformFeePercent: ride.platformFeePercent,
+      paymentStatus: ride.paymentStatus,
+    };
+  }
+
+  // Transporters who haven't been assigned yet should not see customer contact details
+  return base;
+};
 
 // Extend Request type to include tokenUser
 declare global {
@@ -91,6 +132,21 @@ declare global {
         name?: string;
       };
     }
+  }
+}
+
+// Global session interface extension
+declare module "express-session" {
+  interface SessionData {
+    user: {
+      id: string;
+      role: string;
+      isSuperAdmin: boolean;
+      isSelfDriver: boolean;
+      transporterId?: string | null;
+      entityId?: string | null;
+      transporterEntityId?: string | null;
+    };
   }
 }
 
@@ -613,7 +669,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           isSuperAdmin: user.isSuperAdmin || false,
           isSelfDriver: user.isSelfDriver || false,
           transporterId: user.transporterId || undefined,
-          entityId: user.entityId || transporterEntityId || undefined,
+          entityId: (user.entityId || transporterEntityId || undefined) as string | undefined,
           transporterEntityId: transporterEntityId || undefined,
         };
         // Use role-based expiry
@@ -636,9 +692,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         role: user.role,
         isSuperAdmin: user.isSuperAdmin || false,
         isSelfDriver: user.isSelfDriver || false,
-        transporterId: transporterId || user.transporterId || undefined,
-        entityId: user.entityId || transporterEntityId || undefined,
-        transporterEntityId: transporterEntityId || undefined,
+        transporterId: (transporterId || user.transporterId || undefined) as string | undefined,
+        entityId: (user.entityId || transporterEntityId || undefined) as string | undefined,
+        transporterEntityId: (transporterEntityId || undefined) as string | undefined,
       };
 
       req.session.save((saveErr) => {
@@ -726,7 +782,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         isSuperAdmin: user.isSuperAdmin || false,
         isSelfDriver: user.isSelfDriver || false,
         transporterId: user.transporterId || undefined,
-        entityId: user.entityId || transporterEntityId || undefined,
+        entityId: (user.entityId || transporterEntityId || undefined) as string | undefined,
         transporterEntityId: transporterEntityId || undefined,
       };
 
@@ -1429,7 +1485,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       };
 
       const ride = await storage.createRide(rideData);
-      res.status(201).json(sanitizePublicRide(ride as any));
+      const sessionUser = getCurrentUser(req);
+      res.status(201).json(serializeRide(ride as any, sessionUser));
     } catch (error: any) {
       console.error("[customer/rides] Failed to create ride:", error);
       res.status(500).json({
@@ -1578,7 +1635,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!sessionUser) {
         if (status === "open_for_bidding") {
           const pending = await storage.getPendingRides();
-          result = pending.map(sanitizePublicRide);
+          const sessionUser = getCurrentUser(req);
+          result = pending.map(r => serializeRide(r as any, sessionUser));
         } else {
           result = [];
         }
@@ -1681,7 +1739,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
         // For other roles (e.g. transporters), if trip is open, show redacted view
         if (ride.status === "open_for_bidding") {
-          return res.json(sanitizePublicRide(ride as any));
+          return res.json(serializeRide(ride as any, sessionUser));
         }
 
         return res.status(403).json({ error: "Access denied" });
@@ -1689,7 +1747,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       // Unauthenticated - only allow viewing marketplace rides with redaction
       if (ride.status === "open_for_bidding") {
-        return res.json(sanitizePublicRide(ride as any));
+        return res.json(serializeRide(ride as any, undefined));
       }
 
       return res.status(401).json({ error: "Authentication required" });
@@ -2617,17 +2675,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
 
     try {
-      const eligibility = await getTransporterBidEligibilitySnapshot(user.transporterId);
+      const eligibility = await computeTransporterEligibility(user.transporterId);
 
       res.json({
         canBid: eligibility.canBid,
-        blockingReason: eligibility.blockingReason,
+        blockingReason: eligibility.reason,
         canViewMarketplace: true,
-        onboardingStatus: eligibility.overallStatus.toLowerCase(),
-        overallStatus: eligibility.overallStatus,
+        onboardingStatus: eligibility.status.toLowerCase(),
+        overallStatus: eligibility.status,
         verificationStatus: eligibility.verificationStatus ?? "unknown",
         transporterStatus: eligibility.transporterStatus ?? "unknown",
-        requireBusinessDocs: eligibility.requireBusinessDocs,
+        requireBusinessDocs: eligibility.transporterType === "business" && !eligibility.hasBusinessDocs,
       });
     } catch (error) {
       console.error("[GET /api/transporter/permissions] Error:", error);
@@ -2715,7 +2773,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const completedSteps = requiredSteps.filter(s => s.completed);
       const overallStatusCode = deriveOverallStatus({
         transporterStatus: transporter.status,
-        verificationStatus: transporter.verificationStatus,
+        verificationStatus: transporter.verificationStatus || "unverified",
         businessOk: steps.businessVerification.completed,
         vehiclesOk: steps.addVehicle.completed,
         driversOk: steps.addDriver.completed,
@@ -2729,7 +2787,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         onboardingStatus: overallStatus,
         overallStatus: overallStatusCode,
         transporterStatus: transporter.status,
-        verificationStatus: transporter.verificationStatus,
+        verificationStatus: (transporter.verificationStatus || "unverified") as string,
         steps,
         completedCount: completedSteps.length,
         totalCount: requiredSteps.length,
@@ -2797,7 +2855,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  const normalizeTransporterType = (raw?: string) => raw === "business" ? "business" : "individual";
+  const normalizeTransporterType = (raw?: string | null): "business" | "individual" => raw === "business" ? "business" : "individual";
 
   type EligibilityReason =
     | "not_verified"
@@ -6270,7 +6328,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           contact: transporter.contact,
           email: transporter.email,
           status: transporter.status,
-          isVerified: transporter.isVerified,
+          isVerified: transporter.verificationStatus === 'approved',
           documentsComplete: transporter.documentsComplete,
           createdAt: transporter.createdAt,
           totalDocuments: docs.length,

@@ -1,6 +1,7 @@
 import {
   users, vehicles, rides, bids, transporters, documents, notifications, apiLogs,
   roles, userRoles, savedAddresses, driverApplications, ledgerEntries, platformSettings, otpCodes,
+  rideStatusHistory,
   type User, type InsertUser,
   type Vehicle, type InsertVehicle,
   type Ride, type InsertRide,
@@ -15,7 +16,8 @@ import {
   type DriverApplication, type InsertDriverApplication,
   type LedgerEntry, type InsertLedgerEntry,
   type PlatformSettings, type InsertPlatformSettings,
-  type OtpCode, type InsertOtpCode
+  type OtpCode, type InsertOtpCode,
+  type RideStatusHistory, type InsertRideStatusHistory
 } from "@shared/schema";
 import { verificationLogs, type VerificationLog } from "@shared/verificationLogsSchema";
 import { db } from "./db";
@@ -128,6 +130,8 @@ export interface IStorage {
     financialLockedAt: Date;
   }): Promise<void>;
   updateRidePaymentStatus(rideId: string, paymentStatus: string): Promise<void>;
+  createRideStatusHistory(entry: InsertRideStatusHistory): Promise<void>;
+  getRideStatusHistory(rideId: string): Promise<RideStatusHistory[]>;
 
   // Ledger
   createLedgerEntry(entry: InsertLedgerEntry): Promise<LedgerEntry>;
@@ -326,21 +330,34 @@ export class DatabaseStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     let entityId: string | undefined;
+    const maxRetries = 3;
+    let retries = 0;
 
-    if (insertUser.role === 'driver') {
-      entityId = generateEntityId('D');
-    } else if (insertUser.role === 'customer') {
-      entityId = generateEntityId('C');
-    } else if (insertUser.role === 'transporter' && insertUser.transporterId) {
-      const [transporter] = await db
-        .select({ entityId: transporters.entityId })
-        .from(transporters)
-        .where(eq(transporters.id, insertUser.transporterId));
-      entityId = transporter?.entityId || undefined;
+    while (retries < maxRetries) {
+      try {
+        if (insertUser.role === 'driver') {
+          entityId = generateEntityId('D');
+        } else if (insertUser.role === 'customer') {
+          entityId = generateEntityId('C');
+        } else if (insertUser.role === 'transporter' && insertUser.transporterId) {
+          const [transporter] = await db
+            .select({ entityId: transporters.entityId })
+            .from(transporters)
+            .where(eq(transporters.id, insertUser.transporterId));
+          entityId = transporter?.entityId || undefined;
+        }
+
+        const [user] = await db.insert(users).values({ ...insertUser, entityId } as any).returning();
+        return user;
+      } catch (error: any) {
+        if (error.code === '23505' && error.constraint?.includes('entity_id') && retries < maxRetries - 1) {
+          retries++;
+          continue;
+        }
+        throw error;
+      }
     }
-
-    const [user] = await db.insert(users).values({ ...insertUser, entityId } as any).returning();
-    return user;
+    throw new Error("Failed to generate a unique entity ID after multiple attempts.");
   }
 
   async updateUserEntityId(id: string, entityId: string): Promise<void> {
@@ -513,9 +530,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTransporter(insertTransporter: InsertTransporter): Promise<Transporter> {
-    const entityId = generateEntityId('T');
-    const [transporter] = await db.insert(transporters).values({ ...insertTransporter, entityId } as any).returning();
-    return transporter;
+    const maxRetries = 3;
+    let retries = 0;
+
+    while (retries < maxRetries) {
+      try {
+        const entityId = generateEntityId('T');
+        const [transporter] = await db.insert(transporters).values({ ...insertTransporter, entityId } as any).returning();
+        return transporter;
+      } catch (error: any) {
+        if (error.code === '23505' && error.constraint?.includes('entity_id') && retries < maxRetries - 1) {
+          retries++;
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error("Failed to generate a unique entity ID for transporter.");
   }
 
   async updateTransporterStatus(id: string, status: "active" | "pending_approval" | "suspended" | "pending_verification" | "rejected"): Promise<void> {
@@ -657,9 +688,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createVehicle(insertVehicle: InsertVehicle): Promise<Vehicle> {
-    const entityId = generateEntityId('V');
-    const [vehicle] = await db.insert(vehicles).values({ ...insertVehicle, entityId } as any).returning();
-    return vehicle;
+    const maxRetries = 3;
+    let retries = 0;
+
+    while (retries < maxRetries) {
+      try {
+        const entityId = generateEntityId('V');
+        const [vehicle] = await db.insert(vehicles).values({ ...insertVehicle, entityId } as any).returning();
+        return vehicle;
+      } catch (error: any) {
+        if (error.code === '23505' && error.constraint?.includes('entity_id') && retries < maxRetries - 1) {
+          retries++;
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error("Failed to generate a unique entity ID for vehicle.");
   }
 
   async deleteVehicle(id: string): Promise<void> {
@@ -716,13 +761,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createRide(insertRide: InsertRide): Promise<Ride> {
-    const entityId = generateEntityId('R');
-    const [ride] = await db.insert(rides).values({ ...insertRide, entityId } as any).returning();
-    return ride;
+    const maxRetries = 3;
+    let retries = 0;
+
+    while (retries < maxRetries) {
+      try {
+        const entityId = generateEntityId('R');
+        const [ride] = await db.insert(rides).values({ ...insertRide, entityId } as any).returning();
+        return ride;
+      } catch (error: any) {
+        if (error.code === '23505' && error.constraint?.includes('entity_id') && retries < maxRetries - 1) {
+          retries++;
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error("Failed to generate a unique entity ID for ride.");
   }
 
-  async updateRideStatus(id: string, status: string): Promise<void> {
+  async updateRideStatus(id: string, status: string, changedById?: string, reason?: string): Promise<void> {
+    const [ride] = await db.select({ status: rides.status }).from(rides).where(eq(rides.id, id));
     await db.update(rides).set({ status: status as any }).where(eq(rides.id, id));
+
+    if (ride) {
+      await this.createRideStatusHistory({
+        rideId: id,
+        fromStatus: ride.status,
+        toStatus: status,
+        changedById: changedById || null,
+        changeReason: reason || null,
+      });
+    }
   }
 
   async assignRideToDriver(rideId: string, driverId: string, vehicleId: string): Promise<void> {
@@ -780,6 +850,16 @@ export class DatabaseStorage implements IStorage {
     }).where(eq(rides.id, rideId));
   }
 
+  async createRideStatusHistory(entry: InsertRideStatusHistory): Promise<void> {
+    await db.insert(rideStatusHistory).values(entry as any);
+  }
+
+  async getRideStatusHistory(rideId: string): Promise<RideStatusHistory[]> {
+    return await db.select().from(rideStatusHistory)
+      .where(eq(rideStatusHistory.rideId, rideId))
+      .orderBy(desc(rideStatusHistory.createdAt));
+  }
+
   // Ledger
   async createLedgerEntry(entry: InsertLedgerEntry): Promise<LedgerEntry> {
     const [ledgerEntry] = await db.insert(ledgerEntries).values(entry as any).returning();
@@ -826,7 +906,15 @@ export class DatabaseStorage implements IStorage {
   async createBid(insertBid: InsertBid): Promise<Bid> {
     const { rideId, transporterId, userId } = insertBid;
 
-    // Concurrency: check for existing non-rejected bids from this transporter OR user (driver) on this ride
+    // 1. Real-time verification check at bid placement
+    if (transporterId) {
+      const transporter = await this.getTransporter(transporterId);
+      if (!transporter || transporter.verificationStatus !== 'approved') {
+        throw new Error("Transporter is not approved for bidding. Please complete verification.");
+      }
+    }
+
+    // 2. Concurrency: check for existing non-rejected bids from this transporter OR user (driver) on this ride
     const existing = await db
       .select()
       .from(bids)
@@ -1193,7 +1281,7 @@ export class DatabaseStorage implements IStorage {
     return await db.transaction(async (tx) => {
       // 1. Concurrency Check: Only proceed if bidding is still open
       const [ride] = await tx
-        .select({ biddingStatus: rides.biddingStatus })
+        .select({ status: rides.status, biddingStatus: rides.biddingStatus })
         .from(rides)
         .where(eq(rides.id, rideId))
         .for("update"); // Lock the row
@@ -1262,6 +1350,15 @@ export class DatabaseStorage implements IStorage {
         .update(bids)
         .set({ status: "rejected" })
         .where(and(eq(bids.rideId, rideId), eq(bids.status, "pending"), not(eq(bids.id, bidId))));
+
+      // 6. Log the status change for audit trail
+      await tx.insert(rideStatusHistory).values({
+        rideId,
+        fromStatus: ride.status,
+        toStatus: "accepted",
+        changedById: acceptedByUserId,
+        changeReason: "Bid accepted",
+      });
 
       return true;
     });

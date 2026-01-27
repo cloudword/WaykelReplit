@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, decimal, timestamp, boolean, json } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, decimal, timestamp, boolean, json, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -205,6 +205,10 @@ export const bids = pgTable("bids", {
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   status: text("status").notNull().$type<"pending" | "accepted" | "rejected">().default("pending"),
   createdAt: timestamp("created_at").defaultNow(),
+}, (table) => {
+  return {
+    rideTransporterUnique: uniqueIndex("idx_bids_ride_transporter").on(table.rideId, table.transporterId),
+  };
 });
 
 export const insertBidSchema = createInsertSchema(bids).omit({ id: true, createdAt: true });
@@ -499,7 +503,27 @@ export const otpCodes = pgTable("otp_codes", {
   verified: boolean("verified").default(false),
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
+}, (table) => {
+  return {
+    phonePurposeVerifiedUnique: uniqueIndex("idx_otp_phone_purpose_verified").on(table.phone, table.purpose, table.verified),
+  };
 });
+
+// Ride status history for audit trails
+export const rideStatusHistory = pgTable("ride_status_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  rideId: varchar("ride_id").references(() => rides.id).notNull(),
+  fromStatus: text("from_status"),
+  toStatus: text("to_status").notNull(),
+  changedById: varchar("changed_by_id").references(() => users.id),
+  changeReason: text("change_reason"),
+  meta: json("meta"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertRideStatusHistorySchema = createInsertSchema(rideStatusHistory).omit({ id: true, createdAt: true });
+export type InsertRideStatusHistory = z.infer<typeof insertRideStatusHistorySchema>;
+export type RideStatusHistory = typeof rideStatusHistory.$inferSelect;
 
 export const insertOtpCodeSchema = createInsertSchema(otpCodes).omit({ id: true, createdAt: true });
 export type InsertOtpCode = z.infer<typeof insertOtpCodeSchema>;
