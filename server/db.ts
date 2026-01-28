@@ -28,8 +28,8 @@ if (process.env.NODE_ENV === 'development' && isReplitNeonDb && process.env.PGUS
 
 // Detect if using Replit's local or Neon database
 const isReplitDb = connectionString.includes('neon.tech') ||
-                   connectionString.includes('localhost') || 
-                   connectionString.includes('@127.0.0.1');
+  connectionString.includes('localhost') ||
+  connectionString.includes('@127.0.0.1');
 
 // SSL configuration
 // - Replit database: No SSL needed
@@ -51,7 +51,7 @@ if (isReplitDb && connectionString.includes('neon.tech')) {
   // Fallback: manually load CA certificate for DigitalOcean
   const DEFAULT_CA_PATH = './certs/digitalocean-ca.crt';
   const caPath = path.resolve(process.cwd(), process.env.DIGITALOCEAN_CA_PATH || DEFAULT_CA_PATH);
-  
+
   if (fs.existsSync(caPath)) {
     try {
       const ca = fs.readFileSync(caPath, 'utf8');
@@ -68,7 +68,7 @@ if (isReplitDb && connectionString.includes('neon.tech')) {
 }
 
 // Database pool configuration with safety limits
-export const pool = new Pool({ 
+export const pool = new Pool({
   connectionString,
   ssl: sslConfig,
   max: 5, // Reduced to prevent pool exhaustion
@@ -117,7 +117,17 @@ async function ensureSchemaPatches(): Promise<void> {
     "ALTER TABLE documents ADD COLUMN IF NOT EXISTS verification_status TEXT DEFAULT 'unverified'",
     // Ensure customer linkage columns exist on rides for customer dashboards
     "ALTER TABLE rides ADD COLUMN IF NOT EXISTS customer_id varchar",
-    "ALTER TABLE rides ADD COLUMN IF NOT EXISTS customer_entity_id text"
+    "ALTER TABLE rides ADD COLUMN IF NOT EXISTS customer_entity_id text",
+    `CREATE TABLE IF NOT EXISTS verification_logs (
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      entity_type TEXT NOT NULL,
+      entity_id VARCHAR NOT NULL,
+      action TEXT NOT NULL,
+      reason TEXT,
+      performed_by VARCHAR NOT NULL,
+      performed_at TIMESTAMP DEFAULT NOW(),
+      meta JSON
+    )`
   ];
 
   for (const statement of statements) {

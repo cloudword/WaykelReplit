@@ -1,7 +1,7 @@
 import {
   users, vehicles, rides, bids, transporters, documents, notifications, apiLogs,
   roles, userRoles, savedAddresses, driverApplications, ledgerEntries, platformSettings, otpCodes,
-  rideStatusHistory,
+  rideStatusHistory, verificationLogs, type VerificationLog,
   type User, type InsertUser,
   type Vehicle, type InsertVehicle,
   type Ride, type InsertRide,
@@ -19,7 +19,6 @@ import {
   type OtpCode, type InsertOtpCode,
   type RideStatusHistory, type InsertRideStatusHistory
 } from "@shared/schema";
-import { verificationLogs, type VerificationLog } from "@shared/verificationLogsSchema";
 import { db } from "./db";
 import { eq, and, desc, asc, or, sql, gte, inArray, not } from "drizzle-orm";
 import { generateEntityId } from "./utils/entityId";
