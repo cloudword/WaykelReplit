@@ -28,8 +28,8 @@ export default function AdminBids() {
   const loadData = async () => {
     try {
       const data = await api.rides.list();
-      const filteredRides = Array.isArray(data) 
-        ? data.filter((r: any) => ["bid_placed", "pending"].includes(r.status)) 
+      const filteredRides = Array.isArray(data)
+        ? data.filter((r: any) => ["bidding", "pending"].includes(r.status))
         : [];
       setRides(filteredRides);
 
@@ -82,7 +82,7 @@ export default function AdminBids() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending": return <Badge className="bg-yellow-500">Awaiting Bids</Badge>;
-      case "bid_placed": return <Badge className="bg-blue-600">Bids Received</Badge>;
+      case "bidding": return <Badge className="bg-blue-600">Bids Received</Badge>;
       default: return <Badge>{status}</Badge>;
     }
   };
@@ -90,7 +90,7 @@ export default function AdminBids() {
   return (
     <div className="min-h-screen bg-gray-100 pl-64">
       <AdminSidebar />
-      
+
       <main className="p-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Bid Approvals</h1>
@@ -138,13 +138,13 @@ export default function AdminBids() {
                       </div>
                     </div>
                   </CardHeader>
-                  
+
                   <CardContent className="p-0">
                     <div className="grid lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x">
                       {/* Load Details */}
                       <div className="p-6 space-y-4">
                         <h4 className="font-semibold text-sm text-gray-500 uppercase">Load Details</h4>
-                        
+
                         <div className="space-y-3">
                           <div className="flex gap-3">
                             <div className="mt-1"><div className="w-3 h-3 rounded-full bg-green-500" /></div>
@@ -192,8 +192,8 @@ export default function AdminBids() {
                         {rideBids.length > 0 ? (
                           <div className="space-y-3">
                             {rideBids.map((bid) => (
-                              <div 
-                                key={bid.id} 
+                              <div
+                                key={bid.id}
                                 className="bg-white border rounded-lg p-4 shadow-sm hover:shadow transition-shadow"
                                 data-testid={`bid-card-${bid.id}`}
                               >
@@ -214,9 +214,9 @@ export default function AdminBids() {
                                     </p>
                                   </div>
                                 </div>
-                                
+
                                 <div className="flex gap-2">
-                                  <Button 
+                                  <Button
                                     className="flex-1 bg-green-600 hover:bg-green-700"
                                     onClick={() => handleApproveBid(bid.id, ride.id)}
                                     disabled={processingBid === bid.id}
@@ -225,8 +225,8 @@ export default function AdminBids() {
                                     <CheckCircle2 className="h-4 w-4 mr-2" />
                                     {processingBid === bid.id ? "Processing..." : "Approve"}
                                   </Button>
-                                  <Button 
-                                    variant="outline" 
+                                  <Button
+                                    variant="outline"
                                     className="flex-1 text-red-600 border-red-200 hover:bg-red-50"
                                     onClick={() => handleRejectBid(bid.id)}
                                     disabled={processingBid === bid.id}

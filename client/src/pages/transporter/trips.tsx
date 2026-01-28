@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { 
+import {
   MapPin, Calendar, Clock, IndianRupee, Truck, Package, User,
   Search, Filter, X, RefreshCw, Eye, Timer, CheckCircle2, AlertCircle
 } from "lucide-react";
@@ -31,7 +31,7 @@ export default function TransporterTrips() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  
+
   const [selectedTrip, setSelectedTrip] = useState<any>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
 
@@ -47,10 +47,10 @@ export default function TransporterTrips() {
         api.rides.list({ transporterId: user.transporterId }),
         api.users.list({ transporterId: user.transporterId })
       ]);
-      
+
       setRides(Array.isArray(transporterRides) ? transporterRides : []);
-      
-      const transporterDrivers = Array.isArray(allUsers) 
+
+      const transporterDrivers = Array.isArray(allUsers)
         ? allUsers.filter((u: any) => u.role === "driver")
         : [];
       setDrivers(transporterDrivers);
@@ -76,15 +76,15 @@ export default function TransporterTrips() {
 
   const filterRides = (rideList: any[]) => {
     return rideList.filter(ride => {
-      const matchesSearch = 
+      const matchesSearch =
         ride.pickupLocation?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         ride.dropLocation?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         ride.cargoType?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         ride.customerName?.toLowerCase().includes(searchQuery.toLowerCase());
-      
+
       const matchesDriver = driverFilter === "all" || ride.assignedDriverId === driverFilter;
       const matchesCargo = cargoFilter === "all" || ride.cargoType === cargoFilter;
-      
+
       let matchesDateRange = true;
       if (dateFrom && ride.date) {
         matchesDateRange = matchesDateRange && ride.date >= dateFrom;
@@ -92,7 +92,7 @@ export default function TransporterTrips() {
       if (dateTo && ride.date) {
         matchesDateRange = matchesDateRange && ride.date <= dateTo;
       }
-      
+
       return matchesSearch && matchesDriver && matchesCargo && matchesDateRange;
     });
   };
@@ -100,7 +100,7 @@ export default function TransporterTrips() {
   const activeTrips = filterRides(rides.filter(r => r.status === "active"));
   const upcomingTrips = filterRides(rides.filter(r => r.status === "scheduled"));
   const completedTrips = filterRides(rides.filter(r => r.status === "completed"));
-  const pendingTrips = filterRides(rides.filter(r => r.status === "pending" || r.status === "bid_placed"));
+  const pendingTrips = filterRides(rides.filter(r => r.status === "pending" || r.status === "bidding" || r.status === "accepted"));
 
   const allFilteredTrips = [...activeTrips, ...upcomingTrips, ...completedTrips, ...pendingTrips];
 
@@ -110,7 +110,8 @@ export default function TransporterTrips() {
       case "scheduled": return "bg-blue-100 text-blue-800";
       case "completed": return "bg-gray-100 text-gray-800";
       case "pending": return "bg-yellow-100 text-yellow-800";
-      case "bid_placed": return "bg-purple-100 text-purple-800";
+      case "bidding": return "bg-purple-100 text-purple-800";
+      case "accepted": return "bg-indigo-100 text-indigo-800";
       default: return "bg-gray-100 text-gray-800";
     }
   };
@@ -198,7 +199,7 @@ export default function TransporterTrips() {
   return (
     <div className="min-h-screen bg-gray-50 pl-64">
       <TransporterSidebar />
-      
+
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -232,7 +233,7 @@ export default function TransporterTrips() {
                 </Button>
               )}
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="md:col-span-2">
                 <div className="relative">
@@ -246,7 +247,7 @@ export default function TransporterTrips() {
                   />
                 </div>
               </div>
-              
+
               <Select value={driverFilter} onValueChange={setDriverFilter}>
                 <SelectTrigger data-testid="select-driver">
                   <SelectValue placeholder="Driver" />
@@ -258,7 +259,7 @@ export default function TransporterTrips() {
                   ))}
                 </SelectContent>
               </Select>
-              
+
               <Select value={cargoFilter} onValueChange={setCargoFilter}>
                 <SelectTrigger data-testid="select-cargo">
                   <SelectValue placeholder="Cargo Type" />

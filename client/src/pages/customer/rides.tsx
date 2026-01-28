@@ -58,7 +58,7 @@ function RideBidsSection({ rideId }: { rideId: string }) {
 
   return (
     <div className="bg-blue-50 border border-blue-200 rounded-lg overflow-hidden">
-      <button 
+      <button
         onClick={() => setExpanded(!expanded)}
         className="w-full p-3 flex justify-between items-center"
         data-testid="button-toggle-bids"
@@ -74,12 +74,12 @@ function RideBidsSection({ rideId }: { rideId: string }) {
         </div>
         {expanded ? <ChevronUp className="h-4 w-4 text-blue-600" /> : <ChevronDown className="h-4 w-4 text-blue-600" />}
       </button>
-      
+
       {expanded && (
         <div className="border-t border-blue-200 p-3 space-y-2">
           {bids.map((bid, index) => (
-            <div 
-              key={bid.id} 
+            <div
+              key={bid.id}
               className={`p-3 rounded-lg ${index === 0 ? 'bg-green-100 border border-green-200' : 'bg-white border border-gray-100'}`}
               data-testid={`bid-card-${bid.id}`}
             >
@@ -128,7 +128,7 @@ export default function CustomerRides() {
     const loadRides = async () => {
       try {
         const data = await api.rides.list();
-        const customerRides = Array.isArray(data) 
+        const customerRides = Array.isArray(data)
           ? data.filter((r: any) => r.createdById === user?.id || r.customerPhone === user?.phone)
           : [];
         setRides(customerRides);
@@ -144,7 +144,8 @@ export default function CustomerRides() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending": return "bg-yellow-100 text-yellow-800";
-      case "bid_placed": return "bg-blue-100 text-blue-800";
+      case "bidding": return "bg-blue-100 text-blue-800";
+      case "accepted": return "bg-purple-100 text-purple-800";
       case "active": return "bg-green-100 text-green-800";
       case "completed": return "bg-gray-100 text-gray-800";
       case "cancelled": return "bg-red-100 text-red-800";
@@ -155,7 +156,8 @@ export default function CustomerRides() {
   const getStatusLabel = (status: string) => {
     switch (status) {
       case "pending": return "Awaiting Bids";
-      case "bid_placed": return "Bids Received";
+      case "bidding": return "Bids Received";
+      case "accepted": return "Bid Approved";
       case "active": return "In Transit";
       case "completed": return "Delivered";
       case "cancelled": return "Cancelled";
@@ -168,15 +170,15 @@ export default function CustomerRides() {
     return null;
   }
 
-  const activeRides = rides.filter(r => ["pending", "bid_placed", "active"].includes(r.status));
+  const activeRides = rides.filter(r => ["pending", "bidding", "accepted", "active"].includes(r.status));
   const pastRides = rides.filter(r => ["completed", "cancelled"].includes(r.status));
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       <header className="bg-white px-4 py-4 flex items-center gap-4 sticky top-0 z-10 shadow-sm">
-        <Button 
-          size="icon" 
-          variant="ghost" 
+        <Button
+          size="icon"
+          variant="ghost"
           className="rounded-full h-8 w-8"
           onClick={() => setLocation("/customer")}
         >
@@ -221,15 +223,15 @@ export default function CustomerRides() {
                       <div className="flex gap-2">
                         <div className="mt-1"><div className="w-2 h-2 rounded-full bg-green-500" /></div>
                         <div>
-                           <p className="text-xs text-gray-500">Pickup</p>
-                           <p className="font-medium text-sm">{ride.pickupLocation}</p>
+                          <p className="text-xs text-gray-500">Pickup</p>
+                          <p className="font-medium text-sm">{ride.pickupLocation}</p>
                         </div>
                       </div>
                       <div className="flex gap-2">
                         <div className="mt-1"><div className="w-2 h-2 rounded-full bg-red-500" /></div>
                         <div>
-                           <p className="text-xs text-gray-500">Drop</p>
-                           <p className="font-medium text-sm">{ride.dropLocation}</p>
+                          <p className="text-xs text-gray-500">Drop</p>
+                          <p className="font-medium text-sm">{ride.dropLocation}</p>
                         </div>
                       </div>
                     </div>
@@ -250,7 +252,7 @@ export default function CustomerRides() {
                       </div>
                     )}
 
-                    {(ride.status === "bid_placed" || ride.status === "pending") && (
+                    {(ride.status === "bidding" || ride.status === "pending" || ride.status === "accepted") && (
                       <RideBidsSection rideId={ride.id} />
                     )}
                   </CardContent>
@@ -260,8 +262,8 @@ export default function CustomerRides() {
               <div className="text-center py-12 text-muted-foreground">
                 <Truck className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                 <p>No active rides</p>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="mt-4"
                   onClick={() => setLocation("/customer")}
                 >
@@ -311,21 +313,21 @@ export default function CustomerRides() {
           </TabsContent>
         </Tabs>
       </main>
-      
+
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 pb-safe-area-bottom z-50">
         <div className="flex justify-around items-center h-16">
-           <Button variant="ghost" className="flex flex-col gap-1 h-full w-full text-gray-400 hover:text-gray-600" onClick={() => setLocation("/customer")}>
-             <Truck size={20} />
-             <span className="text-[10px]">Book</span>
-           </Button>
-           <Button variant="ghost" className="flex flex-col gap-1 h-full w-full text-primary">
-             <Package size={20} />
-             <span className="text-[10px]">My Rides</span>
-           </Button>
-           <Button variant="ghost" className="flex flex-col gap-1 h-full w-full text-gray-400 hover:text-gray-600" onClick={() => setLocation("/customer/profile")}>
-             <User size={20} />
-             <span className="text-[10px]">Profile</span>
-           </Button>
+          <Button variant="ghost" className="flex flex-col gap-1 h-full w-full text-gray-400 hover:text-gray-600" onClick={() => setLocation("/customer")}>
+            <Truck size={20} />
+            <span className="text-[10px]">Book</span>
+          </Button>
+          <Button variant="ghost" className="flex flex-col gap-1 h-full w-full text-primary">
+            <Package size={20} />
+            <span className="text-[10px]">My Rides</span>
+          </Button>
+          <Button variant="ghost" className="flex flex-col gap-1 h-full w-full text-gray-400 hover:text-gray-600" onClick={() => setLocation("/customer/profile")}>
+            <User size={20} />
+            <span className="text-[10px]">Profile</span>
+          </Button>
         </div>
       </nav>
     </div>

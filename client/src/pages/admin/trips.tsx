@@ -8,8 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Search, RefreshCw, MapPin, Calendar, Clock, Package, Truck, 
+import {
+  Search, RefreshCw, MapPin, Calendar, Clock, Package, Truck,
   IndianRupee, User, Building2, Filter, X, Eye, CheckCircle2,
   AlertCircle, Timer, Ban
 } from "lucide-react";
@@ -50,7 +50,7 @@ export default function AdminTrips() {
   const [transporters, setTransporters] = useState<Transporter[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [transporterFilter, setTransporterFilter] = useState<string>("all");
@@ -58,7 +58,7 @@ export default function AdminTrips() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [cargoFilter, setCargoFilter] = useState<string>("all");
-  
+
   const [selectedRide, setSelectedRide] = useState<Ride | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
 
@@ -112,7 +112,8 @@ export default function AdminTrips() {
       case "completed": return "bg-gray-100 text-gray-800 border-gray-200";
       case "scheduled": return "bg-blue-100 text-blue-800 border-blue-200";
       case "pending": return "bg-yellow-100 text-yellow-800 border-yellow-200";
-      case "bid_placed": return "bg-purple-100 text-purple-800 border-purple-200";
+      case "bidding": return "bg-purple-100 text-purple-800 border-purple-200";
+      case "accepted": return "bg-blue-100 text-blue-800 border-blue-200";
       case "cancelled": return "bg-red-100 text-red-800 border-red-200";
       default: return "bg-gray-100 text-gray-800 border-gray-200";
     }
@@ -131,18 +132,18 @@ export default function AdminTrips() {
   const uniqueCargoTypes = Array.from(new Set(rides.map(r => r.cargoType).filter(Boolean)));
 
   const filteredRides = rides.filter(ride => {
-    const matchesSearch = 
+    const matchesSearch =
       ride.pickupLocation?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ride.dropLocation?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ride.cargoType?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ride.customerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ride.id?.toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const matchesStatus = statusFilter === "all" || ride.status === statusFilter;
     const matchesTransporter = transporterFilter === "all" || ride.transporterId === transporterFilter;
     const matchesDriver = driverFilter === "all" || ride.assignedDriverId === driverFilter;
     const matchesCargo = cargoFilter === "all" || ride.cargoType === cargoFilter;
-    
+
     let matchesDateRange = true;
     if (dateFrom && ride.date) {
       matchesDateRange = matchesDateRange && ride.date >= dateFrom;
@@ -150,7 +151,7 @@ export default function AdminTrips() {
     if (dateTo && ride.date) {
       matchesDateRange = matchesDateRange && ride.date <= dateTo;
     }
-    
+
     return matchesSearch && matchesStatus && matchesTransporter && matchesDriver && matchesCargo && matchesDateRange;
   });
 
@@ -159,10 +160,10 @@ export default function AdminTrips() {
     active: rides.filter(r => r.status === "active").length,
     scheduled: rides.filter(r => r.status === "scheduled").length,
     completed: rides.filter(r => r.status === "completed").length,
-    pending: rides.filter(r => r.status === "pending" || r.status === "bid_placed").length,
+    pending: rides.filter(r => r.status === "pending" || r.status === "bidding").length,
   };
 
-  const hasActiveFilters = searchQuery || statusFilter !== "all" || transporterFilter !== "all" || 
+  const hasActiveFilters = searchQuery || statusFilter !== "all" || transporterFilter !== "all" ||
     driverFilter !== "all" || dateFrom || dateTo || cargoFilter !== "all";
 
   const viewRideDetails = (ride: Ride) => {
@@ -173,7 +174,7 @@ export default function AdminTrips() {
   return (
     <div className="min-h-screen bg-gray-100 pl-64">
       <AdminSidebar />
-      
+
       <main className="p-8">
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -263,7 +264,7 @@ export default function AdminTrips() {
                   />
                 </div>
               </div>
-              
+
               <Select value={transporterFilter} onValueChange={setTransporterFilter}>
                 <SelectTrigger data-testid="select-transporter">
                   <SelectValue placeholder="Transporter" />
@@ -275,7 +276,7 @@ export default function AdminTrips() {
                   ))}
                 </SelectContent>
               </Select>
-              
+
               <Select value={driverFilter} onValueChange={setDriverFilter}>
                 <SelectTrigger data-testid="select-driver">
                   <SelectValue placeholder="Driver" />
@@ -287,7 +288,7 @@ export default function AdminTrips() {
                   ))}
                 </SelectContent>
               </Select>
-              
+
               <Select value={cargoFilter} onValueChange={setCargoFilter}>
                 <SelectTrigger data-testid="select-cargo">
                   <SelectValue placeholder="Cargo Type" />
@@ -311,7 +312,7 @@ export default function AdminTrips() {
                 />
               </div>
             </div>
-            
+
             <div className="grid grid-cols-6 gap-4 mt-4">
               <div className="col-span-5" />
               <div className="flex gap-2">
@@ -423,8 +424,8 @@ export default function AdminTrips() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="sm"
                           onClick={() => viewRideDetails(ride)}
                           data-testid={`button-view-${ride.id}`}
@@ -483,7 +484,7 @@ export default function AdminTrips() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>

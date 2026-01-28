@@ -57,7 +57,8 @@ export default function AdminDashboard() {
       case "completed": return "bg-green-100 text-green-800";
       case "active": case "in_progress": return "bg-blue-100 text-blue-800";
       case "pending": return "bg-yellow-100 text-yellow-800";
-      case "bid_placed": return "bg-purple-100 text-purple-800";
+      case "bidding": return "bg-purple-100 text-purple-800";
+      case "accepted": return "bg-indigo-100 text-indigo-800";
       default: return "bg-gray-100 text-gray-800";
     }
   };
@@ -76,7 +77,7 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gray-100 pl-64">
       <AdminSidebar />
-      
+
       <main className="p-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900" data-testid="text-dashboard-title">Dashboard</h1>
