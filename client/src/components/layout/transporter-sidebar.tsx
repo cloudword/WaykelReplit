@@ -84,7 +84,15 @@ export function TransporterSidebar() {
           </div>
           <div className="overflow-hidden">
             <p className="text-sm font-bold truncate">Transporter</p>
-            <p className="text-xs text-muted-foreground truncate">Portal</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {(() => {
+                try {
+                  const stored = localStorage.getItem("currentUser");
+                  const user = stored ? JSON.parse(stored) : null;
+                  return user?.entityId || "Portal";
+                } catch { return "Portal"; }
+              })()}
+            </p>
           </div>
         </div>
         <Button

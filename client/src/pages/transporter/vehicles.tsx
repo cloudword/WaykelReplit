@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 import { OnboardingTracker } from "@/components/onboarding/OnboardingTracker";
 import { useOnboardingStatus } from "@/hooks/useOnboardingStatus";
-import { 
+import {
   VEHICLE_CATEGORIES, VEHICLE_TYPES, BODY_TYPES, VEHICLE_LENGTHS, AXLE_TYPES, FUEL_TYPES,
   getVehicleTypesByCategory, parseWeightInput, WeightUnit, VehicleCategoryCode
 } from "@shared/vehicleData";
@@ -129,27 +129,27 @@ export default function TransporterVehicles() {
 
   const handleAddVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate RC document is uploaded
     if (!rcFile) {
       toast.error("RC (Registration Certificate) is mandatory. Please upload the RC document.");
       return;
     }
-    
+
     setIsSubmitting(true);
     let createdVehicleId: string | null = null;
     let rcUploaded = false;
     try {
 
       // Calculate capacity in both units
-      const capacityParsed = newVehicle.capacityValue 
+      const capacityParsed = newVehicle.capacityValue
         ? parseWeightInput(newVehicle.capacityValue, newVehicle.capacityUnit)
         : { kg: 0, tons: 0 };
-      
+
       // Get vehicle type name from code
       const vehicleType = VEHICLE_TYPES.find(vt => vt.code === newVehicle.vehicleTypeCode);
       const displayType = vehicleType?.name || newVehicle.type;
-      
+
       // Step 1: Create the vehicle
       // Note: capacityTons must be string (decimal in DB), capacityKg is integer
       const creationPayload = {
@@ -198,7 +198,7 @@ export default function TransporterVehicles() {
           entityId,
         }),
       });
-      
+
       if (!uploadRes.ok) {
         const uploadErr = await uploadRes.json().catch(() => ({}));
         console.error("RC upload failed:", uploadErr);
@@ -238,7 +238,7 @@ export default function TransporterVehicles() {
     }
   };
 
-  const filteredVehicles = vehicles.filter(vehicle => 
+  const filteredVehicles = vehicles.filter(vehicle =>
     vehicle.plateNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     vehicle.type?.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -251,7 +251,7 @@ export default function TransporterVehicles() {
   return (
     <div className="min-h-screen bg-gray-50 pl-64">
       <TransporterSidebar />
-      
+
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center h-16 gap-4">
@@ -287,15 +287,15 @@ export default function TransporterVehicles() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input 
-              placeholder="Search vehicles..." 
+            <Input
+              placeholder="Search vehicles..."
               className="pl-10"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               data-testid="input-search-vehicles"
             />
           </div>
-          
+
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger asChild>
               <Button data-testid="button-add-vehicle">
@@ -313,9 +313,9 @@ export default function TransporterVehicles() {
               <form onSubmit={handleAddVehicle} className="space-y-4">
                 <div>
                   <Label htmlFor="type">Vehicle Type</Label>
-                  <Select 
-                    value={newVehicle.type} 
-                    onValueChange={(value) => setNewVehicle({...newVehicle, type: value})}
+                  <Select
+                    value={newVehicle.type}
+                    onValueChange={(value) => setNewVehicle({ ...newVehicle, type: value })}
                   >
                     <SelectTrigger data-testid="select-vehicle-type">
                       <SelectValue placeholder="Select type" />
@@ -332,22 +332,22 @@ export default function TransporterVehicles() {
                 </div>
                 <div>
                   <Label htmlFor="plateNumber">Registration Number</Label>
-                  <Input 
-                    id="plateNumber" 
+                  <Input
+                    id="plateNumber"
                     placeholder="e.g., MH12AB1234"
                     value={newVehicle.plateNumber}
-                    onChange={(e) => setNewVehicle({...newVehicle, plateNumber: e.target.value.toUpperCase()})}
+                    onChange={(e) => setNewVehicle({ ...newVehicle, plateNumber: e.target.value.toUpperCase() })}
                     required
                     data-testid="input-plate-number"
                   />
                 </div>
                 <div>
                   <Label htmlFor="model">Make/Model</Label>
-                  <Input 
-                    id="model" 
+                  <Input
+                    id="model"
                     placeholder="e.g., Tata Ace, Ashok Leyland Dost"
                     value={newVehicle.model}
-                    onChange={(e) => setNewVehicle({...newVehicle, model: e.target.value})}
+                    onChange={(e) => setNewVehicle({ ...newVehicle, model: e.target.value })}
                     required
                     data-testid="input-model"
                   />
@@ -355,21 +355,21 @@ export default function TransporterVehicles() {
                 <div className="grid grid-cols-3 gap-2">
                   <div className="col-span-2">
                     <Label htmlFor="capacityValue">Capacity</Label>
-                    <Input 
-                      id="capacityValue" 
+                    <Input
+                      id="capacityValue"
                       type="number"
                       placeholder={newVehicle.capacityUnit === "kg" ? "e.g., 5000" : "e.g., 5"}
                       value={newVehicle.capacityValue}
-                      onChange={(e) => setNewVehicle({...newVehicle, capacityValue: e.target.value})}
+                      onChange={(e) => setNewVehicle({ ...newVehicle, capacityValue: e.target.value })}
                       required
                       data-testid="input-capacity"
                     />
                   </div>
                   <div>
                     <Label htmlFor="capacityUnit">Unit</Label>
-                    <Select 
-                      value={newVehicle.capacityUnit} 
-                      onValueChange={(v: WeightUnit) => setNewVehicle({...newVehicle, capacityUnit: v})}
+                    <Select
+                      value={newVehicle.capacityUnit}
+                      onValueChange={(v: WeightUnit) => setNewVehicle({ ...newVehicle, capacityUnit: v })}
                     >
                       <SelectTrigger id="capacityUnit" data-testid="select-capacity-unit">
                         <SelectValue />
@@ -381,16 +381,15 @@ export default function TransporterVehicles() {
                     </Select>
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="rc-upload" className="flex items-center gap-1">
                     RC Document <span className="text-red-500">*</span>
                     <span className="text-xs text-muted-foreground">(Registration Certificate)</span>
                   </Label>
-                  <div 
-                    className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
-                      rcFile ? "border-green-500 bg-green-50" : "border-gray-300 hover:border-blue-400"
-                    }`}
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${rcFile ? "border-green-500 bg-green-50" : "border-gray-300 hover:border-blue-400"
+                      }`}
                     onClick={() => rcInputRef.current?.click()}
                   >
                     <input
@@ -428,10 +427,10 @@ export default function TransporterVehicles() {
                     RC is mandatory for vehicle verification
                   </p>
                 </div>
-                
-                <Button 
-                  type="submit" 
-                  className="w-full" 
+
+                <Button
+                  type="submit"
+                  className="w-full"
                   disabled={isSubmitting || !rcFile}
                   data-testid="button-submit-vehicle"
                 >
@@ -470,8 +469,14 @@ export default function TransporterVehicles() {
                         </Badge>
                       </div>
                       <div className="space-y-1 text-sm text-gray-600">
-                        <p>{vehicle.model || vehicle.type}</p>
-                        <p>Type: {vehicle.type} {vehicle.capacity && `• ${/^\d+$/.test(vehicle.capacity) ? `${vehicle.capacity} Kg` : vehicle.capacity}`}</p>
+                        {vehicle.entityId && (
+                          <p className="text-xs font-mono text-gray-500 mb-1">ID: {vehicle.entityId}</p>
+                        )}
+                        <p className="font-medium">{vehicle.model}</p>
+                        <div className="text-xs text-gray-500 mt-1 space-y-0.5">
+                          <p>Type: {vehicle.type} {vehicle.bodyType && `• ${vehicle.bodyType}`}</p>
+                          <p>Capacity: {vehicle.capacityKg ? `${vehicle.capacityKg} Kg` : vehicle.capacity} {vehicle.capacityTons ? `(${vehicle.capacityTons} T)` : ""}</p>
+                        </div>
                       </div>
                       {/* Vehicle Documents */}
                       {getVehicleDocuments(vehicle.id).length > 0 && (
@@ -482,16 +487,15 @@ export default function TransporterVehicles() {
                           </p>
                           <div className="flex flex-wrap gap-1">
                             {getVehicleDocuments(vehicle.id).map(doc => (
-                              <Badge 
-                                key={doc.id} 
-                                variant="outline" 
-                                className={`text-xs ${
-                                  doc.status === "verified" 
-                                    ? "bg-green-50 text-green-700 border-green-200" 
-                                    : doc.status === "pending"
+                              <Badge
+                                key={doc.id}
+                                variant="outline"
+                                className={`text-xs ${doc.status === "verified"
+                                  ? "bg-green-50 text-green-700 border-green-200"
+                                  : doc.status === "pending"
                                     ? "bg-yellow-50 text-yellow-700 border-yellow-200"
                                     : "bg-red-50 text-red-700 border-red-200"
-                                }`}
+                                  }`}
                                 data-testid={`doc-badge-${doc.id}`}
                               >
                                 {getDocStatusIcon(doc.status)}

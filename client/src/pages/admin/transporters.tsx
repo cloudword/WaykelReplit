@@ -48,17 +48,17 @@ export default function AdminTransporters() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [transporterDocs, setTransporterDocs] = useState<any[]>([]);
-  const [driverDocs, setDriverDocs] = useState<{[key: string]: any[]}>({});
-  const [vehicleDocs, setVehicleDocs] = useState<{[key: string]: any[]}>({});
+  const [driverDocs, setDriverDocs] = useState<{ [key: string]: any[] }>({});
+  const [vehicleDocs, setVehicleDocs] = useState<{ [key: string]: any[] }>({});
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [rejectingDocId, setRejectingDocId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectingTransporterId, setRejectingTransporterId] = useState<string | null>(null);
   const [transporterRejectionReason, setTransporterRejectionReason] = useState("");
   const [approvingTransporterId, setApprovingTransporterId] = useState<string | null>(null);
-  const [confirmApproveFromRejected, setConfirmApproveFromRejected] = useState<{id: string; previousReason: string} | null>(null);
+  const [confirmApproveFromRejected, setConfirmApproveFromRejected] = useState<{ id: string; previousReason: string } | null>(null);
   const [confirmRejectFromActive, setConfirmRejectFromActive] = useState<string | null>(null);
-  
+
   const [newTransporter, setNewTransporter] = useState({
     companyName: "",
     ownerName: "",
@@ -79,7 +79,7 @@ export default function AdminTransporters() {
         api.vehicles.list(),
         api.rides.list(),
       ]);
-      
+
       // Check for auth errors in responses
       if (transportersData?.error) {
         toast.error(`Transporters: ${transportersData.error}`);
@@ -87,20 +87,20 @@ export default function AdminTransporters() {
       } else if (Array.isArray(transportersData)) {
         setTransporters(transportersData);
       }
-      
+
       if (usersData?.error) {
         toast.error(`Users: ${usersData.error}`);
         console.error("Users fetch error:", usersData.error);
       } else {
         setDrivers(Array.isArray(usersData) ? usersData.filter((u: any) => u.role === "driver") : []);
       }
-      
+
       if (vehiclesData?.error) {
         console.error("Vehicles fetch error:", vehiclesData.error);
       } else {
         setVehicles(Array.isArray(vehiclesData) ? vehiclesData : []);
       }
-      
+
       if (ridesData?.error) {
         console.error("Rides fetch error:", ridesData.error);
       } else {
@@ -284,14 +284,14 @@ export default function AdminTransporters() {
         fetch(`${API_BASE}/documents?transporterId=${transporterId}&entityType=transporter`, {
           credentials: "include",
         }).then(r => r.ok ? r.json() : []).catch(() => []),
-        
+
         // Driver documents (one request per driver)
         ...transporterDrivers.map(driver =>
           fetch(`${API_BASE}/documents?userId=${driver.id}`, {
             credentials: "include",
           }).then(r => r.ok ? r.json() : []).catch(() => [])
         ),
-        
+
         // Vehicle documents (one request per vehicle)
         ...transporterVehicles.map(vehicle =>
           fetch(`${API_BASE}/documents?vehicleId=${vehicle.id}`, {
@@ -308,7 +308,7 @@ export default function AdminTransporters() {
       const vehicleDocsResults = allEntityDocs.slice(transporterDrivers.length);
 
       // Build driver docs map
-      const driverDocsMap: {[key: string]: any[]} = {};
+      const driverDocsMap: { [key: string]: any[] } = {};
       transporterDrivers.forEach((driver, index) => {
         const docs = driverDocsResults[index];
         driverDocsMap[driver.id] = Array.isArray(docs) ? docs : [];
@@ -316,7 +316,7 @@ export default function AdminTransporters() {
       setDriverDocs(driverDocsMap);
 
       // Build vehicle docs map
-      const vehicleDocsMap: {[key: string]: any[]} = {};
+      const vehicleDocsMap: { [key: string]: any[] } = {};
       transporterVehicles.forEach((vehicle, index) => {
         const docs = vehicleDocsResults[index];
         vehicleDocsMap[vehicle.id] = Array.isArray(docs) ? docs : [];
@@ -476,13 +476,13 @@ export default function AdminTransporters() {
   };
 
   const filteredTransporters = transporters.filter(t => {
-    const matchesSearch = 
+    const matchesSearch =
       t.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.location.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     if (!matchesSearch) return false;
-    
+
     if (statusFilter === "all") return true;
     return t.status === statusFilter;
   });
@@ -527,7 +527,7 @@ export default function AdminTransporters() {
   return (
     <div className="min-h-screen bg-gray-100 pl-64">
       <AdminSidebar />
-      
+
       <main className="p-8">
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -558,7 +558,7 @@ export default function AdminTransporters() {
                       id="company-name"
                       placeholder="ABC Logistics Pvt Ltd"
                       value={newTransporter.companyName}
-                      onChange={(e) => setNewTransporter({...newTransporter, companyName: e.target.value})}
+                      onChange={(e) => setNewTransporter({ ...newTransporter, companyName: e.target.value })}
                       data-testid="input-add-company-name"
                     />
                   </div>
@@ -568,7 +568,7 @@ export default function AdminTransporters() {
                       id="owner-name"
                       placeholder="Rajesh Kumar"
                       value={newTransporter.ownerName}
-                      onChange={(e) => setNewTransporter({...newTransporter, ownerName: e.target.value})}
+                      onChange={(e) => setNewTransporter({ ...newTransporter, ownerName: e.target.value })}
                       data-testid="input-add-owner-name"
                     />
                   </div>
@@ -579,7 +579,7 @@ export default function AdminTransporters() {
                         id="contact"
                         placeholder="9876543210"
                         value={newTransporter.contact}
-                        onChange={(e) => setNewTransporter({...newTransporter, contact: e.target.value})}
+                        onChange={(e) => setNewTransporter({ ...newTransporter, contact: e.target.value })}
                         data-testid="input-add-contact"
                       />
                     </div>
@@ -590,7 +590,7 @@ export default function AdminTransporters() {
                         type="email"
                         placeholder="email@company.com"
                         value={newTransporter.email}
-                        onChange={(e) => setNewTransporter({...newTransporter, email: e.target.value})}
+                        onChange={(e) => setNewTransporter({ ...newTransporter, email: e.target.value })}
                         data-testid="input-add-email"
                       />
                     </div>
@@ -602,7 +602,7 @@ export default function AdminTransporters() {
                         id="location"
                         placeholder="Mumbai"
                         value={newTransporter.location}
-                        onChange={(e) => setNewTransporter({...newTransporter, location: e.target.value})}
+                        onChange={(e) => setNewTransporter({ ...newTransporter, location: e.target.value })}
                         data-testid="input-add-location"
                       />
                     </div>
@@ -614,7 +614,7 @@ export default function AdminTransporters() {
                         min="1"
                         placeholder="5"
                         value={newTransporter.fleetSize}
-                        onChange={(e) => setNewTransporter({...newTransporter, fleetSize: e.target.value})}
+                        onChange={(e) => setNewTransporter({ ...newTransporter, fleetSize: e.target.value })}
                         data-testid="input-add-fleet-size"
                       />
                     </div>
@@ -706,8 +706,8 @@ export default function AdminTransporters() {
           <CardHeader>
             <div className="flex items-center gap-2 w-full max-w-md">
               <Search className="h-4 w-4 text-gray-500" />
-              <Input 
-                placeholder="Search company name, owner, or location..." 
+              <Input
+                placeholder="Search company name, owner, or location..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 data-testid="input-search"
@@ -730,7 +730,7 @@ export default function AdminTransporters() {
                     <TableHead>Company</TableHead>
                     <TableHead>Owner</TableHead>
                     <TableHead>Location</TableHead>
-                    <TableHead>Drivers</TableHead>
+                    <TableHead>Fleet Info</TableHead>
                     <TableHead>Vehicles</TableHead>
                     <TableHead>Earnings</TableHead>
                     <TableHead>Status</TableHead>
@@ -763,10 +763,13 @@ export default function AdminTransporters() {
                           {t.location}
                         </div>
                       </TableCell>
+
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Users className="h-4 w-4 text-gray-400" />
-                          {getTransporterDrivers(t.id).length}
+                        <div className="flex flex-col">
+                          <span className="font-medium text-sm">
+                            {getTransporterVehicles(t.id).length} / {t.fleetSize || "N/A"}
+                          </span>
+                          <span className="text-xs text-muted-foreground">Actual / Declared</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -786,7 +789,13 @@ export default function AdminTransporters() {
                           <Badge variant={getStatusBadgeVariant(t.status)}>
                             {getStatusLabel(t.status)}
                           </Badge>
-                          {t.verificationStatus === 'approved' && (
+                          {t.verificationStatus === 'approved' && t.documentsComplete && (
+                            <Badge variant="outline" className="w-fit bg-blue-50 text-blue-700 border-blue-200 gap-1 pl-1 pr-2 py-0 h-5 text-[10px]">
+                              <ShieldCheck className="h-3 w-3" />
+                              Trusted
+                            </Badge>
+                          )}
+                          {t.verificationStatus === 'approved' && !t.documentsComplete && (
                             <div className="flex items-center gap-1 text-xs text-green-600">
                               <ShieldCheck className="h-3 w-3" />
                               Verified
@@ -928,7 +937,7 @@ export default function AdminTransporters() {
                 {selectedTransporter.status !== 'active' && (
                   <div className="mt-6 p-4 border rounded-lg bg-yellow-50">
                     <h4 className="font-medium text-sm mb-3">Transporter Verification Actions</h4>
-                    
+
                     {rejectingTransporterId === selectedTransporter.id ? (
                       <div className="space-y-3">
                         <Textarea
@@ -939,17 +948,17 @@ export default function AdminTransporters() {
                           data-testid="input-rejection-reason"
                         />
                         <div className="flex gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="destructive" 
+                          <Button
+                            size="sm"
+                            variant="destructive"
                             onClick={() => handleRejectTransporter(selectedTransporter.id)}
                             data-testid="button-confirm-reject-transporter"
                           >
                             Confirm Rejection
                           </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={() => { setRejectingTransporterId(null); setTransporterRejectionReason(""); }}
                             data-testid="button-cancel-reject"
                           >
@@ -987,7 +996,7 @@ export default function AdminTransporters() {
                         </Button>
                       </div>
                     )}
-                    
+
                     {selectedTransporter.status === 'rejected' && selectedTransporter.rejectionReason && (
                       <div className="mt-3 p-3 bg-red-50 rounded border border-red-200">
                         <p className="text-sm text-red-700">
@@ -1164,7 +1173,7 @@ export default function AdminTransporters() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               className="bg-green-600 hover:bg-green-700"
               onClick={() => confirmApproveFromRejected && handleApproveTransporter(confirmApproveFromRejected.id, true)}
             >
@@ -1193,7 +1202,7 @@ export default function AdminTransporters() {
             }}>
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
               onClick={() => confirmRejectFromActive && handleRejectTransporter(confirmRejectFromActive, true)}
             >
@@ -1202,6 +1211,6 @@ export default function AdminTransporters() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </div >
   );
 }

@@ -81,7 +81,7 @@ export default function AdminDrivers() {
   return (
     <div className="min-h-screen bg-gray-100 pl-64">
       <AdminSidebar />
-      
+
       <main className="p-8">
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -95,8 +95,8 @@ export default function AdminDrivers() {
             <div className="flex items-center gap-2 w-full max-w-md">
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-                <Input 
-                  placeholder="Search drivers by name, phone, or email..." 
+                <Input
+                  placeholder="Search drivers by name, phone, or email..."
                   className="pl-9"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -122,6 +122,7 @@ export default function AdminDrivers() {
                     <TableHead>Transporter</TableHead>
                     <TableHead>Vehicles</TableHead>
                     <TableHead>Rating</TableHead>
+                    <TableHead>Trips</TableHead>
                     <TableHead>Earnings</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -171,6 +172,12 @@ export default function AdminDrivers() {
                         <div className="flex items-center gap-1">
                           <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
                           <span>{driver.rating || "0.00"}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Truck className="h-4 w-4 text-gray-400" />
+                          <span>{driver.totalTrips || 0}</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -345,6 +352,6 @@ export default function AdminDrivers() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   );
 }

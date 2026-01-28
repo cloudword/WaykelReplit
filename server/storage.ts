@@ -1297,7 +1297,7 @@ export class DatabaseStorage implements IStorage {
       // 3. Update ride status and financials
       await tx.update(rides).set({
         acceptedBidId: bidId,
-        transporterId: transporterId || undefined,
+        transporterId: transporterId, // Explicitly set, allowing null if that's the intent (though for transporter bids it should be set)
         biddingStatus: "closed",
         acceptedByUserId: acceptedByUserId,
         acceptedAt: now,

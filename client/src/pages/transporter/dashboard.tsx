@@ -181,7 +181,14 @@ export default function TransporterDashboard() {
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-              <p className="text-muted-foreground text-sm font-medium">Welcome back, {user.name}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-muted-foreground text-sm font-medium">Welcome back, {user.name}</p>
+                {transporter?.entityId && (
+                  <Badge variant="outline" className="text-xs font-mono bg-emerald-50 text-emerald-700 border-emerald-200">
+                    ID: {transporter.entityId}
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -422,14 +429,14 @@ export default function TransporterDashboard() {
                 <div
                   key={notification.id}
                   className={`p-3 rounded-xl border cursor-pointer transition-all hover:scale-[1.01] ${notification.isRead
-                      ? "bg-card border-border"
-                      : "bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800"
+                    ? "bg-card border-border"
+                    : "bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800"
                     }`}
                   onClick={() => handleNotificationClick(notification)}
                 >
                   <div className="flex items-start gap-3">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${notification.type === "new_booking" ? "bg-green-100 text-green-600" :
-                        "bg-primary/10 text-primary"
+                      "bg-primary/10 text-primary"
                       }`}>
                       <Bell className="h-4 w-4" />
                     </div>

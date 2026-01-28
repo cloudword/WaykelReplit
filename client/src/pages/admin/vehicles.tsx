@@ -94,7 +94,7 @@ export default function AdminVehicles() {
   return (
     <div className="min-h-screen bg-gray-100 pl-64">
       <AdminSidebar />
-      
+
       <main className="p-8">
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -108,8 +108,8 @@ export default function AdminVehicles() {
             <div className="flex items-center gap-2 w-full max-w-md">
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-                <Input 
-                  placeholder="Search by plate number, model, or type..." 
+                <Input
+                  placeholder="Search by plate number, model, or type..."
                   className="pl-9"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -130,8 +130,10 @@ export default function AdminVehicles() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Vehicle ID</TableHead>
                     <TableHead>Vehicle</TableHead>
                     <TableHead>Type</TableHead>
+                    <TableHead>Body Type</TableHead>
                     <TableHead>Owner/Fleet</TableHead>
                     <TableHead>Assigned To</TableHead>
                     <TableHead>Capacity</TableHead>
@@ -143,6 +145,11 @@ export default function AdminVehicles() {
                 <TableBody>
                   {filteredVehicles.map((vehicle) => (
                     <TableRow key={vehicle.id} data-testid={`vehicle-row-${vehicle.id}`}>
+                      <TableCell>
+                        <Badge variant="outline" className="font-mono text-xs">
+                          {vehicle.entityId || "N/A"}
+                        </Badge>
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <div className="h-8 w-8 bg-gray-100 rounded flex items-center justify-center">
@@ -156,6 +163,9 @@ export default function AdminVehicles() {
                       </TableCell>
                       <TableCell>{vehicle.type}</TableCell>
                       <TableCell>
+                        <span className="text-sm text-gray-600">{vehicle.bodyType || "-"}</span>
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-1">
                           <Building2 className="h-3 w-3 text-gray-400" />
                           <span className="text-sm">{getTransporterName(vehicle.transporterId)}</span>
@@ -167,7 +177,12 @@ export default function AdminVehicles() {
                           <span className="text-sm">{getDriverName(vehicle.userId)}</span>
                         </div>
                       </TableCell>
-                      <TableCell>{vehicle.capacity}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{vehicle.capacityKg ? `${vehicle.capacityKg} kg` : vehicle.capacity}</span>
+                          {vehicle.capacityTons && <span className="text-xs text-gray-400">({vehicle.capacityTons} T)</span>}
+                        </div>
+                      </TableCell>
                       <TableCell>{getVehicleRides(vehicle.id).length}</TableCell>
                       <TableCell>
                         <Badge variant={getStatusVariant(vehicle.status)}>
