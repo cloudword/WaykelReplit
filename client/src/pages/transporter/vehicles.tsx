@@ -269,7 +269,7 @@ export default function TransporterVehicles() {
         fuelType: editVehicle.fuelType || null,
       };
 
-      await api.vehicles.update(editingVehicleId, updatePayload);
+      await (api.vehicles as any).update(editingVehicleId, updatePayload);
       toast.success("Vehicle updated successfully");
       setShowEditDialog(false);
       setEditingVehicleId(null);
@@ -342,7 +342,7 @@ export default function TransporterVehicles() {
             </Card>
           </div>
         )}
-        {onboardingStatus && onboardingStatus.overallStatus !== "completed" && (
+        {onboardingStatus && (
           <div className="mb-6">
             <OnboardingTracker data={onboardingStatus} />
           </div>

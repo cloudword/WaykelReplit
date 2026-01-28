@@ -1,18 +1,28 @@
 import { useQuery } from "@tanstack/react-query";
 import { API_BASE } from "@/lib/api";
 
+export type OnboardingStep = {
+  required: boolean;
+  completed: boolean;
+  label: string;
+  description: string;
+};
+
 export type OnboardingStatus = {
-  transporterType?: "business" | "individual";
-  transporter?: { completed: boolean };
-  businessDocuments: { status: "not_required" | "not_started" | "pending" | "approved" | "rejected" };
-  vehicles: { count: number; completed: boolean; hasApprovedVehicle?: boolean };
-  drivers: { count: number; completed: boolean; hasApprovedDriver?: boolean };
-  overallStatus: "not_started" | "in_progress" | "completed" | string;
-  overallStatusCode?: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED" | "BLOCKED";
-  transporterStatus?: string;
-  verificationStatus?: string;
-  canBid?: boolean;
-  blockingReason?: string | null;
+  transporterType: "business" | "individual";
+  onboardingStatus: "not_started" | "in_progress" | "completed" | "blocked";
+  overallStatus: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED" | "BLOCKED";
+  transporterStatus: string;
+  verificationStatus: string;
+  steps: {
+    businessVerification: OnboardingStep;
+    addVehicle: OnboardingStep;
+    addDriver: OnboardingStep;
+  };
+  completedCount: number;
+  totalCount: number;
+  isComplete: boolean;
+  canBid: boolean;
 };
 
 export function useOnboardingStatus(transporterId?: string) {

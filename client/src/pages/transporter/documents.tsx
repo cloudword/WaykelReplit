@@ -21,9 +21,9 @@ function DocumentThumbnail({ doc, onView }: { doc: any; onView: () => void }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  const isImage = doc.url?.match(/\.(jpg|jpeg|png|gif|webp)$/i) || 
-                  doc.url?.includes("image") ||
-                  doc.contentType?.startsWith("image/");
+  const isImage = doc.url?.match(/\.(jpg|jpeg|png|gif|webp)$/i) ||
+    doc.url?.includes("image") ||
+    doc.contentType?.startsWith("image/");
 
   useEffect(() => {
     const loadPreview = async () => {
@@ -61,7 +61,7 @@ function DocumentThumbnail({ doc, onView }: { doc: any; onView: () => void }) {
 
   if (!isImage) {
     return (
-      <div 
+      <div
         className="h-16 w-16 bg-gray-100 rounded-lg flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors"
         onClick={onView}
       >
@@ -80,7 +80,7 @@ function DocumentThumbnail({ doc, onView }: { doc: any; onView: () => void }) {
 
   if (error || !previewUrl) {
     return (
-      <div 
+      <div
         className="h-16 w-16 bg-gray-100 rounded-lg flex items-center justify-center cursor-pointer hover:bg-gray-200 transition-colors"
         onClick={onView}
       >
@@ -90,13 +90,13 @@ function DocumentThumbnail({ doc, onView }: { doc: any; onView: () => void }) {
   }
 
   return (
-    <div 
+    <div
       className="h-16 w-16 rounded-lg overflow-hidden cursor-pointer relative group"
       onClick={onView}
     >
-      <img 
-        src={previewUrl} 
-        alt={doc.documentName || "Document"} 
+      <img
+        src={previewUrl}
+        alt={doc.documentName || "Document"}
         className="h-full w-full object-cover"
         onError={() => setError(true)}
       />
@@ -133,7 +133,7 @@ export default function TransporterDocuments() {
       return;
     }
     setLoading(true);
-    
+
     // Fetch each resource independently so one failure doesn't block others
     const results = await Promise.allSettled([
       api.documents.list({ transporterId: user.transporterId }),
@@ -141,7 +141,7 @@ export default function TransporterDocuments() {
       api.vehicles.list({ transporterId: user.transporterId }),
       api.transporters.get(user.transporterId),
     ]);
-    
+
     // Process documents
     const docsResult = results[0];
     if (docsResult.status === "fulfilled") {
@@ -159,7 +159,7 @@ export default function TransporterDocuments() {
       toast.error("Failed to load documents");
       setDocuments([]);
     }
-    
+
     // Process drivers
     const usersResult = results[1];
     if (usersResult.status === "fulfilled") {
@@ -172,7 +172,7 @@ export default function TransporterDocuments() {
       console.error("Users fetch failed:", usersResult.reason);
       setDrivers([]);
     }
-    
+
     // Process vehicles
     const vehiclesResult = results[2];
     if (vehiclesResult.status === "fulfilled") {
@@ -185,7 +185,7 @@ export default function TransporterDocuments() {
       console.error("Vehicles fetch failed:", vehiclesResult.reason);
       setVehicles([]);
     }
-    
+
     // Process transporter
     const transporterResult = results[3];
     if (transporterResult.status === "fulfilled") {
@@ -195,7 +195,7 @@ export default function TransporterDocuments() {
       console.error("Transporter fetch failed:", transporterResult.reason);
       setTransporter(null);
     }
-    
+
     setLoading(false);
   };
 
@@ -335,7 +335,7 @@ export default function TransporterDocuments() {
   return (
     <div className="min-h-screen bg-gray-50 pl-64">
       <TransporterSidebar />
-      
+
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center h-16 gap-4">
@@ -352,7 +352,7 @@ export default function TransporterDocuments() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {onboardingStatus && onboardingStatus.overallStatus !== "completed" && (
+        {onboardingStatus && (
           <div className="mb-6">
             <OnboardingTracker data={onboardingStatus} />
           </div>
@@ -387,7 +387,7 @@ export default function TransporterDocuments() {
         )}
 
         <div className={`grid ${isBusinessTransporter ? "grid-cols-3" : "grid-cols-2"} gap-4 mb-6`}>
-          {isBusinessTransporter && onboardingStatus?.businessDocuments?.status !== "not_required" && (
+          {isBusinessTransporter && onboardingStatus?.steps.businessVerification.required && (
             <Card className="cursor-pointer hover:bg-gray-50" onClick={() => setShowBusinessUpload(true)} data-testid="card-upload-business">
               <CardContent className="p-6 flex items-center gap-4">
                 <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
@@ -448,71 +448,71 @@ export default function TransporterDocuments() {
           </TabsList>
 
           {isBusinessTransporter && (
-          <TabsContent value="business">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-              </div>
-            ) : businessDocs.length > 0 ? (
-              <div className="space-y-3">
-                {businessDocs.filter(d => d.status !== "replaced").map(doc => (
-                  <Card key={doc.id} data-testid={`doc-card-${doc.id}`}>
-                    <CardContent className="p-4 flex items-center gap-4">
-                      <DocumentThumbnail 
-                        doc={doc} 
-                        onView={() => handleViewDocument(doc)} 
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium">{doc.documentName}</p>
-                        <p className="text-sm text-gray-500">Business Document</p>
-                        {doc.expiryDate && (
-                          <p className="text-xs text-gray-400">Expires: {doc.expiryDate}</p>
-                        )}
-                        {doc.status === "rejected" && doc.rejectionReason && (
-                          <p className="text-xs text-red-600 mt-1">Reason: {doc.rejectionReason}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {doc.url && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleViewDocument(doc)}
-                            data-testid={`button-view-${doc.id}`}
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            View
-                          </Button>
-                        )}
-                        {doc.status === "rejected" && (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleReplaceDocument(doc)}
-                            data-testid={`button-replace-${doc.id}`}
-                          >
-                            <RefreshCw className="h-4 w-4 mr-1" />
-                            Replace
-                          </Button>
-                        )}
-                        <Badge className={getStatusColor(doc.status)}>{doc.status}</Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12 text-gray-500">
-                <Building2 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p>No business documents uploaded yet</p>
-                <p className="text-sm mt-2">Upload GST Certificate, PAN Card, Business Registration</p>
-                <Button className="mt-4" onClick={() => setShowBusinessUpload(true)}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload Business Document
-                </Button>
-              </div>
-            )}
-          </TabsContent>
+            <TabsContent value="business">
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                </div>
+              ) : businessDocs.length > 0 ? (
+                <div className="space-y-3">
+                  {businessDocs.filter(d => d.status !== "replaced").map(doc => (
+                    <Card key={doc.id} data-testid={`doc-card-${doc.id}`}>
+                      <CardContent className="p-4 flex items-center gap-4">
+                        <DocumentThumbnail
+                          doc={doc}
+                          onView={() => handleViewDocument(doc)}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium">{doc.documentName}</p>
+                          <p className="text-sm text-gray-500">Business Document</p>
+                          {doc.expiryDate && (
+                            <p className="text-xs text-gray-400">Expires: {doc.expiryDate}</p>
+                          )}
+                          {doc.status === "rejected" && doc.rejectionReason && (
+                            <p className="text-xs text-red-600 mt-1">Reason: {doc.rejectionReason}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {doc.url && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewDocument(doc)}
+                              data-testid={`button-view-${doc.id}`}
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              View
+                            </Button>
+                          )}
+                          {doc.status === "rejected" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleReplaceDocument(doc)}
+                              data-testid={`button-replace-${doc.id}`}
+                            >
+                              <RefreshCw className="h-4 w-4 mr-1" />
+                              Replace
+                            </Button>
+                          )}
+                          <Badge className={getStatusColor(doc.status)}>{doc.status}</Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  <Building2 className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                  <p>No business documents uploaded yet</p>
+                  <p className="text-sm mt-2">Upload GST Certificate, PAN Card, Business Registration</p>
+                  <Button className="mt-4" onClick={() => setShowBusinessUpload(true)}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload Business Document
+                  </Button>
+                </div>
+              )}
+            </TabsContent>
           )}
 
           <TabsContent value="driver">
@@ -525,9 +525,9 @@ export default function TransporterDocuments() {
                 {driverDocs.filter(d => d.status !== "replaced").map(doc => (
                   <Card key={doc.id} data-testid={`doc-card-${doc.id}`}>
                     <CardContent className="p-4 flex items-center gap-4">
-                      <DocumentThumbnail 
-                        doc={doc} 
-                        onView={() => handleViewDocument(doc)} 
+                      <DocumentThumbnail
+                        doc={doc}
+                        onView={() => handleViewDocument(doc)}
                       />
                       <div className="flex-1 min-w-0">
                         <p className="font-medium">{doc.documentName}</p>
@@ -541,8 +541,8 @@ export default function TransporterDocuments() {
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         {doc.url && (
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={() => handleViewDocument(doc)}
                             data-testid={`button-view-${doc.id}`}
@@ -552,8 +552,8 @@ export default function TransporterDocuments() {
                           </Button>
                         )}
                         {doc.status === "rejected" && (
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={() => handleReplaceDocument(doc)}
                             data-testid={`button-replace-${doc.id}`}
@@ -590,9 +590,9 @@ export default function TransporterDocuments() {
                 {vehicleDocs.filter(d => d.status !== "replaced").map(doc => (
                   <Card key={doc.id} data-testid={`doc-card-${doc.id}`}>
                     <CardContent className="p-4 flex items-center gap-4">
-                      <DocumentThumbnail 
-                        doc={doc} 
-                        onView={() => handleViewDocument(doc)} 
+                      <DocumentThumbnail
+                        doc={doc}
+                        onView={() => handleViewDocument(doc)}
                       />
                       <div className="flex-1 min-w-0">
                         <p className="font-medium">{doc.documentName}</p>
@@ -606,8 +606,8 @@ export default function TransporterDocuments() {
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         {doc.url && (
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={() => handleViewDocument(doc)}
                             data-testid={`button-view-${doc.id}`}
@@ -617,8 +617,8 @@ export default function TransporterDocuments() {
                           </Button>
                         )}
                         {doc.status === "rejected" && (
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={() => handleReplaceDocument(doc)}
                             data-testid={`button-replace-${doc.id}`}
@@ -662,15 +662,15 @@ export default function TransporterDocuments() {
 
       {showBusinessUpload && (
         isBusinessTransporter && (
-        <DocumentUpload
-          open={showBusinessUpload}
-          onOpenChange={setShowBusinessUpload}
-          entityType="transporter"
-          entityId={user.transporterId}
-          transporterId={user.transporterId}
-          onSuccess={loadData}
-          existingDocuments={businessDocs.map(d => ({ id: d.id, type: d.type, status: d.status, documentName: d.documentName, url: d.url, expiryDate: d.expiryDate }))}
-        />
+          <DocumentUpload
+            open={showBusinessUpload}
+            onOpenChange={setShowBusinessUpload}
+            entityType="transporter"
+            entityId={user.transporterId}
+            transporterId={user.transporterId}
+            onSuccess={loadData}
+            existingDocuments={businessDocs.map(d => ({ id: d.id, type: d.type, status: d.status, documentName: d.documentName, url: d.url, expiryDate: d.expiryDate }))}
+          />
         )
       )}
 
@@ -686,7 +686,7 @@ export default function TransporterDocuments() {
           {previewUrl?.endsWith(".pdf") ? (
             <iframe src={previewUrl} className="w-full h-[80vh]" />
           ) : (
-            <img src={previewUrl} className="max-h-[80vh] mx-auto" />
+            <img src={previewUrl!} className="max-h-[80vh] mx-auto" alt="Document Preview" />
           )}
         </DialogContent>
       </Dialog>
@@ -717,7 +717,7 @@ function DocumentUploadWithSelection({
   const [showDocUpload, setShowDocUpload] = useState(false);
 
   const entities = entityType === "driver" ? drivers : vehicles;
-  
+
   const getExistingDocsForEntity = () => {
     if (!selectedId) return [];
     const filtered = documents.filter(d => {
@@ -757,7 +757,7 @@ function DocumentUploadWithSelection({
         <h2 className="text-lg font-semibold mb-4">
           Select {entityType === "driver" ? "Driver" : "Vehicle"}
         </h2>
-        
+
         {entities.length === 0 ? (
           <div className="text-center py-4 text-gray-500">
             <p>No {entityType}s found</p>
@@ -768,9 +768,8 @@ function DocumentUploadWithSelection({
             {entities.map(entity => (
               <div
                 key={entity.id}
-                className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                  selectedId === entity.id ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:bg-gray-50"
-                }`}
+                className={`p-3 rounded-lg border cursor-pointer transition-colors ${selectedId === entity.id ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:bg-gray-50"
+                  }`}
                 onClick={() => setSelectedId(entity.id)}
                 data-testid={`select-entity-${entity.id}`}
               >
@@ -800,8 +799,8 @@ function DocumentUploadWithSelection({
           <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button 
-            className="flex-1" 
+          <Button
+            className="flex-1"
             disabled={!selectedId}
             onClick={() => setShowDocUpload(true)}
             data-testid="button-continue"

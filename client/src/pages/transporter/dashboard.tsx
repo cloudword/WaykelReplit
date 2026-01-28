@@ -184,9 +184,17 @@ export default function TransporterDashboard() {
               <div className="flex items-center gap-2">
                 <p className="text-muted-foreground text-sm font-medium">Welcome back, {user.name}</p>
                 {transporter?.entityId && (
-                  <Badge variant="outline" className="text-xs font-mono bg-emerald-50 text-emerald-700 border-emerald-200">
-                    ID: {transporter.entityId}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs font-mono bg-emerald-50 text-emerald-700 border-emerald-200">
+                      ID: {transporter.entityId}
+                    </Badge>
+                    {transporter.verificationStatus === "approved" && (
+                      <Badge className="text-[10px] font-black uppercase tracking-widest bg-emerald-500 text-white border-none shadow-sm flex items-center gap-1">
+                        <CheckCircle className="h-3 w-3" />
+                        Verified
+                      </Badge>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -212,7 +220,7 @@ export default function TransporterDashboard() {
           </div>
         </div>
 
-        {onboardingStatus && onboardingStatus.overallStatus !== "completed" && (
+        {onboardingStatus && (
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
             <OnboardingTracker data={onboardingStatus} />
           </motion.div>

@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Users, Phone, Mail, Search, FileText, CheckCircle, Clock, AlertCircle, Copy, Key, RotateCcw, Upload, Loader2 } from "lucide-react";
+import { Plus, Users, Phone, Mail, Search, FileText, CheckCircle, Clock, AlertCircle, Copy, Key, RotateCcw, Upload, Loader2, RefreshCw } from "lucide-react";
 import { api, API_BASE, withCsrfHeader } from "@/lib/api";
 import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
@@ -78,13 +78,13 @@ export default function TransporterDrivers() {
 
   const handleAddDriver = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate driving license is uploaded
     if (!licenseFile) {
       toast.error("Driving License is mandatory. Please upload the license document.");
       return;
     }
-    
+
     setIsSubmitting(true);
     try {
       // Step 1: Create the driver
@@ -93,13 +93,13 @@ export default function TransporterDrivers() {
         phone: newDriver.phone,
         email: newDriver.email || undefined,
       });
-      
+
       if (result.error) {
         toast.error(result.error);
         setIsSubmitting(false);
         return;
       }
-      
+
       // Step 2: Upload driving license for the newly created driver
       // API returns driver directly with result.id
       const driverId = result.id;
@@ -116,7 +116,7 @@ export default function TransporterDrivers() {
         loadDrivers();
         return;
       }
-      
+
       // Convert file to base64 for the document upload API
       const fileToBase64 = (file: File): Promise<string> => {
         return new Promise((resolve, reject) => {
@@ -131,9 +131,9 @@ export default function TransporterDrivers() {
           reader.onerror = reject;
         });
       };
-      
+
       const fileData = await fileToBase64(licenseFile);
-      
+
       const uploadRes = await fetch(`${API_BASE}/documents/upload`, {
         method: "POST",
         headers: withCsrfHeader({
@@ -149,7 +149,7 @@ export default function TransporterDrivers() {
         }),
         credentials: "include",
       });
-      
+
       if (!uploadRes.ok) {
         const uploadErr = await uploadRes.json().catch(() => ({}));
         console.error("License upload failed:", uploadErr);
@@ -157,7 +157,7 @@ export default function TransporterDrivers() {
       } else {
         toast.success("Driver added with driving license!");
       }
-      
+
       // Show credentials dialog
       setCredentials(result.credentials);
       setShowAddDialog(false);
@@ -173,7 +173,7 @@ export default function TransporterDrivers() {
       setIsSubmitting(false);
     }
   };
-  
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success("Copied to clipboard!");
@@ -181,7 +181,7 @@ export default function TransporterDrivers() {
 
   const handleResetPassword = async () => {
     if (!resetPasswordDriver) return;
-    
+
     try {
       const result = await api.transporters.resetDriverPassword(resetPasswordDriver.id);
       if (result.error) {
@@ -201,7 +201,7 @@ export default function TransporterDrivers() {
     setShowResetPasswordDialog(true);
   };
 
-  const filteredDrivers = drivers.filter(driver => 
+  const filteredDrivers = drivers.filter(driver =>
     driver.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     driver.phone?.includes(searchQuery)
   );
@@ -223,7 +223,7 @@ export default function TransporterDrivers() {
   return (
     <div className="min-h-screen bg-gray-50 pl-64">
       <TransporterSidebar />
-      
+
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center h-16 gap-4">
@@ -251,7 +251,7 @@ export default function TransporterDrivers() {
             </Card>
           </div>
         )}
-        {onboardingStatus && onboardingStatus.overallStatus !== "completed" && (
+        {onboardingStatus && (
           <div className="mb-6">
             <OnboardingTracker data={onboardingStatus} />
           </div>
@@ -259,15 +259,15 @@ export default function TransporterDrivers() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input 
-              placeholder="Search drivers..." 
+            <Input
+              placeholder="Search drivers..."
               className="pl-10"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               data-testid="input-search-drivers"
             />
           </div>
-          
+
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger asChild>
               <Button data-testid="button-add-driver">
@@ -282,31 +282,31 @@ export default function TransporterDrivers() {
               <form onSubmit={handleAddDriver} className="space-y-4">
                 <div>
                   <Label htmlFor="name">Full Name</Label>
-                  <Input 
-                    id="name" 
+                  <Input
+                    id="name"
                     value={newDriver.name}
-                    onChange={(e) => setNewDriver({...newDriver, name: e.target.value})}
+                    onChange={(e) => setNewDriver({ ...newDriver, name: e.target.value })}
                     required
                     data-testid="input-driver-name"
                   />
                 </div>
                 <div>
                   <Label htmlFor="phone">Phone Number</Label>
-                  <Input 
-                    id="phone" 
+                  <Input
+                    id="phone"
                     value={newDriver.phone}
-                    onChange={(e) => setNewDriver({...newDriver, phone: e.target.value})}
+                    onChange={(e) => setNewDriver({ ...newDriver, phone: e.target.value })}
                     required
                     data-testid="input-driver-phone"
                   />
                 </div>
                 <div>
                   <Label htmlFor="email">Email (Optional)</Label>
-                  <Input 
-                    id="email" 
+                  <Input
+                    id="email"
                     type="email"
                     value={newDriver.email}
-                    onChange={(e) => setNewDriver({...newDriver, email: e.target.value})}
+                    onChange={(e) => setNewDriver({ ...newDriver, email: e.target.value })}
                     data-testid="input-driver-email"
                   />
                 </div>
@@ -314,10 +314,9 @@ export default function TransporterDrivers() {
                   <Label htmlFor="license-upload" className="flex items-center gap-1">
                     Driving License <span className="text-red-500">*</span>
                   </Label>
-                  <div 
-                    className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
-                      licenseFile ? "border-green-500 bg-green-50" : "border-gray-300 hover:border-blue-400"
-                    }`}
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${licenseFile ? "border-green-500 bg-green-50" : "border-gray-300 hover:border-blue-400"
+                      }`}
                     onClick={() => licenseInputRef.current?.click()}
                   >
                     <input
@@ -355,7 +354,7 @@ export default function TransporterDrivers() {
                     Driving license is mandatory for driver verification
                   </p>
                 </div>
-                
+
                 <div className="p-3 bg-blue-50 rounded-lg">
                   <div className="flex items-center gap-2 text-sm text-blue-700">
                     <Key className="h-4 w-4" />
@@ -363,9 +362,9 @@ export default function TransporterDrivers() {
                   </div>
                   <p className="text-xs text-blue-600 mt-1">Login credentials will be shown after adding the driver</p>
                 </div>
-                <Button 
-                  type="submit" 
-                  className="w-full" 
+                <Button
+                  type="submit"
+                  className="w-full"
                   disabled={isSubmitting || !licenseFile}
                   data-testid="button-submit-driver"
                 >
@@ -403,9 +402,9 @@ export default function TransporterDrivers() {
                       <p className="text-xs text-gray-500">Phone</p>
                       <p className="font-mono font-semibold">{credentials.phone}</p>
                     </div>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
+                    <Button
+                      size="sm"
+                      variant="outline"
                       onClick={() => copyToClipboard(credentials.phone)}
                       data-testid="button-copy-phone"
                     >
@@ -417,9 +416,9 @@ export default function TransporterDrivers() {
                       <p className="text-xs text-gray-500">Password</p>
                       <p className="font-mono font-semibold">{credentials.password}</p>
                     </div>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
+                    <Button
+                      size="sm"
+                      variant="outline"
                       onClick={() => copyToClipboard(credentials.password)}
                       data-testid="button-copy-password"
                     >
@@ -430,8 +429,8 @@ export default function TransporterDrivers() {
                 <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
                   This is the only time the password will be shown. Please save or share it now.
                 </p>
-                <Button 
-                  className="w-full" 
+                <Button
+                  className="w-full"
                   onClick={() => {
                     setShowCredentialsDialog(false);
                     setCredentials(null);
@@ -465,14 +464,14 @@ export default function TransporterDrivers() {
                       The driver will need to use the new password to log in.
                     </p>
                     <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         className="flex-1"
                         onClick={() => setShowResetPasswordDialog(false)}
                       >
                         Cancel
                       </Button>
-                      <Button 
+                      <Button
                         className="flex-1"
                         onClick={handleResetPassword}
                         data-testid="button-confirm-reset-password"
@@ -492,9 +491,9 @@ export default function TransporterDrivers() {
                           <p className="text-xs text-gray-500">Phone</p>
                           <p className="font-mono font-semibold">{resetPasswordDriver.phone}</p>
                         </div>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => copyToClipboard(resetPasswordDriver.phone)}
                         >
                           <Copy className="h-4 w-4" />
@@ -505,9 +504,9 @@ export default function TransporterDrivers() {
                           <p className="text-xs text-gray-500">New Password</p>
                           <p className="font-mono font-semibold text-lg">{newPasswordResult}</p>
                         </div>
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => copyToClipboard(newPasswordResult)}
                           data-testid="button-copy-new-password"
                         >
@@ -518,8 +517,8 @@ export default function TransporterDrivers() {
                     <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
                       This is the only time the new password will be shown. Please save or share it now.
                     </p>
-                    <Button 
-                      className="w-full" 
+                    <Button
+                      className="w-full"
                       onClick={() => {
                         setShowResetPasswordDialog(false);
                         setResetPasswordDriver(null);
@@ -595,16 +594,15 @@ export default function TransporterDrivers() {
                           </p>
                           <div className="flex flex-wrap gap-1">
                             {getDriverDocuments(driver.id).map(doc => (
-                              <Badge 
-                                key={doc.id} 
-                                variant="outline" 
-                                className={`text-xs ${
-                                  doc.status === "verified" 
-                                    ? "bg-green-50 text-green-700 border-green-200" 
+                              <Badge
+                                key={doc.id}
+                                variant="outline"
+                                className={`text-xs ${doc.status === "verified"
+                                    ? "bg-green-50 text-green-700 border-green-200"
                                     : doc.status === "pending"
-                                    ? "bg-yellow-50 text-yellow-700 border-yellow-200"
-                                    : "bg-red-50 text-red-700 border-red-200"
-                                }`}
+                                      ? "bg-yellow-50 text-yellow-700 border-yellow-200"
+                                      : "bg-red-50 text-red-700 border-red-200"
+                                  }`}
                                 data-testid={`doc-badge-${doc.id}`}
                               >
                                 {getDocStatusIcon(doc.status)}

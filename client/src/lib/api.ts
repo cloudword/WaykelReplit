@@ -34,25 +34,25 @@ let isRedirectingToLogin = false;
 function handleUnauthorized() {
   // Prevent multiple redirects
   if (isRedirectingToLogin) return;
-  
+
   // Don't redirect if already on auth pages
   const currentPath = window.location.pathname;
   if (currentPath.includes('/auth') || currentPath === '/' || currentPath.includes('/forgot-password')) {
     return;
   }
-  
+
   isRedirectingToLogin = true;
   console.warn('[Auth] Session expired - redirecting to login');
-  
+
   // Determine which login page based on current path
   let loginPath = '/auth';
   if (currentPath.startsWith('/customer')) {
     loginPath = '/customer/auth';
   }
-  
+
   // Store current path for redirect after login
   sessionStorage.setItem('redirectAfterLogin', currentPath);
-  
+
   // Redirect to login
   window.location.href = loginPath;
 }
@@ -63,13 +63,13 @@ let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
 export function startSessionHeartbeat() {
   if (heartbeatInterval) return; // Already running
-  
+
   heartbeatInterval = setInterval(async () => {
     try {
       const res = await fetch(`${API_BASE}/auth/session`, {
         credentials: "include",
       });
-      
+
       if (res.status === 401) {
         handleUnauthorized();
       }
@@ -77,7 +77,7 @@ export function startSessionHeartbeat() {
       console.warn('[Heartbeat] Session check failed:', err);
     }
   }, 5 * 60 * 1000); // Every 5 minutes
-  
+
   console.log('[Heartbeat] Session keep-alive started');
 }
 
@@ -92,7 +92,7 @@ export function stopSessionHeartbeat() {
 // Safe fetch wrapper that never throws and always returns consistent shape
 // Includes global 401 handling for session expiry
 export async function safeFetch<T = any>(
-  url: string, 
+  url: string,
   options: RequestInit = {}
 ): Promise<{ data: T | null; error: string | null; ok: boolean }> {
   try {
@@ -104,21 +104,21 @@ export async function safeFetch<T = any>(
       },
       credentials: "include",
     });
-    
+
     // Handle 401 globally - session expired
     if (res.status === 401) {
       handleUnauthorized();
       return { data: null, error: "Session expired", ok: false };
     }
-    
+
     const data = await res.json().catch(() => ({}));
-    
+
     if (!res.ok) {
       const errorMessage = data?.error || data?.details || `Request failed with status ${res.status}`;
       console.error(`[API] ${options.method || 'GET'} ${url} failed:`, errorMessage);
       return { data: null, error: errorMessage, ok: false };
     }
-    
+
     return { data, error: null, ok: true };
   } catch (err: any) {
     console.error(`[API] ${options.method || 'GET'} ${url} error:`, err);
@@ -145,12 +145,12 @@ async function apiFetch(
     credentials: "include",
     headers: withCsrfHeader(options.headers || {}),
   });
-  
+
   // Handle 401 globally unless this is an auth endpoint
   if (res.status === 401 && !skipAuthRedirect) {
     handleUnauthorized();
   }
-  
+
   return res;
 }
 
@@ -171,12 +171,12 @@ export const api = {
         body: JSON.stringify(credentials),
       }, true); // Skip auth redirect for login
       const result = await res.json();
-      
+
       // Start session heartbeat after successful login
       if (res.ok && result && !result.error) {
         startSessionHeartbeat();
       }
-      
+
       return result;
     },
     logout: async () => {
@@ -299,6 +299,14 @@ export const api = {
       });
       return res.json();
     },
+    update: async (id: string, data: any) => {
+      const res = await apiFetch(`${API_BASE}/vehicles/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      return res.json();
+    },
     delete: async (id: string) => {
       const res = await apiFetch(`${API_BASE}/vehicles/${id}`, {
         method: "DELETE",
@@ -360,32 +368,32 @@ export const api = {
       return res.json();
     },
     addDriver: async (data: { name: string; phone: string; email?: string }) => {
-      const generatedPassword = Math.random().toString(36).slice(-6).toUpperCase() + 
-                                Math.floor(Math.random() * 90 + 10);
-      
+      const generatedPassword = Math.random().toString(36).slice(-6).toUpperCase() +
+        Math.floor(Math.random() * 90 + 10);
+
       const res = await apiFetch(`${API_BASE}/transporter/drivers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...data, password: generatedPassword }),
       });
       const result = await res.json();
-      
+
       if (!result.error && result.id) {
         return { ...result, credentials: { phone: data.phone, password: generatedPassword } };
       }
       return result;
     },
     resetDriverPassword: async (driverId: string) => {
-      const newPassword = Math.random().toString(36).slice(-6).toUpperCase() + 
-                          Math.floor(Math.random() * 90 + 10);
-      
+      const newPassword = Math.random().toString(36).slice(-6).toUpperCase() +
+        Math.floor(Math.random() * 90 + 10);
+
       const res = await apiFetch(`${API_BASE}/users/${driverId}/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ newPassword }),
       });
       const result = await res.json();
-      
+
       if (!result.error) {
         return { ...result, newPassword };
       }
