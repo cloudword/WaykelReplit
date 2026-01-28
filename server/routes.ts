@@ -114,8 +114,31 @@ const serializeRide = (ride: Ride, user?: any) => {
     };
   }
 
-  // Transporters who haven't been assigned yet should not see customer contact details
   return base;
+};
+
+const REQUIRED_TRANSPORTER_DOCS = ["gst_certificate", "business_registration"] as const;
+
+// Check if required documents are present and verified
+const checkRequiredDocs = (documents: any[], requiredTypes: readonly string[]) => {
+  const missing: string[] = [];
+  const pending: string[] = [];
+  const verified: string[] = [];
+
+  requiredTypes.forEach(type => {
+    const docs = documents.filter(d => d.type === type);
+    if (docs.length === 0) {
+      missing.push(type);
+    } else if (docs.some(d => d.status === "verified")) {
+      verified.push(type);
+    } else if (docs.some(d => d.status === "pending")) {
+      pending.push(type);
+    } else {
+      missing.push(type); // All rejected
+    }
+  });
+
+  return { missing, pending, verified, allVerified: missing.length === 0 && pending.length === 0 };
 };
 
 // Extend Request type to include tokenUser
@@ -6263,6 +6286,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
         const transporterType = transporter.transporterType === "business" ? "business" : "individual";
 
+        // Check business docs readiness
+        const businessDocs = checkRequiredDocs(transporterDocs, REQUIRED_TRANSPORTER_DOCS);
+        const businessDocsVerified = businessDocs.allVerified;
+
+        // Readiness checklist
+        const hasMinimumVehicles = vehiclesWithDocs.length > 0;
+        const hasMinimumDrivers = driversWithDocs.length > 0;
+
+        // Entity readiness
+        const allVehiclesReady = vehiclesWithDocs.length > 0 && vehiclesWithDocs.every(v =>
+          v.documents.some(d => ((d.type as string) === "rc" || (d.type as string) === "registration") && d.status === "verified")
+        );
+        const allDriversReady = driversWithDocs.length > 0 && driversWithDocs.every(d =>
+          d.documents.some(doc => (doc.type as string) === "license" && doc.status === "verified")
+        );
+
+        const isReadyForApproval = businessDocsVerified && allVehiclesReady && allDriversReady;
+
         result.push({
           id: transporter.id,
           companyName: transporter.companyName,
@@ -6288,6 +6329,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           totalVehicles: vehiclesWithDocs.length,
           totalDrivers: driversWithDocs.length,
           activeVehicles: vehiclesWithDocs.filter(v => v.status === "active").length,
+          // Readiness indicators
+          readiness: {
+            businessDocsVerified,
+            hasMinimumVehicles,
+            hasMinimumDrivers,
+            allVehiclesReady,
+            allDriversReady,
+            isReadyForApproval
+          }
         });
       }
 

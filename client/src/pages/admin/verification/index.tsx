@@ -7,9 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { 
-  Search, Building2, CheckCircle, XCircle, Loader2, Eye, Clock, 
-  FileText, RefreshCw, ChevronDown, ChevronRight, Truck, Users, 
+import {
+  Search, Building2, CheckCircle, XCircle, Loader2, Eye, Clock,
+  FileText, RefreshCw, ChevronDown, ChevronRight, Truck, Users,
   AlertTriangle, Shield, Car, User
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
@@ -100,6 +100,14 @@ interface TransporterTree {
   activeVehicles: number;
   transporterType?: "business" | "individual";
   businessDocumentsStatus?: string;
+  readiness?: {
+    businessDocsVerified: boolean;
+    hasMinimumVehicles: boolean;
+    hasMinimumDrivers: boolean;
+    allVehiclesReady: boolean;
+    allDriversReady: boolean;
+    isReadyForApproval: boolean;
+  };
 }
 
 export default function VerificationOverview() {
@@ -130,25 +138,25 @@ export default function VerificationOverview() {
         toast.error("Document URL not available");
         return;
       }
-      
+
       // If already a full URL (e.g., legacy documents), use directly
       if (storagePath.startsWith("http://") || storagePath.startsWith("https://")) {
         setPreviewUrl(storagePath);
         return;
       }
-      
+
       const response = await fetch(`${API_BASE}/spaces/signed-url`, {
         method: "POST",
         headers: withCsrfHeader({ "Content-Type": "application/json" }),
         credentials: "include",
         body: JSON.stringify({ key: storagePath })
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || "Failed to get document URL");
       }
-      
+
       const data = await response.json();
       setPreviewUrl(data.signedUrl);
     } catch (error: any) {
@@ -360,7 +368,7 @@ export default function VerificationOverview() {
     const missing: string[] = [];
     const pending: string[] = [];
     const verified: string[] = [];
-    
+
     requiredTypes.forEach(type => {
       const docs = documents.filter(d => d.type === type);
       if (docs.length === 0) {
@@ -373,13 +381,13 @@ export default function VerificationOverview() {
         missing.push(type); // All rejected
       }
     });
-    
+
     return { missing, pending, verified, allVerified: missing.length === 0 && pending.length === 0 };
   };
 
-  const DocumentRow = ({ doc, onApprove, onReject, onPreview }: { 
-    doc: Document; 
-    onApprove: () => void; 
+  const DocumentRow = ({ doc, onApprove, onReject, onPreview }: {
+    doc: Document;
+    onApprove: () => void;
     onReject: () => void;
     onPreview: () => void;
   }) => (
@@ -401,9 +409,9 @@ export default function VerificationOverview() {
         </Button>
         {doc.status === "pending" && (
           <>
-            <Button 
-              size="sm" 
-              variant="outline" 
+            <Button
+              size="sm"
+              variant="outline"
               className="text-green-600 hover:bg-green-50"
               onClick={onApprove}
               disabled={processingDocId === doc.id}
@@ -411,9 +419,9 @@ export default function VerificationOverview() {
             >
               {processingDocId === doc.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
             </Button>
-            <Button 
-              size="sm" 
-              variant="outline" 
+            <Button
+              size="sm"
+              variant="outline"
               className="text-red-600 hover:bg-red-50"
               onClick={onReject}
               data-testid={`reject-doc-${doc.id}`}
@@ -427,20 +435,20 @@ export default function VerificationOverview() {
   );
 
   // Document Type Section - groups documents by type with required indicator
-  const DocumentTypeSection = ({ 
-    documents, 
-    requiredTypes, 
+  const DocumentTypeSection = ({
+    documents,
+    requiredTypes,
     optionalTypes,
-    entityLabel 
-  }: { 
-    documents: Document[]; 
+    entityLabel
+  }: {
+    documents: Document[];
     requiredTypes: readonly string[];
     optionalTypes: readonly string[];
     entityLabel: string;
   }) => {
     const grouped = groupDocumentsByType(documents);
     const reqStatus = checkRequiredDocs(documents, requiredTypes);
-    
+
     return (
       <div className="space-y-3">
         {/* Required Documents Status */}
@@ -467,7 +475,7 @@ export default function VerificationOverview() {
         {requiredTypes.map(docType => {
           const docs = grouped[docType] || [];
           const isRequired = true;
-          
+
           return (
             <div key={docType} className="border-l-4 border-red-400 pl-3">
               <div className="flex items-center gap-2 mb-2">
@@ -496,7 +504,7 @@ export default function VerificationOverview() {
         {optionalTypes.map(docType => {
           const docs = grouped[docType] || [];
           if (docs.length === 0) return null;
-          
+
           return (
             <div key={docType} className="border-l-4 border-blue-300 pl-3">
               <div className="flex items-center gap-2 mb-2">
@@ -547,7 +555,7 @@ export default function VerificationOverview() {
   return (
     <div className="min-h-screen bg-gray-50 pl-64">
       <AdminSidebar />
-      
+
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -627,41 +635,97 @@ export default function VerificationOverview() {
                       </div>
                     </CardHeader>
                   </CollapsibleTrigger>
-                  
+
                   <CollapsibleContent>
                     <CardContent className="border-t pt-4">
-                      <div className="space-y-6">
-                        {/* Transporter Actions */}
-                        {(transporter.status === "pending_approval" || transporter.status === "pending_verification") && (
-                          <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                            <AlertTriangle className="h-5 w-5 text-blue-600" />
-                            <span className="text-sm text-blue-800">Transporter needs approval</span>
-                            <div className="ml-auto flex gap-2">
+                      {/* Readiness Checklist */}
+                      {transporter.readiness && (
+                        <div className="mb-6 p-4 bg-white border rounded-lg shadow-sm">
+                          <h4 className="font-semibold text-sm mb-4 flex items-center gap-2">
+                            <Shield className="h-4 w-4 text-blue-600" />
+                            Verification Readiness
+                          </h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="flex items-center gap-2">
+                              {transporter.readiness.businessDocsVerified ? (
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <Clock className="h-4 w-4 text-amber-500" />
+                              )}
+                              <span className="text-sm">Business Docs Verified</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {transporter.readiness.hasMinimumVehicles ? (
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <XCircle className="h-4 w-4 text-red-500" />
+                              )}
+                              <span className="text-sm">Minimum 1 Vehicle</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {transporter.readiness.hasMinimumDrivers ? (
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <XCircle className="h-4 w-4 text-red-500" />
+                              )}
+                              <span className="text-sm">Minimum 1 Driver</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {transporter.readiness.allVehiclesReady ? (
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                              )}
+                              <span className="text-sm">All Vehicles RC Verified</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {transporter.readiness.allDriversReady ? (
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                              )}
+                              <span className="text-sm">All Drivers DL Verified</span>
+                            </div>
+                          </div>
+
+                          {/* Final Approval Action */}
+                          <div className="mt-6 pt-4 border-t flex items-center justify-between">
+                            <div className="text-sm text-gray-500">
+                              {transporter.readiness.isReadyForApproval ? (
+                                <span className="text-green-600 font-medium">Ready for platform approval</span>
+                              ) : (
+                                <span className="text-amber-600">Pending required steps above</span>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
                               <Button
                                 size="sm"
+                                disabled={!transporter.readiness.isReadyForApproval || approvingTransporterId === transporter.id}
                                 onClick={() => handleApproveTransporter(transporter.id)}
-                                disabled={approvingTransporterId === transporter.id}
-                                data-testid={`approve-transporter-${transporter.id}`}
+                                className={transporter.readiness.isReadyForApproval ? "bg-green-600 hover:bg-green-700" : ""}
                               >
                                 {approvingTransporterId === transporter.id ? (
                                   <Loader2 className="h-4 w-4 animate-spin mr-1" />
                                 ) : (
                                   <CheckCircle className="h-4 w-4 mr-1" />
                                 )}
-                                Approve
+                                Approve Transporter
                               </Button>
                               <Button
                                 size="sm"
-                                variant="destructive"
+                                variant="outline"
+                                className="text-red-600 border-red-200 hover:bg-red-50"
                                 onClick={() => setRejectingTransporterId(transporter.id)}
-                                data-testid={`reject-transporter-${transporter.id}`}
                               >
                                 <XCircle className="h-4 w-4 mr-1" />
                                 Reject
                               </Button>
                             </div>
                           </div>
-                        )}
+                        </div>
+                      )}
+
+                      <div className="space-y-6">
 
                         {/* Transporter Business Documents */}
                         <div>
@@ -730,34 +794,34 @@ export default function VerificationOverview() {
                         {/* Vehicles Branch */}
                         <Collapsible open={expandedVehicles.has(transporter.id)} onOpenChange={() => toggleVehicleSection(transporter.id)}>
                           <CollapsibleTrigger asChild>
-                            <div className="flex items-center justify-between p-3 bg-gray-100 rounded-lg cursor-pointer hover:bg-gray-200 transition-colors">
+                            <div className="flex items-center justify-between p-3 bg-gray-50 border rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
                               <div className="flex items-center gap-3">
                                 {expandedVehicles.has(transporter.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                                 <Car className="h-5 w-5 text-purple-600" />
-                                <span className="font-medium">Vehicles ({transporter.totalVehicles})</span>
+                                <span className="font-semibold text-sm">Vehicles ({transporter.totalVehicles})</span>
                                 {transporter.vehicles.reduce((sum, v) => sum + v.pendingDocuments, 0) > 0 && (
-                                  <Badge variant="outline" className="bg-yellow-50 text-yellow-700">
-                                    {transporter.vehicles.reduce((sum, v) => sum + v.pendingDocuments, 0)} pending docs
+                                  <Badge variant="destructive" className="bg-red-50 text-red-700 border-none px-2 py-0 h-5 text-[10px]">
+                                    {transporter.vehicles.reduce((sum, v) => sum + v.pendingDocuments, 0)} DOCS PENDING
                                   </Badge>
                                 )}
                               </div>
-                              <Badge variant="outline">{transporter.activeVehicles} active</Badge>
+                              <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider">{transporter.activeVehicles} ACTIVE</Badge>
                             </div>
                           </CollapsibleTrigger>
                           <CollapsibleContent>
-                            <div className="ml-8 mt-2 space-y-3">
+                            <div className="pl-4 border-l-2 border-gray-100 ml-5 mt-2 space-y-3">
                               {transporter.vehicles.length === 0 ? (
                                 <p className="text-sm text-gray-500 py-2">No vehicles added</p>
                               ) : (
                                 transporter.vehicles.map(vehicle => (
-                                  <div key={vehicle.id} className="border rounded-lg p-4" data-testid={`vehicle-card-${vehicle.id}`}>
+                                  <div key={vehicle.id} className="border-b last:border-b-0 py-4" data-testid={`vehicle-card-${vehicle.id}`}>
                                     <div className="flex items-center justify-between mb-3">
-                                      <div className="flex items-center gap-2">
-                                        <Truck className="h-5 w-5 text-purple-600" />
-                                        <span className="font-semibold">{vehicle.plateNumber}</span>
-                                        <span className="text-sm text-gray-500">{vehicle.type} • {vehicle.model}</span>
+                                      <div className="flex items-center gap-2 text-sm">
+                                        <span className="font-bold text-gray-900">{vehicle.plateNumber}</span>
+                                        <span className="text-gray-400">•</span>
+                                        <span className="text-gray-500">{vehicle.type}</span>
                                       </div>
-                                      <Badge variant={vehicle.status === "active" ? "default" : "secondary"}>
+                                      <Badge variant={vehicle.status === "active" ? "outline" : "secondary"} className={vehicle.status === "active" ? "border-green-200 text-green-700 bg-green-50" : ""}>
                                         {vehicle.status}
                                       </Badge>
                                     </div>
@@ -777,26 +841,26 @@ export default function VerificationOverview() {
                         {/* Drivers Branch */}
                         <Collapsible open={expandedDrivers.has(transporter.id)} onOpenChange={() => toggleDriverSection(transporter.id)}>
                           <CollapsibleTrigger asChild>
-                            <div className="flex items-center justify-between p-3 bg-gray-100 rounded-lg cursor-pointer hover:bg-gray-200 transition-colors">
+                            <div className="flex items-center justify-between p-3 bg-gray-50 border rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
                               <div className="flex items-center gap-3">
                                 {expandedDrivers.has(transporter.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                                 <User className="h-5 w-5 text-green-600" />
-                                <span className="font-medium">Drivers ({transporter.totalDrivers})</span>
+                                <span className="font-semibold text-sm">Drivers ({transporter.totalDrivers})</span>
                                 {transporter.drivers.reduce((sum, d) => sum + d.pendingDocuments, 0) > 0 && (
-                                  <Badge variant="outline" className="bg-yellow-50 text-yellow-700">
-                                    {transporter.drivers.reduce((sum, d) => sum + d.pendingDocuments, 0)} pending docs
+                                  <Badge variant="destructive" className="bg-red-50 text-red-700 border-none px-2 py-0 h-5 text-[10px]">
+                                    {transporter.drivers.reduce((sum, d) => sum + d.pendingDocuments, 0)} DOCS PENDING
                                   </Badge>
                                 )}
                               </div>
                             </div>
                           </CollapsibleTrigger>
                           <CollapsibleContent>
-                            <div className="ml-8 mt-2 space-y-3">
+                            <div className="pl-4 border-l-2 border-gray-100 ml-5 mt-2 space-y-3">
                               {transporter.drivers.length === 0 ? (
                                 <p className="text-sm text-gray-500 py-2">No drivers added</p>
                               ) : (
                                 transporter.drivers.map(driver => (
-                                  <div key={driver.id} className="border rounded-lg p-4" data-testid={`driver-card-${driver.id}`}>
+                                  <div key={driver.id} className="border-b last:border-b-0 py-4" data-testid={`driver-card-${driver.id}`}>
                                     <div className="flex items-center justify-between mb-3">
                                       <div className="flex items-center gap-2">
                                         <User className="h-5 w-5 text-green-600" />
