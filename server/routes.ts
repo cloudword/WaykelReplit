@@ -1674,9 +1674,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           }
           // Otherwise show their own rides
           else if (userRole === "transporter" && sessionUser.transporterId) {
-            result = await storage.getTransporterRides(sessionUser.transporterId);
+            const rides = await storage.getTransporterRides(sessionUser.transporterId);
+            result = rides.map(r => serializeRide(r as any, sessionUser));
           } else if (userRole === "driver") {
-            result = await storage.getDriverRides(sessionUser.id);
+            const rides = await storage.getDriverRides(sessionUser.id);
+            result = rides.map(r => serializeRide(r as any, sessionUser));
           }
         }
         // Customers can only see their own created rides
@@ -1953,7 +1955,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
 
-      await storage.assignRideToDriver(req.params.id, driverId, vehicleId);
+      const effectiveTransporterId = isSuperAdmin
+        ? (req.body.transporterId || ride.transporterId)
+        : sessionUser.transporterId;
+
+      await storage.assignRideToDriver(req.params.id, driverId, vehicleId, effectiveTransporterId);
 
       // Send SMS to assigned driver
       const driver = await storage.getUser(driverId);
@@ -3204,7 +3210,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             throw e;
           }
 
-          await storage.assignRideToDriver(bid.rideId, bid.userId, bid.vehicleId);
+          await storage.assignRideToDriver(bid.rideId, bid.userId, bid.vehicleId, bid.transporterId, bid.id);
 
           const transporter = bid.transporterId ? await storage.getTransporter(bid.transporterId) : null;
           const contextData = {
@@ -5529,7 +5535,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           if (policyCheck.allowed) {
             try {
               assertRideTransition("accepted", "assigned", ride.id);
-              await storage.assignRideToDriver(ride.id, bid.userId, bid.vehicleId);
+              await storage.assignRideToDriver(ride.id, bid.userId, bid.vehicleId, bid.transporterId, bid.id);
             } catch (e) {
               if (e instanceof RideTransitionError) {
                 console.warn(`[BidAccept] Could not transition ride ${ride.id} to assigned`);

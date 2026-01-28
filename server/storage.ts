@@ -795,10 +795,12 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async assignRideToDriver(rideId: string, driverId: string, vehicleId: string): Promise<void> {
+  async assignRideToDriver(rideId: string, driverId: string, vehicleId: string, transporterId?: string | null, acceptedBidId?: string | null): Promise<void> {
     await db.update(rides).set({
       assignedDriverId: driverId,
       assignedVehicleId: vehicleId,
+      transporterId: transporterId || undefined,
+      acceptedBidId: acceptedBidId || undefined,
       status: "assigned"
     }).where(eq(rides.id, rideId));
   }
