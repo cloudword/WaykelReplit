@@ -94,7 +94,7 @@ export function AdminSidebar() {
   };
 
   return (
-    <div className="w-72 bg-sidebar border-r border-sidebar-border text-sidebar-foreground min-h-screen flex flex-col fixed left-0 top-0 bottom-0 z-50 transition-colors duration-300">
+    <div className="w-72 bg-sidebar border-r border-sidebar-border/60 text-sidebar-foreground min-h-screen flex flex-col fixed left-0 top-0 bottom-0 z-50 transition-all duration-300 shadow-xl shadow-black/5">
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
           <motion.div
