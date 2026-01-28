@@ -293,6 +293,22 @@ export default function AdminVehicles() {
                     <p className="text-sm text-gray-500 flex items-center gap-1"><User className="h-3 w-3" /> Assigned Driver</p>
                     <p className="font-medium">{getDriverName(selectedVehicle.userId)}</p>
                   </div>
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-500">Body Type</p>
+                    <p className="font-medium">{selectedVehicle.bodyType || "N/A"}</p>
+                  </div>
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-500">Fuel Type</p>
+                    <p className="font-medium">{selectedVehicle.fuelType || "N/A"}</p>
+                  </div>
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-500">Axle Type</p>
+                    <p className="font-medium">{selectedVehicle.axleType || "N/A"}</p>
+                  </div>
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-500">Length</p>
+                    <p className="font-medium">{selectedVehicle.lengthFt ? `${selectedVehicle.lengthFt} Ft` : "N/A"}</p>
+                  </div>
                   <div className="p-4 bg-green-50 rounded-lg col-span-2">
                     <p className="text-sm text-gray-500">Total Earnings</p>
                     <p className="text-2xl font-bold text-green-600">₹{getVehicleEarnings(selectedVehicle.id).toLocaleString()}</p>

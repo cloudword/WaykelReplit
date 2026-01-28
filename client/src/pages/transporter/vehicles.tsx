@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Truck, Plus, Search, FileText, CheckCircle, Clock, AlertCircle, Upload, Loader2 } from "lucide-react";
+import { Truck, Plus, Search, FileText, CheckCircle, Clock, AlertCircle, Upload, Loader2, Edit2 } from "lucide-react";
 import { api, API_BASE, withCsrfHeader } from "@/lib/api";
 import { toast } from "sonner";
 import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
@@ -73,8 +73,11 @@ export default function TransporterVehicles() {
   const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [newVehicle, setNewVehicle] = useState<VehicleFormState>(createVehicleFormState);
+  const [editVehicle, setEditVehicle] = useState<VehicleFormState>(createVehicleFormState);
   const [rcFile, setRcFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const rcInputRef = useRef<HTMLInputElement>(null);
@@ -238,6 +241,66 @@ export default function TransporterVehicles() {
     }
   };
 
+  const handleEditVehicle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingVehicleId) return;
+
+    setIsSubmitting(true);
+    try {
+      const capacityParsed = editVehicle.capacityValue
+        ? parseWeightInput(editVehicle.capacityValue, editVehicle.capacityUnit)
+        : { kg: 0, tons: 0 };
+
+      const vehicleType = VEHICLE_TYPES.find(vt => vt.code === editVehicle.vehicleTypeCode);
+      const displayType = vehicleType?.name || editVehicle.type;
+
+      const updatePayload = {
+        type: displayType,
+        plateNumber: editVehicle.plateNumber,
+        model: editVehicle.model,
+        capacity: `${editVehicle.capacityValue} ${editVehicle.capacityUnit === "kg" ? "Kg" : "Tons"}`,
+        capacityKg: capacityParsed.kg || null,
+        capacityTons: capacityParsed.tons ? String(capacityParsed.tons) : null,
+        vehicleCategory: editVehicle.vehicleCategory || null,
+        vehicleTypeCode: editVehicle.vehicleTypeCode || null,
+        bodyType: editVehicle.bodyType || null,
+        lengthFt: editVehicle.lengthFt ? parseInt(editVehicle.lengthFt) : null,
+        axleType: editVehicle.axleType || null,
+        fuelType: editVehicle.fuelType || null,
+      };
+
+      await api.vehicles.update(editingVehicleId, updatePayload);
+      toast.success("Vehicle updated successfully");
+      setShowEditDialog(false);
+      setEditingVehicleId(null);
+      loadVehicles();
+    } catch (error) {
+      console.error("Update vehicle error:", error);
+      toast.error("Failed to update vehicle");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const openEditDialog = (vehicle: any) => {
+    setEditingVehicleId(vehicle.id);
+    const [capVal, capUnit] = (vehicle.capacity || "").split(" ");
+    setEditVehicle({
+      vehicleCategory: vehicle.vehicleCategory || "",
+      vehicleTypeCode: vehicle.vehicleTypeCode || "",
+      type: vehicle.type || "",
+      plateNumber: vehicle.plateNumber || "",
+      model: vehicle.model || "",
+      capacityValue: capVal || vehicle.capacityKg || "",
+      capacityUnit: (capUnit?.toLowerCase() as WeightUnit) || (vehicle.capacityKg ? "kg" : "tons"),
+      bodyType: vehicle.bodyType || "",
+      lengthFt: vehicle.lengthFt ? String(vehicle.lengthFt) : "",
+      axleType: vehicle.axleType || "",
+      fuelType: vehicle.fuelType || "",
+    });
+    setShowEditDialog(true);
+  };
+
   const filteredVehicles = vehicles.filter(vehicle =>
     vehicle.plateNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     vehicle.type?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -382,6 +445,84 @@ export default function TransporterVehicles() {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="bodyType">Body Type</Label>
+                    <Select
+                      value={newVehicle.bodyType}
+                      onValueChange={(value) => setNewVehicle({ ...newVehicle, bodyType: value })}
+                    >
+                      <SelectTrigger id="bodyType" data-testid="select-body-type">
+                        <SelectValue placeholder="Select Body" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BODY_TYPES.map((type) => (
+                          <SelectItem key={type.code} value={type.name}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="fuelType">Fuel Type</Label>
+                    <Select
+                      value={newVehicle.fuelType}
+                      onValueChange={(value) => setNewVehicle({ ...newVehicle, fuelType: value })}
+                    >
+                      <SelectTrigger id="fuelType" data-testid="select-fuel-type">
+                        <SelectValue placeholder="Select Fuel" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FUEL_TYPES.map((type) => (
+                          <SelectItem key={type.code} value={type.name}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="axleType">Axle Type</Label>
+                    <Select
+                      value={newVehicle.axleType}
+                      onValueChange={(value) => setNewVehicle({ ...newVehicle, axleType: value })}
+                    >
+                      <SelectTrigger id="axleType" data-testid="select-axle-type">
+                        <SelectValue placeholder="Select Axle" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AXLE_TYPES.map((type) => (
+                          <SelectItem key={type.code} value={type.name}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="lengthFt">Length (Feet)</Label>
+                    <Select
+                      value={newVehicle.lengthFt}
+                      onValueChange={(value) => setNewVehicle({ ...newVehicle, lengthFt: value })}
+                    >
+                      <SelectTrigger id="lengthFt" data-testid="select-length">
+                        <SelectValue placeholder="Select Length" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {VEHICLE_LENGTHS.map((len) => (
+                          <SelectItem key={len.code} value={String(len.valueFt)}>
+                            {len.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="rc-upload" className="flex items-center gap-1">
                     RC Document <span className="text-red-500">*</span>
@@ -464,18 +605,42 @@ export default function TransporterVehicles() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="font-semibold">{vehicle.plateNumber}</h3>
-                        <Badge variant={vehicle.status === "active" ? "default" : "secondary"}>
-                          {vehicle.status}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => openEditDialog(vehicle)}
+                            data-testid={`button-edit-vehicle-${vehicle.id}`}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Badge variant={vehicle.status === "active" ? "default" : "secondary"}>
+                            {vehicle.status}
+                          </Badge>
+                        </div>
                       </div>
                       <div className="space-y-1 text-sm text-gray-600">
                         {vehicle.entityId && (
                           <p className="text-xs font-mono text-gray-500 mb-1">ID: {vehicle.entityId}</p>
                         )}
                         <p className="font-medium">{vehicle.model}</p>
-                        <div className="text-xs text-gray-500 mt-1 space-y-0.5">
-                          <p>Type: {vehicle.type} {vehicle.bodyType && `• ${vehicle.bodyType}`}</p>
-                          <p>Capacity: {vehicle.capacityKg ? `${vehicle.capacityKg} Kg` : vehicle.capacity} {vehicle.capacityTons ? `(${vehicle.capacityTons} T)` : ""}</p>
+                        <div className="text-xs text-gray-500 mt-1 space-y-1">
+                          <p className="flex items-center gap-1">
+                            <Truck className="h-3 w-3" />
+                            {vehicle.type} {vehicle.bodyType && `• ${vehicle.bodyType}`}
+                          </p>
+                          <p className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {vehicle.capacityKg ? `${vehicle.capacityKg} Kg` : vehicle.capacity} {vehicle.capacityTons ? `(${vehicle.capacityTons} T)` : ""}
+                          </p>
+                          {(vehicle.fuelType || vehicle.axleType || vehicle.lengthFt) && (
+                            <div className="flex flex-wrap gap-x-2 gap-y-1 font-medium text-[10px] text-blue-600 bg-blue-50 w-fit px-2 py-0.5 rounded-md mt-1">
+                              {vehicle.fuelType && <span>{vehicle.fuelType}</span>}
+                              {vehicle.axleType && <span>• {vehicle.axleType}</span>}
+                              {vehicle.lengthFt && <span>• {vehicle.lengthFt} Ft</span>}
+                            </div>
+                          )}
                         </div>
                       </div>
                       {/* Vehicle Documents */}

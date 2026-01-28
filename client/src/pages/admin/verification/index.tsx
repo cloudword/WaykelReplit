@@ -58,6 +58,10 @@ interface VehicleWithDocs {
   plateNumber: string;
   type: string;
   model: string;
+  bodyType?: string;
+  fuelType?: string;
+  axleType?: string;
+  lengthFt?: number;
   status: string;
   createdAt: string;
   documents: Document[];
@@ -726,64 +730,60 @@ export default function VerificationOverview() {
                         <CardHeader className="cursor-pointer hover:bg-white transition-all duration-300 p-6 relative group">
                           <div className={`absolute left-0 top-0 bottom-0 w-1.5 transition-colors ${transporter.status === 'active' ? 'bg-green-500' : transporter.totalPendingAcrossAll > 0 ? 'bg-amber-500' : 'bg-blue-500'}`}></div>
 
-                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                            <div className="flex items-center gap-5">
-                              <div className="relative">
-                                <motion.div
-                                  animate={expandedTransporters.has(transporter.id) ? { rotate: 90 } : { rotate: 0 }}
-                                  className="absolute -left-8 top-1/2 -translate-y-1/2"
-                                >
-                                  <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-blue-500 transition-colors" />
-                                </motion.div>
-                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner ${transporter.status === 'active' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'
-                                  }`}>
-                                  <Building2 className="h-7 w-7" />
-                                </div>
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div className="flex items-center gap-4">
+                              <motion.div
+                                animate={expandedTransporters.has(transporter.id) ? { rotate: 90 } : { rotate: 0 }}
+                                className="text-gray-300 group-hover:text-blue-500 transition-colors"
+                              >
+                                <ChevronRight className="h-4 w-4" />
+                              </motion.div>
+                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-inner ${transporter.status === 'active' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'
+                                }`}>
+                                <Building2 className="h-6 w-6" />
                               </div>
                               <div>
-                                <CardTitle className="text-xl font-black text-gray-900 leading-tight mb-1 group-hover:text-blue-600 transition-colors">
+                                <CardTitle className="text-lg font-bold text-gray-900 leading-tight mb-1 group-hover:text-blue-600 transition-colors truncate max-w-[200px] md:max-w-md">
                                   {transporter.companyName}
                                 </CardTitle>
-                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                                  <p className="text-xs font-bold text-gray-400 uppercase tracking-tighter">{transporter.ownerName}</p>
-                                  <span className="text-gray-200 h-3 w-px bg-gray-200"></span>
-                                  <p className="text-xs font-bold text-gray-400 uppercase tracking-tighter">{transporter.contact}</p>
-                                  <span className="text-gray-200 h-3 w-px bg-gray-200"></span>
-                                  <p className="text-xs font-bold text-gray-400 uppercase tracking-tighter">{transporter.email}</p>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight truncate max-w-[150px]">{transporter.ownerName}</p>
+                                  <span className="text-gray-200 h-2.5 w-px bg-gray-200 hidden sm:block"></span>
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">{transporter.contact}</p>
                                 </div>
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-6">
-                              <div className="flex items-center gap-8 px-8 py-3 bg-gray-50/50 rounded-2xl border border-gray-100 shadow-inner">
-                                <div className="text-center">
-                                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Vehicles</p>
+                            <div className="flex flex-wrap items-center gap-4 ml-auto">
+                              <div className="flex items-center gap-4 px-4 py-2 bg-gray-50/50 rounded-xl border border-gray-100 w-fit">
+                                <div className="text-center min-w-[30px]">
                                   <div className="flex items-center justify-center gap-1.5">
                                     <Truck className="h-3 w-3 text-indigo-500" />
-                                    <span className="text-sm font-black text-gray-800">{transporter.totalVehicles}</span>
+                                    <span className="text-xs font-bold text-gray-800">{transporter.totalVehicles}</span>
                                   </div>
                                 </div>
-                                <span className="text-gray-200 h-6 w-px bg-gray-200"></span>
-                                <div className="text-center">
-                                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Drivers</p>
+                                <span className="text-gray-200 h-4 w-px bg-gray-200"></span>
+                                <div className="text-center min-w-[30px]">
                                   <div className="flex items-center justify-center gap-1.5">
                                     <Users className="h-3 w-3 text-purple-500" />
-                                    <span className="text-sm font-black text-gray-800">{transporter.totalDrivers}</span>
+                                    <span className="text-xs font-bold text-gray-800">{transporter.totalDrivers}</span>
                                   </div>
                                 </div>
                               </div>
 
-                              <div className="flex flex-col items-end gap-2">
-                                {getStatusBadge(transporter.status)}
-                                {transporter.totalPendingAcrossAll > 0 && (
-                                  <motion.div
-                                    animate={{ opacity: [0.6, 1, 0.6] }}
-                                    transition={{ repeat: Infinity, duration: 2 }}
-                                  >
-                                    <Badge className="bg-red-500 text-white font-black border-none text-[10px] rounded-full px-2.5 shadow-lg shadow-red-200">
-                                      {transporter.totalPendingAcrossAll} AUDITS PENDING
+                              <div className="flex flex-col items-end gap-1.5">
+                                <div className="flex items-center gap-2">
+                                  {transporter.readiness?.isReadyForApproval && (
+                                    <Badge className="bg-blue-600/10 text-blue-600 border-none text-[9px] font-black rounded-lg px-2 h-5">
+                                      READY FOR APPROVAL
                                     </Badge>
-                                  </motion.div>
+                                  )}
+                                  {getStatusBadge(transporter.status)}
+                                </div>
+                                {transporter.totalPendingAcrossAll > 0 && (
+                                  <Badge className="bg-red-500 text-white font-black border-none text-[8px] rounded-lg px-2 h-4 shadow-sm">
+                                    {transporter.totalPendingAcrossAll} AUDITS PENDING
+                                  </Badge>
                                 )}
                               </div>
                             </div>
@@ -986,10 +986,19 @@ export default function VerificationOverview() {
                                                 </div>
                                                 <span className="text-sm font-black text-gray-900 tracking-tight">{vehicle.plateNumber}</span>
                                                 <Badge variant="outline" className="text-[9px] font-black uppercase tracking-tighter bg-gray-50">{vehicle.type}</Badge>
+                                                {vehicle.bodyType && <Badge variant="outline" className="text-[9px] font-black uppercase tracking-tighter bg-blue-50 text-blue-600 border-blue-100">{vehicle.bodyType}</Badge>}
                                               </div>
                                               <Badge className={`rounded-full px-2.5 py-0.5 text-[9px] font-black tracking-widest ${vehicle.status === 'active' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-gray-100 text-gray-500'}`}>
                                                 {vehicle.status.toUpperCase()}
                                               </Badge>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2 mb-4">
+                                              {vehicle.fuelType && <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-600 font-bold uppercase">{vehicle.fuelType}</span>}
+                                              {vehicle.axleType && <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-600 font-bold uppercase">{vehicle.axleType}</span>}
+                                              {vehicle.lengthFt && <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-600 font-bold uppercase">{vehicle.lengthFt} FT</span>}
+                                            </div>
+                                            <div className="mb-4">
+                                              <p className="text-xs text-gray-500 font-medium">{vehicle.model}</p>
                                             </div>
                                             <DocumentTypeSection
                                               documents={vehicle.documents}
