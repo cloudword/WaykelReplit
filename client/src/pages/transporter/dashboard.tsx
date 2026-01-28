@@ -4,10 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { 
-  Bell, Building2, Truck, Users, FileText, 
-  Plus, Settings, IndianRupee, MapPin, Package, CheckCircle, X, 
-  BarChart3, Route, Clock, ArrowRight, Zap
+import {
+  Bell, Building2, Truck, Users, FileText,
+  Plus, Settings, IndianRupee, MapPin, Package, CheckCircle, X,
+  BarChart3, Route, Clock, ArrowRight, Zap, ShieldAlert, Sparkles
 } from "lucide-react";
 import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ import { TransporterSidebar } from "@/components/layout/transporter-sidebar";
 import { OnboardingTracker } from "@/components/onboarding/OnboardingTracker";
 import { useOnboardingStatus } from "@/hooks/useOnboardingStatus";
 import { useTransporterSessionGate } from "@/hooks/useTransporterSession";
+import { motion } from "framer-motion";
 
 export default function TransporterDashboard() {
   const [_, setLocation] = useLocation();
@@ -40,7 +41,6 @@ export default function TransporterDashboard() {
   const { user: sessionUser, isReady: sessionReady, isChecking: sessionChecking } = useTransporterSessionGate();
   const user = sessionUser;
 
-  // Onboarding status (single source of truth) — fetched via hook
   const transporterId = user?.transporterId;
   const { data: onboardingStatus } = useOnboardingStatus(transporterId);
 
@@ -59,9 +59,9 @@ export default function TransporterDashboard() {
 
   const markNotificationRead = async (id: string) => {
     try {
-      await fetch(`${API_BASE}/notifications/${id}/read`, { 
+      await fetch(`${API_BASE}/notifications/${id}/read`, {
         method: "PATCH",
-        credentials: "include" 
+        credentials: "include"
       });
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
       setUnreadCount(prev => Math.max(0, prev - 1));
@@ -74,7 +74,7 @@ export default function TransporterDashboard() {
     if (!notification.isRead) {
       await markNotificationRead(notification.id);
     }
-    
+
     if (notification.type === "new_booking" && notification.rideId) {
       setShowNotifications(false);
       setLocation("/transporter/marketplace");
@@ -88,9 +88,8 @@ export default function TransporterDashboard() {
     if (!sessionReady || !user?.transporterId) return;
 
     const loadDashboardData = async () => {
-      if (!sessionReady || !user?.transporterId) return;
       setLoading(true);
-      
+
       try {
         const [bidsData, vehiclesData, usersData, transporterData, ridesData] = await Promise.all([
           api.bids.list({ transporterId: user.transporterId }),
@@ -104,9 +103,9 @@ export default function TransporterDashboard() {
         const vehiclesList = Array.isArray(vehiclesData) ? vehiclesData : [];
         const driversList = Array.isArray(usersData) ? usersData : [];
         const allRides = Array.isArray(ridesData) ? ridesData : [];
-        
-        const transporterRides = allRides.filter((r: any) => 
-          r.transporterId === user.transporterId || 
+
+        const transporterRides = allRides.filter((r: any) =>
+          r.transporterId === user.transporterId ||
           bids.some((b: any) => b.rideId === r.id && b.status === "accepted")
         );
 
@@ -133,8 +132,7 @@ export default function TransporterDashboard() {
           activeRides,
           pendingRides,
         });
-        
-        // Also load notifications
+
         await loadNotifications();
       } catch (error) {
         console.error("Failed to load dashboard data:", error);
@@ -144,27 +142,14 @@ export default function TransporterDashboard() {
     };
 
     loadDashboardData();
-    
-    // Poll for notifications every 30 seconds
     const notificationInterval = setInterval(loadNotifications, 30000);
     return () => clearInterval(notificationInterval);
   }, [sessionReady, user?.transporterId]);
 
-  const handleLogout = async () => {
-    try {
-      await api.auth.logout();
-      localStorage.removeItem("currentUser");
-      setLocation("/auth");
-      toast.success("Logged out successfully");
-    } catch (error) {
-      toast.error("Logout failed");
-    }
-  };
-
   if (sessionChecking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-gray-500">Checking your session...</p>
+      <div className="min-h-screen flex items-center justify-center bg-background pl-72">
+        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -174,427 +159,243 @@ export default function TransporterDashboard() {
     return null;
   }
 
+  const container = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1, transition: { staggerChildren: 0.1 } }
+  };
+
+  const item = {
+    hidden: { opacity: 0, y: 10 },
+    show: { opacity: 1, y: 0 }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 pl-64">
+    <div className="min-h-screen bg-background pl-72">
       <TransporterSidebar />
-      
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-3">
-              <Building2 className="h-8 w-8 text-blue-600" />
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
-                <p className="text-xs text-gray-500">{user.name}</p>
-              </div>
+
+      <main className="p-8 max-w-7xl mx-auto space-y-6">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-sm border border-emerald-200/50">
+              <Building2 className="h-6 w-6" />
             </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="relative"
-                onClick={() => setShowNotifications(true)}
-                data-testid="button-notifications"
-              >
-                <Bell className="h-5 w-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center font-bold">
-                    {unreadCount > 9 ? "9+" : unreadCount}
-                  </span>
-                )}
-              </Button>
-              <Button variant="ghost" size="icon" onClick={() => setLocation("/transporter/settings")} data-testid="button-settings">
-                <Settings className="h-5 w-5" />
-              </Button>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+              <p className="text-muted-foreground text-sm font-medium">Welcome back, {user.name}</p>
             </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="icon"
+              className="relative shadow-sm rounded-full w-10 h-10"
+              onClick={() => setShowNotifications(true)}
+              data-testid="button-notifications"
+            >
+              <Bell className="h-5 w-5 text-muted-foreground" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-bold border-2 border-background">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </Button>
+            <Button variant="outline" size="icon" onClick={() => setLocation("/transporter/settings")} className="shadow-sm rounded-full w-10 h-10">
+              <Settings className="h-5 w-5 text-muted-foreground" />
+            </Button>
           </div>
         </div>
-      </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {onboardingStatus && onboardingStatus.overallStatus !== "completed" && (
-          <div className="mb-6">
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
             <OnboardingTracker data={onboardingStatus} />
-          </div>
+          </motion.div>
         )}
 
-        {transporter && transporter.status === "pending_verification" && (
-          <Card className="mb-6 border-amber-200 bg-amber-50" data-testid="pending-verification-banner">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-4">
-                <div className="h-10 w-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <FileText className="h-5 w-5 text-amber-600" />
+        {/* Alerts Section */}
+        <div className="space-y-4">
+          {transporter && transporter.status === "pending_verification" && (
+            <Card className="border-l-4 border-l-amber-500 bg-amber-50/50 dark:bg-amber-900/10">
+              <CardContent className="p-4 flex items-start gap-4">
+                <div className="p-2 bg-amber-100 dark:bg-amber-900/40 rounded-lg text-amber-600">
+                  <FileText className="h-5 w-5" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-amber-800">Document Verification Required</h3>
-                  <p className="text-sm text-amber-700 mt-1">
-                    Please upload your required business documents to complete registration. Once submitted, our team will review them within 24-48 hours.
-                  </p>
-                  <Button size="sm" className="mt-3" onClick={() => setLocation("/transporter/documents")} data-testid="button-upload-documents">
-                    <FileText className="h-4 w-4 mr-2" />
+                  <h3 className="font-semibold text-amber-900 dark:text-amber-100">Verification Required</h3>
+                  <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">Upload business documents to unlock full access.</p>
+                  <Button size="sm" variant="outline" className="mt-2 border-amber-300 text-amber-800 hover:bg-amber-100" onClick={() => setLocation("/transporter/documents")}>
                     Upload Documents
                   </Button>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {transporter && transporter.status === "pending_approval" && (
-          <Card className="mb-6 border-blue-200 bg-blue-50" data-testid="pending-approval-banner">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-4">
-                <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <Clock className="h-5 w-5 text-blue-600" />
+              </CardContent>
+            </Card>
+          )}
+          {transporter && transporter.status === "rejected" && (
+            <Card className="border-l-4 border-l-destructive bg-destructive/5">
+              <CardContent className="p-4 flex items-start gap-4">
+                <div className="p-2 bg-destructive/10 rounded-lg text-destructive">
+                  <ShieldAlert className="h-5 w-5" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-blue-800">Documents Under Review</h3>
-                  <p className="text-sm text-blue-700 mt-1">
-                    Your documents have been submitted and are being reviewed by our team. This usually takes 24-48 hours.
-                    We'll notify you once your account is approved.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {transporter && transporter.status === "suspended" && (
-          <Card className="mb-6 border-orange-300 bg-orange-50" data-testid="suspended-banner">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-4">
-                <div className="h-10 w-10 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <X className="h-5 w-5 text-orange-600" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-orange-800">Account Suspended</h3>
-                  <p className="text-sm text-orange-700 mt-1">
-                    Your transporter account has been temporarily suspended. You cannot accept new trips until this is resolved.
-                  </p>
-                  {transporter.rejectionReason && (
-                    <div className="mt-2 p-3 bg-orange-100 rounded border border-orange-200">
-                      <p className="text-sm font-medium text-orange-800">Reason:</p>
-                      <p className="text-sm text-orange-700">{transporter.rejectionReason}</p>
-                    </div>
-                  )}
-                  <p className="text-sm text-orange-700 mt-3">
-                    Please contact support to resolve this issue and restore your account.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {transporter && transporter.status === "rejected" && (
-          <Card className="mb-6 border-red-300 bg-red-50" data-testid="rejected-banner">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-4">
-                <div className="h-10 w-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <X className="h-5 w-5 text-red-600" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-red-800">Account Rejected</h3>
-                  <p className="text-sm text-red-700 mt-1">
-                    Your transporter account application has been rejected.
-                  </p>
-                  {transporter.rejectionReason && (
-                    <div className="mt-2 p-3 bg-red-100 rounded border border-red-200">
-                      <p className="text-sm font-medium text-red-800">Reason:</p>
-                      <p className="text-sm text-red-700">{transporter.rejectionReason}</p>
-                    </div>
-                  )}
-                  <p className="text-sm text-red-700 mt-3">
-                    Please review the feedback above and contact support if you believe this was an error, 
-                    or update your documents and re-apply.
-                  </p>
-                  <Button size="sm" variant="outline" className="mt-4 text-red-700 border-red-300 hover:bg-red-100" onClick={() => setLocation("/transporter/documents")}>
-                    <FileText className="h-4 w-4 mr-2" />
+                <div>
+                  <h3 className="font-semibold text-destructive">Account Rejected</h3>
+                  <p className="text-sm text-muted-foreground mt-1">{transporter.rejectionReason || "Please review your documents and try again."}</p>
+                  <Button size="sm" variant="outline" className="mt-2 border-destructive/30 text-destructive hover:bg-destructive/10" onClick={() => setLocation("/transporter/documents")}>
                     Review Documents
                   </Button>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {transporter && transporter.verificationStatus === 'approved' && onboardingStatus?.overallStatus === "completed" && (
-          <Card className="mb-6 border-green-200 bg-green-50" data-testid="verified-banner">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <CheckCircle className="h-6 w-6 text-green-600" />
-                <div>
-                  <h3 className="font-semibold text-green-800">Verified Transporter</h3>
-                  <p className="text-sm text-green-700">Your account is verified. You can access the marketplace and receive trip requests.</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {transporter && transporter.verificationStatus === 'approved' && onboardingStatus?.overallStatus !== "completed" && (
-          <Card className="mb-6 border-amber-200 bg-amber-50" data-testid="verified-pending-onboarding-banner">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <Clock className="h-6 w-6 text-amber-600" />
-                <div>
-                  <h3 className="font-semibold text-amber-800">Account Verified — Complete Onboarding</h3>
-                  <p className="text-sm text-amber-700">Your account is verified. Add required vehicles and drivers to complete onboarding and enable bidding.</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-          <Card data-testid="stat-active-rides" className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setLocation("/transporter/trips")}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Active Rides</CardTitle>
-              <Route className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats.activeRides}</div>
-              <p className="text-xs text-gray-500">In progress</p>
-            </CardContent>
-          </Card>
-
-          <Card data-testid="stat-completed-rides" className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setLocation("/transporter/trips")}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Completed</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.completedRides}</div>
-              <p className="text-xs text-gray-500">Total trips</p>
-            </CardContent>
-          </Card>
-
-          <Card data-testid="stat-bids" className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setLocation("/transporter/bids")}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Pending Bids</CardTitle>
-              <Clock className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{stats.pendingBids}</div>
-              <p className="text-xs text-gray-500">Awaiting response</p>
-            </CardContent>
-          </Card>
-
-          <Card data-testid="stat-earnings">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Earnings</CardTitle>
-              <IndianRupee className="h-4 w-4 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600">₹{stats.totalEarnings.toLocaleString()}</div>
-              <p className="text-xs text-gray-500">From bids</p>
-            </CardContent>
-          </Card>
-
-          <Card data-testid="stat-vehicles" className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setLocation("/transporter/vehicles")}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Vehicles</CardTitle>
-              <Truck className="h-4 w-4 text-teal-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalVehicles}</div>
-              <p className="text-xs text-gray-500">Registered</p>
-            </CardContent>
-          </Card>
-
-          <Card data-testid="stat-drivers" className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setLocation("/transporter/drivers")}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Drivers</CardTitle>
-              <Users className="h-4 w-4 text-indigo-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalDrivers}</div>
-              <p className="text-xs text-gray-500">In fleet</p>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
+
+        <motion.div
+          variants={container}
+          initial="hidden"
+          animate="show"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4"
+        >
+          <motion.div variants={item}>
+            <Card className="hover-lift cursor-pointer group" onClick={() => setLocation("/transporter/trips")}>
+              <CardHeader className="p-4 flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Active Rides</CardTitle>
+                <Route className="h-4 w-4 text-blue-500" />
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="text-2xl font-bold">{stats.activeRides}</div>
+                <p className="text-xs text-muted-foreground group-hover:text-blue-500 transition-colors">In progress</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div variants={item}>
+            <Card className="hover-lift cursor-pointer group" onClick={() => setLocation("/transporter/trips")}>
+              <CardHeader className="p-4 flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Completed</CardTitle>
+                <CheckCircle className="h-4 w-4 text-emerald-500" />
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="text-2xl font-bold">{stats.completedRides}</div>
+                <p className="text-xs text-muted-foreground group-hover:text-emerald-500 transition-colors">All time</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div variants={item}>
+            <Card className="hover-lift cursor-pointer group" onClick={() => setLocation("/transporter/bids")}>
+              <CardHeader className="p-4 flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Pending Bids</CardTitle>
+                <Clock className="h-4 w-4 text-amber-500" />
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="text-2xl font-bold">{stats.pendingBids}</div>
+                <p className="text-xs text-muted-foreground group-hover:text-amber-500 transition-colors">Awaiting action</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div variants={item}>
+            <Card className="hover-lift cursor-pointer group bg-gradient-to-br from-primary/5 to-transparent">
+              <CardHeader className="p-4 flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Earnings</CardTitle>
+                <IndianRupee className="h-4 w-4 text-primary" />
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="text-2xl font-bold text-primary">₹{stats.totalEarnings.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">From bids</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div variants={item}>
+            <Card className="hover-lift cursor-pointer group" onClick={() => setLocation("/transporter/vehicles")}>
+              <CardHeader className="p-4 flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Vehicles</CardTitle>
+                <Truck className="h-4 w-4 text-cyan-500" />
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="text-2xl font-bold">{stats.totalVehicles}</div>
+                <p className="text-xs text-muted-foreground group-hover:text-cyan-500 transition-colors">Registered</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div variants={item}>
+            <Card className="hover-lift cursor-pointer group" onClick={() => setLocation("/transporter/drivers")}>
+              <CardHeader className="p-4 flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Drivers</CardTitle>
+                <Users className="h-4 w-4 text-indigo-500" />
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="text-2xl font-bold">{stats.totalDrivers}</div>
+                <p className="text-xs text-muted-foreground group-hover:text-indigo-500 transition-colors">Active fleet</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </motion.div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Card className="lg:col-span-2" data-testid="recent-rides-card">
-            <CardHeader className="flex flex-row items-center justify-between">
+          <Card className="lg:col-span-2 shadow-sm border-border/60">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 pb-4">
               <div>
-                <CardTitle>Recent Trips</CardTitle>
-                <CardDescription>Your latest ride activity</CardDescription>
+                <CardTitle className="text-lg">Recent Trips</CardTitle>
+                <CardDescription>Your latest logistics activity</CardDescription>
               </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setLocation("/transporter/trips")} data-testid="button-view-all-trips">
-                  View All
-                </Button>
-                <Button 
-                  size="sm" 
-                  onClick={() => setLocation("/transporter/post-trip")} 
-                  data-testid="button-post-new-trip"
-                  disabled={transporter && transporter.verificationStatus !== 'approved'}
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Post Trip
-                </Button>
-              </div>
+              <Button size="sm" onClick={() => setLocation("/transporter/post-trip")} className="gap-2">
+                <Plus className="h-4 w-4" /> Post Trip
+              </Button>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               {loading ? (
-                <p className="text-gray-500 text-center py-8">Loading...</p>
+                <div className="flex justify-center p-8"><span className="loading loading-spinner text-primary"></span></div>
               ) : recentRides.length > 0 ? (
-                <div className="space-y-3">
+                <div className="divide-y divide-border/50">
                   {recentRides.map((ride) => (
-                    <div key={ride.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors" data-testid={`ride-row-${ride.id}`}>
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                          <MapPin className="h-5 w-5 text-blue-600" />
+                    <div key={ride.id} className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => setLocation("/transporter/trips")}>
+                      <div className="flex items-center gap-4">
+                        <div className={`p-2 rounded-full ${ride.status === 'completed' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                          {ride.status === 'completed' ? <CheckCircle className="h-5 w-5" /> : <Package className="h-5 w-5" />}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">
-                            {ride.pickupLocation} <ArrowRight className="inline h-3 w-3 mx-1" /> {ride.dropLocation}
+                        <div>
+                          <p className="font-semibold text-sm flex items-center gap-2">
+                            {ride.pickupLocation} <ArrowRight className="h-3 w-3 text-muted-foreground" /> {ride.dropLocation}
                           </p>
-                          <p className="text-xs text-gray-500">{ride.date} • ₹{parseFloat(ride.price || 0).toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">{ride.date} • ₹{parseFloat(ride.price || 0).toLocaleString()}</p>
                         </div>
                       </div>
-                      <Badge variant={
-                        ride.status === "completed" ? "default" :
-                        ride.status === "active" || ride.status === "assigned" ? "secondary" :
-                        ride.status === "pending" ? "outline" : "destructive"
-                      }>
-                        {ride.status}
-                      </Badge>
+                      <Badge variant="outline" className="capitalize">{ride.status}</Badge>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8">
-                  <Package className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-                  <p className="text-gray-500">No trips yet</p>
-                  <Button 
-                    size="sm" 
-                    className="mt-3" 
-                    onClick={() => setLocation("/transporter/post-trip")}
-                    disabled={transporter && transporter.verificationStatus !== 'approved'}
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Post Your First Trip
-                  </Button>
+                <div className="text-center py-12">
+                  <Package className="h-12 w-12 text-muted-foreground/20 mx-auto mb-3" />
+                  <p className="text-muted-foreground">No recent activity found</p>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          <Card data-testid="quick-actions-card">
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-              <CardDescription>Manage your operations</CardDescription>
+          <Card className="shadow-sm border-border/60">
+            <CardHeader className="border-b border-border/50 pb-4">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Zap className="h-4 w-4 text-yellow-500" /> Quick Actions
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <Button 
-                className="w-full justify-start bg-blue-600 hover:bg-blue-700 text-white" 
-                onClick={() => setLocation("/transporter/post-trip")} 
-                data-testid="button-post-trip"
-                disabled={transporter && transporter.verificationStatus !== 'approved'}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Post New Trip
+            <CardContent className="p-4 space-y-2">
+              <Button variant="outline" className="w-full justify-start h-10 hover:bg-primary/5 hover:text-primary hover:border-primary/30 transition-all" onClick={() => setLocation("/transporter/marketplace")}>
+                <Package className="h-4 w-4 mr-3 text-muted-foreground" /> Browse Marketplace
               </Button>
-              <Button className="w-full justify-start" variant="outline" onClick={() => setLocation("/transporter/marketplace")} data-testid="button-browse-loads">
-                <Package className="h-4 w-4 mr-2" />
-                Browse Available Loads
+              <Button variant="outline" className="w-full justify-start h-10 hover:bg-primary/5 hover:text-primary hover:border-primary/30 transition-all" onClick={() => setLocation("/transporter/trips")}>
+                <Route className="h-4 w-4 mr-3 text-muted-foreground" /> My Trips
               </Button>
-              <Button className="w-full justify-start" variant="outline" onClick={() => setLocation("/transporter/trips")} data-testid="button-view-trips">
-                <Route className="h-4 w-4 mr-2" />
-                View My Trips
+              <Button variant="outline" className="w-full justify-start h-10 hover:bg-primary/5 hover:text-primary hover:border-primary/30 transition-all" onClick={() => setLocation("/transporter/bids")}>
+                <FileText className="h-4 w-4 mr-3 text-muted-foreground" /> My Bids
               </Button>
-              <Button className="w-full justify-start" variant="outline" onClick={() => setLocation("/transporter/bids")} data-testid="button-view-bids">
-                <FileText className="h-4 w-4 mr-2" />
-                My Bids
+              <Button variant="outline" className="w-full justify-start h-10 hover:bg-primary/5 hover:text-primary hover:border-primary/30 transition-all" onClick={() => setLocation("/transporter/vehicles")}>
+                <Truck className="h-4 w-4 mr-3 text-muted-foreground" /> Manage Vehicles
               </Button>
-              <Button className="w-full justify-start" variant="outline" onClick={() => setLocation("/transporter/vehicles")} data-testid="button-manage-vehicles">
-                <Truck className="h-4 w-4 mr-2" />
-                Manage Vehicles
+              <Button variant="outline" className="w-full justify-start h-10 hover:bg-primary/5 hover:text-primary hover:border-primary/30 transition-all" onClick={() => setLocation("/transporter/drivers")}>
+                <Users className="h-4 w-4 mr-3 text-muted-foreground" /> Manage Drivers
               </Button>
-              <Button className="w-full justify-start" variant="outline" onClick={() => setLocation("/transporter/drivers")} data-testid="button-manage-drivers">
-                <Users className="h-4 w-4 mr-2" />
-                Manage Drivers
-              </Button>
-              <Button className="w-full justify-start" variant="outline" onClick={() => setLocation("/transporter/analytics")} data-testid="button-view-analytics">
-                <BarChart3 className="h-4 w-4 mr-2" />
-                View Analytics
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-          <Card data-testid="drivers-overview-card">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Drivers</CardTitle>
-                <CardDescription>Your fleet drivers</CardDescription>
-              </div>
-              <Button size="sm" variant="outline" onClick={() => setLocation("/transporter/drivers")} data-testid="button-view-all-drivers">
-                View All
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {drivers.length > 0 ? (
-                <div className="space-y-3">
-                  {drivers.slice(0, 3).map((driver) => (
-                    <div key={driver.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg" data-testid={`driver-row-${driver.id}`}>
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                          <Users className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm">{driver.name}</p>
-                          <p className="text-xs text-gray-500">{driver.phone}</p>
-                        </div>
-                      </div>
-                      <Badge variant={driver.isOnline ? "default" : "secondary"}>
-                        {driver.isOnline ? "Online" : "Offline"}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 text-center py-4">No drivers added yet</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card data-testid="vehicles-overview-card">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Vehicles</CardTitle>
-                <CardDescription>Your fleet vehicles</CardDescription>
-              </div>
-              <Button size="sm" variant="outline" onClick={() => setLocation("/transporter/vehicles")} data-testid="button-view-all-vehicles">
-                View All
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {vehicles.length > 0 ? (
-                <div className="space-y-3">
-                  {vehicles.slice(0, 3).map((vehicle) => (
-                    <div key={vehicle.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg" data-testid={`vehicle-row-${vehicle.id}`}>
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                          <Truck className="h-5 w-5 text-green-600" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm">{vehicle.plateNumber}</p>
-                          <p className="text-xs text-gray-500">{vehicle.type}</p>
-                        </div>
-                      </div>
-                      <Badge variant={vehicle.status === "active" ? "default" : "secondary"}>
-                        {vehicle.status}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 text-center py-4">No vehicles added yet</p>
-              )}
             </CardContent>
           </Card>
         </div>
@@ -604,100 +405,53 @@ export default function TransporterDashboard() {
         <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-blue-600" />
+              <Bell className="h-5 w-5 text-primary" />
               Notifications
               {unreadCount > 0 && (
                 <Badge variant="destructive" className="ml-2">{unreadCount} new</Badge>
               )}
             </DialogTitle>
             <DialogDescription>
-              Booking requests and bid updates matching your profile
+              Recent updates and alerts
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="flex-1 overflow-y-auto space-y-3 py-4" data-testid="notifications-list">
+
+          <div className="flex-1 overflow-y-auto space-y-2 py-4 px-1" data-testid="notifications-list">
             {notifications.length > 0 ? (
               notifications.map((notification) => (
-                <div 
+                <div
                   key={notification.id}
-                  className={`p-4 rounded-lg border cursor-pointer transition-colors ${
-                    notification.isRead 
-                      ? "bg-gray-50 border-gray-200" 
-                      : "bg-blue-50 border-blue-200"
-                  }`}
+                  className={`p-3 rounded-xl border cursor-pointer transition-all hover:scale-[1.01] ${notification.isRead
+                      ? "bg-card border-border"
+                      : "bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800"
+                    }`}
                   onClick={() => handleNotificationClick(notification)}
-                  data-testid={`notification-${notification.id}`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      notification.type === "new_booking" 
-                        ? "bg-green-100 text-green-600"
-                        : notification.type === "bid_accepted"
-                        ? "bg-blue-100 text-blue-600"
-                        : "bg-red-100 text-red-600"
-                    }`}>
-                      {notification.type === "new_booking" ? (
-                        <Package className="h-5 w-5" />
-                      ) : notification.type === "bid_accepted" ? (
-                        <CheckCircle className="h-5 w-5" />
-                      ) : (
-                        <X className="h-5 w-5" />
-                      )}
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${notification.type === "new_booking" ? "bg-green-100 text-green-600" :
+                        "bg-primary/10 text-primary"
+                      }`}>
+                      <Bell className="h-4 w-4" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-sm">{notification.title}</p>
-                        {!notification.isRead && (
-                          <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span>
-                        )}
+                      <div className="flex justify-between items-start">
+                        <p className={`text-sm ${!notification.isRead ? 'font-bold' : 'font-medium'}`}>{notification.title}</p>
+                        <span className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">
+                          {new Date(notification.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       </div>
-                      <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
-                      {notification.matchScore && (
-                        <div className="flex items-center gap-1 mt-2">
-                          <Zap className="h-3 w-3 text-yellow-500" />
-                          <span className="text-xs text-yellow-600 font-medium">
-                            {notification.matchScore}% match
-                          </span>
-                          {notification.matchReason && (
-                            <span className="text-xs text-gray-400 ml-1">
-                              • {notification.matchReason.split(";")[0]}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      <p className="text-xs text-gray-400 mt-2">
-                        {new Date(notification.createdAt).toLocaleString()}
-                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{notification.message}</p>
                     </div>
                   </div>
                 </div>
               ))
             ) : (
-              <div className="text-center py-8 text-gray-500">
-                <Bell className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p className="font-medium">No notifications yet</p>
-                <p className="text-sm mt-1">New booking requests matching your profile will appear here</p>
+              <div className="text-center py-10">
+                <Sparkles className="h-10 w-10 text-muted-foreground/20 mx-auto mb-2" />
+                <p className="text-muted-foreground text-sm">All caught up!</p>
               </div>
             )}
           </div>
-          
-          <DialogFooter className="border-t pt-4">
-            <Button 
-              variant="outline" 
-              onClick={() => setShowNotifications(false)}
-              data-testid="button-close-notifications"
-            >
-              Close
-            </Button>
-            {notifications.length > 0 && (
-              <Button 
-                onClick={() => setLocation("/transporter/marketplace")}
-                data-testid="button-browse-marketplace"
-              >
-                Browse Marketplace
-              </Button>
-            )}
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
