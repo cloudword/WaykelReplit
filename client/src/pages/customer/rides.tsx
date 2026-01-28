@@ -146,6 +146,7 @@ export default function CustomerRides() {
       case "pending": return "bg-yellow-100 text-yellow-800";
       case "bidding": return "bg-blue-100 text-blue-800";
       case "accepted": return "bg-purple-100 text-purple-800";
+      case "assigned": return "bg-indigo-100 text-indigo-800";
       case "active": return "bg-green-100 text-green-800";
       case "completed": return "bg-gray-100 text-gray-800";
       case "cancelled": return "bg-red-100 text-red-800";
@@ -158,6 +159,7 @@ export default function CustomerRides() {
       case "pending": return "Awaiting Bids";
       case "bidding": return "Bids Received";
       case "accepted": return "Bid Approved";
+      case "assigned": return "Driver Assigned";
       case "active": return "In Transit";
       case "completed": return "Delivered";
       case "cancelled": return "Cancelled";
@@ -170,7 +172,7 @@ export default function CustomerRides() {
     return null;
   }
 
-  const activeRides = rides.filter(r => ["pending", "bidding", "accepted", "active"].includes(r.status));
+  const activeRides = rides.filter(r => ["pending", "bidding", "accepted", "assigned", "active"].includes(r.status));
   const pastRides = rides.filter(r => ["completed", "cancelled"].includes(r.status));
 
   return (

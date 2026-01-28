@@ -98,7 +98,7 @@ export default function TransporterTrips() {
   };
 
   const activeTrips = filterRides(rides.filter(r => r.status === "active"));
-  const upcomingTrips = filterRides(rides.filter(r => r.status === "scheduled"));
+  const upcomingTrips = filterRides(rides.filter(r => r.status === "scheduled" || r.status === "assigned"));
   const completedTrips = filterRides(rides.filter(r => r.status === "completed"));
   const pendingTrips = filterRides(rides.filter(r => r.status === "pending" || r.status === "bidding" || r.status === "accepted"));
 
@@ -112,6 +112,7 @@ export default function TransporterTrips() {
       case "pending": return "bg-yellow-100 text-yellow-800";
       case "bidding": return "bg-purple-100 text-purple-800";
       case "accepted": return "bg-indigo-100 text-indigo-800";
+      case "assigned": return "bg-cyan-100 text-cyan-800";
       default: return "bg-gray-100 text-gray-800";
     }
   };

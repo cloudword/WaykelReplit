@@ -158,7 +158,7 @@ export default function AdminTrips() {
   const tripStats = {
     total: rides.length,
     active: rides.filter(r => r.status === "active").length,
-    scheduled: rides.filter(r => r.status === "scheduled").length,
+    scheduled: rides.filter(r => r.status === "scheduled" || r.status === "assigned").length,
     completed: rides.filter(r => r.status === "completed").length,
     pending: rides.filter(r => r.status === "pending" || r.status === "bidding").length,
   };
