@@ -151,7 +151,7 @@ export const rides = pgTable("rides", {
   pickupTime: text("pickup_time").notNull(),
   dropTime: text("drop_time"),
   date: text("date").notNull(),
-  status: text("status").notNull().$type<"open_for_bidding" | "bidding" | "accepted" | "assigned" | "active" | "pickup_done" | "delivery_done" | "completed" | "cancelled" | "scheduled">().default("open_for_bidding"),
+  status: text("status").notNull().$type<"pending" | "bidding" | "accepted" | "assigned" | "active" | "pickup_done" | "delivery_done" | "completed" | "cancelled" | "scheduled">().default("pending"),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   distance: text("distance").notNull(),
   cargoType: text("cargo_type").notNull(),

@@ -729,7 +729,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPendingRides(): Promise<Ride[]> {
-    return await db.select().from(rides).where(eq(rides.status, "open_for_bidding")).orderBy(desc(rides.createdAt));
+    return await db.select().from(rides).where(eq(rides.status, "pending")).orderBy(desc(rides.createdAt));
   }
 
   async getScheduledRides(): Promise<Ride[]> {

@@ -1473,7 +1473,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         createdById: user.id,
         customerId: user.id,
         customerEntityId: user.entityId,
-        status: "open_for_bidding",
+        status: "pending",
         // Provide defaults for fields that may not be sent by customer portal
         distance: distance || "TBD",
         cargoType: cargoType || "General",
@@ -1633,7 +1633,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       // Handle unauthenticated marketplace view (pending rides only)
       if (!sessionUser) {
-        if (status === "open_for_bidding") {
+        if (status === "pending") {
           const pending = await storage.getPendingRides();
           const sessionUser = getCurrentUser(req);
           result = pending.map(r => serializeRide(r as any, sessionUser));
@@ -1654,7 +1654,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             result = await storage.getTransporterRides(transporterId as string);
           } else if (createdById) {
             result = await storage.getCustomerRides(createdById as string);
-          } else if (status === "open_for_bidding") {
+          } else if (status === "pending") {
             result = await storage.getPendingRides();
           } else if (status === "scheduled") {
             result = await storage.getScheduledRides();
@@ -1669,7 +1669,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         // Logic for Transporters and Drivers
         else if (userRole === "transporter" || userRole === "driver") {
           // If explicitly asking for pending rides, show marketplace (even for logged in users)
-          if (status === "open_for_bidding") {
+          if (status === "pending") {
             result = await storage.getPendingRides();
           }
           // Otherwise show their own rides
@@ -1738,7 +1738,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
 
         // For other roles (e.g. transporters), if trip is open, show redacted view
-        if (ride.status === "open_for_bidding") {
+        if (ride.status === "pending") {
           return res.json(serializeRide(ride as any, sessionUser));
         }
 
@@ -1746,7 +1746,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       // Unauthenticated - only allow viewing marketplace rides with redaction
-      if (ride.status === "open_for_bidding") {
+      if (ride.status === "pending") {
         return res.json(serializeRide(ride as any, undefined));
       }
 
@@ -2260,7 +2260,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
 
         // Service area match
-        if (transporter.servicePincodes && ride.pickupPincode) {
+        if (transporter.servicePincodes && Array.isArray(transporter.servicePincodes) && ride.pickupPincode) {
           if (transporter.servicePincodes.includes(ride.pickupPincode)) {
             score += 15;
             reasons.push(`In service area`);
@@ -2274,17 +2274,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
 
         // Route preference match
-        if (transporter.preferredRoutes && ride.pickupLocation && ride.dropLocation) {
+        if (transporter.preferredRoutes && Array.isArray(transporter.preferredRoutes) && ride.pickupLocation && ride.dropLocation) {
           const routes = transporter.preferredRoutes as string[];
           const routeKey = `${ride.pickupLocation}-${ride.dropLocation}`.toLowerCase();
-          if (routes.some(r => routeKey.includes(r.toLowerCase()))) {
+          if (routes.some(r => r && typeof r === 'string' && routeKey.includes(r.toLowerCase()))) {
             score += 20;
             reasons.push(`On preferred route`);
           }
         }
 
+        const serializedRide = serializeRide(ride as any, sessionUser);
         return {
-          ...ride,
+          ...serializedRide,
           matchScore: Math.min(score, 100),
           matchReason: reasons.length > 0 ? reasons.join(", ") : "General match",
           isMatched: score > 0
@@ -2292,12 +2293,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
 
       // Sort by match score (highest first), then by date
-      ridesWithScores.sort((a, b) => b.matchScore - a.matchScore);
+      ridesWithScores.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
 
       res.json(ridesWithScores);
     } catch (error) {
       console.error("Failed to fetch marketplace rides:", error);
-      res.status(500).json({ error: "Failed to fetch marketplace rides" });
+      res.status(500).json({ error: "Failed to fetch marketplace rides", details: error instanceof Error ? error.message : "Unknown error" });
     }
   });
 
@@ -2325,7 +2326,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // Calculate ride statistics
       const completedRides = transporterRides.filter(r => r.status === "completed");
       const activeRides = transporterRides.filter(r => r.status === "active" || r.status === "assigned");
-      const pendingRides = transporterRides.filter(r => r.status === "open_for_bidding");
+      const pendingRides = transporterRides.filter(r => r.status === "pending");
       const cancelledRides = transporterRides.filter(r => r.status === "cancelled");
 
       // Calculate earnings
@@ -3123,7 +3124,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       };
       const bid = await storage.createBid(bidData);
 
-      if (ride.status === "open_for_bidding") {
+      if (ride.status === "pending") {
         try {
           assertRideTransition(ride.status, "bidding", ride.id);
           await storage.updateRideStatus(data.rideId, "bidding");
@@ -3275,7 +3276,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           }
           // Transporters can ONLY see bids on pending marketplace rides
           else if (userRole === "transporter") {
-            if (ride.status !== "open_for_bidding") {
+            if (ride.status !== "pending") {
               return res.status(403).json({ error: "Access denied - bids only visible for pending rides" });
             }
           }
@@ -4061,7 +4062,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const activeVehicles = vehicles.filter(v => v.status === "active");
       const completedRides = rides.filter(r => r.status === "completed");
       const activeRides = rides.filter(r => r.status === "active" || r.status === "assigned");
-      const pendingRides = rides.filter(r => r.status === "open_for_bidding");
+      const pendingRides = rides.filter(r => r.status === "pending");
 
       // Transporter verification counts
       const pendingVerifications = transporters.filter(t => t.status === "pending_verification").length;
@@ -4522,7 +4523,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         transporterId,
         expiryDate: expiryDate || undefined,
         documentName: docLabel,
-        status: "open_for_bidding",
+        status: "pending",
       };
 
       let document;
@@ -4830,7 +4831,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         userId: sessionUser.id,
         customerId,
         transporterId: transporterId || ride?.transporterId,
-        status: "open_for_bidding",
+        status: "pending",
       });
 
       res.status(201).json(document);
@@ -6734,7 +6735,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         transporterId: selfAssign ? verifiedTransporterId : undefined,
         assignedDriverId: selfAssign ? assignedDriverId : undefined,
         assignedVehicleId: selfAssign ? assignedVehicleId : undefined,
-        status: selfAssign ? "assigned" : "open_for_bidding",
+        status: selfAssign ? "assigned" : "pending",
         biddingStatus: selfAssign ? "self_assigned" : "open",
         isSelfAssigned: selfAssign || false
       });
