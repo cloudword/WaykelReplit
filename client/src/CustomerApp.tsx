@@ -23,28 +23,12 @@ const customerNavItems = [
 ];
 
 function CustomerRouter() {
-  const [location] = useLocation();
-  const hideNavPaths = ["/auth"];
-  const showNav = !hideNavPaths.some(path => location.startsWith(path));
-
   return (
-    <div className="min-h-screen bg-gray-50 pb-16">
-      <Switch>
-        <Route path="/">
-          <Redirect to="/customer" />
-        </Route>
-        <Route path="/auth" component={AuthPage} />
-        <Route path="/auth/login" component={AuthPage} />
-        
-        <Route path="/customer" component={CustomerDashboard} />
-        <Route path="/customer/rides" component={CustomerRides} />
-        <Route path="/customer/profile" component={CustomerProfile} />
-        <Route path="/customer/notifications" component={Notifications} />
-        
-        <Route component={NotFound} />
-      </Switch>
-      
-      {showNav && <MobileBottomNav variant="customer" items={customerNavItems} />}
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center space-y-4">
+        <p className="text-muted-foreground animate-pulse">Redirecting to new customer portal...</p>
+        <Redirect to="/customer" />
+      </div>
     </div>
   );
 }
@@ -59,7 +43,7 @@ function CustomerApp() {
         } catch (e) {
           console.log("StatusBar not available");
         }
-        
+
         try {
           await SplashScreen.hide();
         } catch (e) {

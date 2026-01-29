@@ -66,7 +66,7 @@ function Router() {
       <Route path="/auth" component={AuthPage} />
       <Route path="/auth/login" component={AuthPage} />
       <Route path="/forgot-password" component={ForgotPasswordPage} />
-      
+
       {/* Driver App Routes */}
       <Route path="/driver" component={DriverDashboard} />
       <Route path="/driver/rides" component={DriverRides} />
@@ -96,6 +96,14 @@ function Router() {
       <Route path="/customer/:rest*" component={CustomerPortalApp} />
       <Route path="/customer" component={CustomerPortalApp} />
 
+      {/* Legacy Redirects to Modern Portal */}
+      <Route path="/dashboard/:rest*">
+        {(params) => <Redirect to={`/customer/dashboard/${params.rest}`} />}
+      </Route>
+      <Route path="/dashboard">
+        <Redirect to="/customer/dashboard" />
+      </Route>
+
       {/* Super Admin Panel Routes */}
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/admin/users" component={AdminUsers} />
@@ -118,7 +126,7 @@ function Router() {
       <Route path="/admin/verification/transporters" component={VerificationTransporters} />
       <Route path="/admin/verification/drivers" component={VerificationDrivers} />
       <Route path="/admin/verification/vehicles" component={VerificationVehicles} />
-      
+
       <Route component={NotFound} />
     </Switch>
   );
@@ -132,7 +140,7 @@ function App() {
     if (!currentPath.includes('/auth') && currentPath !== '/' && !currentPath.includes('/forgot-password')) {
       startSessionHeartbeat();
     }
-    
+
     return () => {
       stopSessionHeartbeat();
     };
