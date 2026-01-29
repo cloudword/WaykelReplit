@@ -82,7 +82,7 @@ const serializeRide = (ride: Ride, user?: any) => {
   if (!user) return base;
 
   const isAdmin = user.isSuperAdmin || user.role === "admin";
-  const isOwner = ride.createdById === user.id || ride.customerId === user.id;
+  const isOwner = ride.createdById === user.id || ride.customerId === user.id || (user.phone && ride.customerPhone === user.phone);
   const isAssignedTransporter = user.transporterId && (ride.transporterId === user.transporterId);
   const isAssignedDriver = ride.assignedDriverId === user.id;
 
@@ -1706,7 +1706,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
         // Customers can only see their own created rides
         else if (userRole === "customer") {
-          result = await storage.getCustomerRides(sessionUser.id);
+          const rides = await storage.getCustomerRides(sessionUser.id);
+          result = rides.map(r => serializeRide(r as any, sessionUser));
         }
       }
 
@@ -1791,6 +1792,25 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         data.customerId ??= user.id;
         if (user.entityId) {
           data.customerEntityId ??= user.entityId;
+        }
+      }
+
+      // Ensure customerPhone is normalized and link user by phone if ID is missing
+      if (data.customerPhone) {
+        try {
+          data.customerPhone = normalizePhone(data.customerPhone);
+          if (!data.createdById || !data.customerId) {
+            const userByPhone = await storage.getUserByPhone(data.customerPhone);
+            if (userByPhone) {
+              data.createdById ??= userByPhone.id;
+              data.customerId ??= userByPhone.id;
+              if (userByPhone.entityId) {
+                data.customerEntityId ??= userByPhone.entityId;
+              }
+            }
+          }
+        } catch (e) {
+          // Keep original phone if normalization fails, but it usually shouldn't
         }
       }
 

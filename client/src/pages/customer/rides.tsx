@@ -128,10 +128,7 @@ export default function CustomerRides() {
     const loadRides = async () => {
       try {
         const data = await api.rides.list();
-        const customerRides = Array.isArray(data)
-          ? data.filter((r: any) => r.createdById === user?.id || r.customerPhone === user?.phone)
-          : [];
-        setRides(customerRides);
+        setRides(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error("Failed to load rides:", error);
       } finally {

@@ -15,16 +15,28 @@ function getCookieValue(name: string): string | undefined {
 export function withCsrfHeader(headers: HeadersInit = {}): HeadersInit {
   const token = getCookieValue(CSRF_COOKIE_NAME);
   if (!token) return headers;
-  if (headers instanceof Headers) {
-    if (!headers.has(CSRF_HEADER_NAME)) {
-      headers.set(CSRF_HEADER_NAME, token);
-    }
-    return headers;
-  }
   return {
+    ...((headers instanceof Headers ? Object.fromEntries(headers.entries()) : headers) as Record<string, string>),
     [CSRF_HEADER_NAME]: token,
-    ...(headers as Record<string, string>),
-  } as Record<string, string>;
+  };
+}
+
+function withAuthToken(headers: Record<string, string> = {}): Record<string, string> {
+  try {
+    const stored = localStorage.getItem("currentUser");
+    if (stored) {
+      const { token } = JSON.parse(stored);
+      if (token) {
+        return {
+          ...headers,
+          "Authorization": `Bearer ${token}`
+        };
+      }
+    }
+  } catch (e) {
+    // Silent fail if localStorage or parse fails
+  }
+  return headers;
 }
 
 // Global 401 handler - redirects to login when session expires
@@ -98,10 +110,10 @@ export async function safeFetch<T = any>(
   try {
     const res = await fetch(url, {
       ...options,
-      headers: {
+      headers: withAuthToken({
         "Content-Type": "application/json",
         ...(withCsrfHeader(options.headers || {}) as Record<string, string>),
-      },
+      }),
       credentials: "include",
     });
 
@@ -143,7 +155,7 @@ async function apiFetch(
   const res = await fetch(url, {
     ...options,
     credentials: "include",
-    headers: withCsrfHeader(options.headers || {}),
+    headers: withAuthToken(withCsrfHeader(options.headers || {}) as Record<string, string>),
   });
 
   // Handle 401 globally unless this is an auth endpoint

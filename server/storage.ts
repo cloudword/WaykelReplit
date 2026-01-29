@@ -752,10 +752,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCustomerRides(customerId: string): Promise<Ride[]> {
+    // Get user to find their phone for fallback lookup
+    const user = await this.getUser(customerId);
+    const userPhone = user?.phone;
+
+    const conditions = [
+      eq(rides.customerId, customerId),
+      eq(rides.createdById, customerId)
+    ];
+
+    if (userPhone) {
+      conditions.push(eq(rides.customerPhone, userPhone));
+    }
+
     return await db
       .select()
       .from(rides)
-      .where(or(eq(rides.customerId, customerId), eq(rides.createdById, customerId)))
+      .where(or(...conditions))
       .orderBy(desc(rides.createdAt));
   }
 
