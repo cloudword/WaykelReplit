@@ -11,6 +11,8 @@ import { waykelApi } from "../lib/waykelApi";
 import { useAuth } from "../lib/auth";
 import { queryClient } from "@/lib/queryClient";
 import { VEHICLE_CATEGORIES, VEHICLE_TYPES, getVehicleTypeDisplay, parseWeightInput, WeightUnit } from "@shared/vehicleData";
+import { useQuery } from "@tanstack/react-query";
+import { BookOpen } from "lucide-react";
 
 export function BookingForm() {
   const { toast } = useToast();
@@ -31,6 +33,30 @@ export function BookingForm() {
     pickupTime: "",
     budgetPrice: "",
   });
+
+  const { data: addresses = [] } = useQuery({
+    queryKey: ["customer-addresses"],
+    queryFn: () => waykelApi.addresses.getSavedAddresses(),
+  });
+
+  const handleAddressSelect = (type: "pickup" | "drop", addressId: string) => {
+    const addr = addresses.find(a => a.id === addressId);
+    if (!addr) return;
+
+    if (type === "pickup") {
+      setFormData(prev => ({
+        ...prev,
+        pickupLocation: `${addr.street}, ${addr.city}, ${addr.state}`,
+        pickupPincode: addr.postalCode
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        dropLocation: `${addr.street}, ${addr.city}, ${addr.state}`,
+        dropPincode: addr.postalCode
+      }));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,13 +132,27 @@ export function BookingForm() {
                     <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
                     Pickup Location
                   </Label>
-                  <Input
-                    placeholder="e.g. Fort, Mumbai"
-                    value={formData.pickupLocation}
-                    onChange={e => setFormData({ ...formData, pickupLocation: e.target.value })}
-                    className="h-11 border-border/60 focus:border-primary/50 transition-all font-medium"
-                    required
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="e.g. Fort, Mumbai"
+                      value={formData.pickupLocation}
+                      onChange={e => setFormData({ ...formData, pickupLocation: e.target.value })}
+                      className="h-11 border-border/60 focus:border-primary/50 transition-all font-medium flex-1"
+                      required
+                    />
+                    {addresses.length > 0 && (
+                      <Select onValueChange={v => handleAddressSelect("pickup", v)}>
+                        <SelectTrigger className="w-12 h-11 border-border/60 p-0 flex items-center justify-center">
+                          <BookOpen className="w-4 h-4 text-muted-foreground" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {addresses.map(addr => (
+                            <SelectItem key={addr.id} value={addr.id}>{addr.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-2">
@@ -135,13 +175,27 @@ export function BookingForm() {
                     <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
                     Drop Location
                   </Label>
-                  <Input
-                    placeholder="e.g. Pune City"
-                    value={formData.dropLocation}
-                    onChange={e => setFormData({ ...formData, dropLocation: e.target.value })}
-                    className="h-11 border-border/60 focus:border-primary/50 transition-all font-medium"
-                    required
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="e.g. Pune City"
+                      value={formData.dropLocation}
+                      onChange={e => setFormData({ ...formData, dropLocation: e.target.value })}
+                      className="h-11 border-border/60 focus:border-primary/50 transition-all font-medium flex-1"
+                      required
+                    />
+                    {addresses.length > 0 && (
+                      <Select onValueChange={v => handleAddressSelect("drop", v)}>
+                        <SelectTrigger className="w-12 h-11 border-border/60 p-0 flex items-center justify-center">
+                          <BookOpen className="w-4 h-4 text-muted-foreground" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {addresses.map(addr => (
+                            <SelectItem key={addr.id} value={addr.id}>{addr.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-2">

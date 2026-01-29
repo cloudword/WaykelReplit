@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { ThemeToggle } from "./ThemeToggle";
 import { useAuth } from "../lib/auth";
-import { LayoutDashboard, MapPin, CreditCard, User, LogOut, Plus, HelpCircle, Truck } from "lucide-react";
+import { LayoutDashboard, MapPin, CreditCard, User, LogOut, Plus, HelpCircle, Truck, MapPinned, History } from "lucide-react";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -27,7 +27,10 @@ interface DashboardLayoutProps {
 
 const menuItems = [
   { icon: LayoutDashboard, label: "My Trips", href: "/customer/dashboard" },
+  { icon: Truck, label: "Active Bookings", href: "/customer/dashboard/active" },
+  { icon: History, label: "Past Orders", href: "/customer/dashboard/history" },
   { icon: MapPin, label: "Track Shipment", href: "/customer/dashboard/track" },
+  { icon: MapPinned, label: "Saved Addresses", href: "/customer/dashboard/addresses" },
   { icon: CreditCard, label: "Payments", href: "/customer/dashboard/payments" },
   { icon: User, label: "Profile", href: "/customer/dashboard/profile" },
   { icon: HelpCircle, label: "Help & Support", href: "/customer/dashboard/help" },

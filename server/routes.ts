@@ -75,6 +75,7 @@ const serializeRide = (ride: Ride, user?: any) => {
     requiredVehicleType: ride.requiredVehicleType,
     requiredVehicleCategory: ride.requiredVehicleCategory,
     biddingStatus: ride.biddingStatus,
+    bidCount: (ride as any).bidCount,
     createdAt: ride.createdAt,
   };
 
@@ -82,7 +83,16 @@ const serializeRide = (ride: Ride, user?: any) => {
   if (!user) return base;
 
   const isAdmin = user.isSuperAdmin || user.role === "admin";
-  const isOwner = ride.createdById === user.id || ride.customerId === user.id || (user.phone && ride.customerPhone === user.phone);
+
+  // Robust owner check - handle phone normalization to prevent data vanishing after status changes
+  const normalizedUserPhone = user.phone ? normalizePhone(user.phone) : null;
+  const normalizedRidePhone = ride.customerPhone ? normalizePhone(ride.customerPhone) : null;
+
+  const isOwner =
+    ride.createdById === user.id ||
+    ride.customerId === user.id ||
+    (normalizedUserPhone && normalizedRidePhone && normalizedUserPhone === normalizedRidePhone);
+
   const isAssignedTransporter = user.transporterId && (ride.transporterId === user.transporterId);
   const isAssignedDriver = ride.assignedDriverId === user.id;
 
@@ -3108,7 +3118,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       // Cache for 10s to reduce DB load during polling
       res.set('Cache-Control', 'private, max-age=10');
-      res.json(result);
+
+      // Map joined results into a consistent format with serialized ride details
+      const formattedBids = result.map(item => {
+        // Handle cases where result might still be a flat Bid array (getAllBids fallback)
+        if (item.bid && item.ride) {
+          return {
+            ...item.bid,
+            ride: serializeRide(item.ride, sessionUser)
+          };
+        }
+        return item;
+      });
+
+      res.json(formattedBids);
     } catch (error) {
       // PHASE G/H: Return empty array on error for polling resilience
       console.error("[GET /api/bids] Error:", error);

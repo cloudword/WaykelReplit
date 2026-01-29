@@ -20,7 +20,7 @@ import {
   type RideStatusHistory, type InsertRideStatusHistory
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, or, sql, gte, inArray, not } from "drizzle-orm";
+import { eq, and, desc, asc, or, sql, gte, inArray, not, count } from "drizzle-orm";
 import { generateEntityId } from "./utils/entityId";
 
 export function sanitizeRequestBody(body: any): any {
@@ -768,11 +768,26 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    return await db
-      .select()
+    const bidCountSubquery = db
+      .select({
+        rideId: bids.rideId,
+        count: count(bids.id).as("count"),
+      })
+      .from(bids)
+      .groupBy(bids.rideId)
+      .as("bid_counts");
+
+    const result = await db
+      .select({
+        ride: rides,
+        bidCount: sql<number>`COALESCE(${bidCountSubquery.count}, 0)`.mapWith(Number),
+      })
       .from(rides)
+      .leftJoin(bidCountSubquery, eq(rides.id, bidCountSubquery.rideId))
       .where(or(...conditions))
       .orderBy(desc(rides.createdAt));
+
+    return result.map(r => ({ ...r.ride, bidCount: r.bidCount }));
   }
 
   async createRide(insertRide: InsertRide): Promise<Ride> {
@@ -897,20 +912,53 @@ export class DatabaseStorage implements IStorage {
     return bid || undefined;
   }
 
-  async getRideBids(rideId: string): Promise<Bid[]> {
-    return await db.select().from(bids).where(eq(bids.rideId, rideId)).orderBy(desc(bids.createdAt));
+  async getRideBids(rideId: string): Promise<any[]> {
+    return await db
+      .select({
+        bid: bids,
+        ride: rides,
+      })
+      .from(bids)
+      .leftJoin(rides, eq(bids.rideId, rides.id))
+      .where(eq(bids.rideId, rideId))
+      .orderBy(desc(bids.createdAt));
   }
 
-  async getCheapestRideBids(rideId: string, limit: number = 5): Promise<Bid[]> {
-    return await db.select().from(bids).where(eq(bids.rideId, rideId)).orderBy(asc(bids.amount)).limit(limit);
+  async getCheapestRideBids(rideId: string, limit: number = 5): Promise<any[]> {
+    return await db
+      .select({
+        bid: bids,
+        ride: rides,
+      })
+      .from(bids)
+      .leftJoin(rides, eq(bids.rideId, rides.id))
+      .where(eq(bids.rideId, rideId))
+      .orderBy(asc(bids.amount))
+      .limit(limit);
   }
 
-  async getUserBids(userId: string): Promise<Bid[]> {
-    return await db.select().from(bids).where(eq(bids.userId, userId)).orderBy(desc(bids.createdAt));
+  async getUserBids(userId: string): Promise<any[]> {
+    return await db
+      .select({
+        bid: bids,
+        ride: rides,
+      })
+      .from(bids)
+      .leftJoin(rides, eq(bids.rideId, rides.id))
+      .where(eq(bids.userId, userId))
+      .orderBy(desc(bids.createdAt));
   }
 
-  async getTransporterBids(transporterId: string): Promise<Bid[]> {
-    return await db.select().from(bids).where(eq(bids.transporterId, transporterId)).orderBy(desc(bids.createdAt));
+  async getTransporterBids(transporterId: string): Promise<any[]> {
+    return await db
+      .select({
+        bid: bids,
+        ride: rides,
+      })
+      .from(bids)
+      .leftJoin(rides, eq(bids.rideId, rides.id))
+      .where(eq(bids.transporterId, transporterId))
+      .orderBy(desc(bids.createdAt));
   }
 
   async getAllBids(limit?: number, offset?: number): Promise<Bid[]> {

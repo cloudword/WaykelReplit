@@ -9,6 +9,8 @@ import BookingHistory from "./pages/BookingHistory";
 import Payments from "./pages/Payments";
 import Track from "./pages/Track";
 import Profile from "./pages/Profile";
+import Addresses from "./pages/Addresses";
+import Help from "./pages/Help";
 import Notifications from "@/pages/notifications";
 import NotFound from "@/pages/not-found";
 
@@ -23,6 +25,8 @@ function Router() {
       <Route path="/customer/dashboard/payments" component={Payments} />
       <Route path="/customer/dashboard/track" component={Track} />
       <Route path="/customer/dashboard/profile" component={Profile} />
+      <Route path="/customer/dashboard/addresses" component={Addresses} />
+      <Route path="/customer/dashboard/help" component={Help} />
       <Route path="/customer/notifications" component={Notifications} />
       <Route component={NotFound} />
     </Switch>

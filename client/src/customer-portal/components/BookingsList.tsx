@@ -1,29 +1,27 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Eye, MapPin, FileText } from "lucide-react";
-
-const mockBookings = [
-  { id: "WYK-2024-001", date: "Dec 4, 2024", route: "Mumbai to Delhi", vehicle: "Container 32ft", status: "In Transit", amount: "Rs 85,000", driver: "Suresh Kumar", phone: "+91 98765 43210" },
-  { id: "WYK-2024-002", date: "Dec 5, 2024", route: "Chennai to Bangalore", vehicle: "Eicher 17ft", status: "Confirmed", amount: "Rs 25,000", driver: "Pending Assignment", phone: "-" },
-  { id: "WYK-2024-003", date: "Dec 6, 2024", route: "Pune to Hyderabad", vehicle: "Tata 407", status: "Pending", amount: "Rs 18,000", driver: "Pending Assignment", phone: "-" },
-  { id: "WYK-2024-004", date: "Dec 2, 2024", route: "Delhi to Jaipur", vehicle: "Eicher 14ft", status: "Delivered", amount: "Rs 15,000", driver: "Ramesh Singh", phone: "+91 99887 66554" },
-  { id: "WYK-2024-005", date: "Dec 1, 2024", route: "Kolkata to Patna", vehicle: "Container 20ft", status: "Delivered", amount: "Rs 42,000", driver: "Anil Verma", phone: "+91 88776 55443" },
-];
+import { Search, Eye, MapPin, FileText, Package, Calendar } from "lucide-react";
+import type { WaykelRide } from "../lib/waykelApi";
 
 const getStatusVariant = (status: string) => {
   switch (status.toLowerCase()) {
-    case "in transit":
+    case "active":
+    case "in_transit":
       return "default";
     case "confirmed":
+    case "accepted":
       return "secondary";
     case "delivered":
+    case "completed":
       return "outline";
     case "pending":
+    case "open":
+    case "bidding":
       return "secondary";
     case "cancelled":
       return "destructive";
@@ -33,42 +31,49 @@ const getStatusVariant = (status: string) => {
 };
 
 interface BookingsListProps {
-  type?: "active" | "history";
+  type: "active" | "history";
+  rides: WaykelRide[];
+  isLoading: boolean;
 }
 
-export function BookingsList({ type = "active" }: BookingsListProps) {
+export function BookingsList({ type, rides, isLoading }: BookingsListProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const filteredBookings = mockBookings.filter(booking => {
-    const matchesSearch = booking.id.toLowerCase().includes(searchQuery.toLowerCase()) || booking.route.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || booking.status.toLowerCase() === statusFilter.toLowerCase();
-    const matchesType = type === "active" ? ["in transit", "confirmed", "pending"].includes(booking.status.toLowerCase()) : booking.status.toLowerCase() === "delivered";
-    return matchesSearch && matchesStatus && matchesType;
+  const filteredRides = rides.filter(ride => {
+    const matchesSearch =
+      ride.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ride.pickupLocation.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ride.dropLocation.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesStatus = statusFilter === "all" || ride.status.toLowerCase() === statusFilter.toLowerCase();
+    return matchesSearch && matchesStatus;
   });
+
+  if (isLoading) {
+    return (
+      <Card className="border-card-border animate-pulse mt-8">
+        <CardContent className="h-64" />
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold mb-1">{type === "active" ? "Active Bookings" : "Booking History"}</h1>
-        <p className="text-muted-foreground">{type === "active" ? "Track and manage your ongoing shipments" : "View all your past completed bookings"}</p>
-      </div>
-
-      <Card className="border-card-border">
-        <CardHeader className="pb-4">
+      <Card className="border-card-border overflow-hidden shadow-sm">
+        <CardHeader className="pb-4 bg-muted/10 border-b border-card-border/50 px-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search by ID or route..."
-                className="pl-9"
+                placeholder="Search by ID, route..."
+                className="pl-9 h-11 border-border/60"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                data-testid="input-search-bookings"
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-status-filter">
+              <SelectTrigger className="w-full sm:w-[180px] h-11 border-border/60">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
@@ -76,59 +81,93 @@ export function BookingsList({ type = "active" }: BookingsListProps) {
                 {type === "active" ? (
                   <>
                     <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="confirmed">Confirmed</SelectItem>
-                    <SelectItem value="in transit">In Transit</SelectItem>
+                    <SelectItem value="open">Open (Bidding)</SelectItem>
+                    <SelectItem value="accepted">Accepted</SelectItem>
+                    <SelectItem value="in_transit">In Transit</SelectItem>
                   </>
                 ) : (
-                  <SelectItem value="delivered">Delivered</SelectItem>
+                  <>
+                    <SelectItem value="delivered">Delivered</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </>
                 )}
               </SelectContent>
             </Select>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Booking ID</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Route</TableHead>
-                  <TableHead>Vehicle</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                <TableRow className="bg-muted/30">
+                  <TableHead className="px-6 font-bold text-xs uppercase tracking-tight">Booking ID</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-tight">Schedule</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-tight">Trip Route</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-tight">Load</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-tight">Status</TableHead>
+                  <TableHead className="text-right px-6 font-bold text-xs uppercase tracking-tight">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredBookings.length === 0 ? (
+                {filteredRides.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
-                      <p className="text-muted-foreground">No bookings found</p>
+                    <TableCell colSpan={6} className="text-center py-16">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                          <Package className="w-6 h-6 text-muted-foreground" />
+                        </div>
+                        <p className="text-muted-foreground font-medium">No {type} bookings found</p>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredBookings.map(booking => (
-                    <TableRow key={booking.id} data-testid={`row-booking-${booking.id}`}>
-                      <TableCell className="font-medium">{booking.id}</TableCell>
-                      <TableCell>{booking.date}</TableCell>
-                      <TableCell>{booking.route}</TableCell>
-                      <TableCell>{booking.vehicle}</TableCell>
-                      <TableCell>
-                        <Badge variant={getStatusVariant(booking.status)}>{booking.status}</Badge>
+                  filteredRides.map(ride => (
+                    <TableRow key={ride.id} className="hover:bg-muted/20 transition-colors">
+                      <TableCell className="px-6 font-mono text-sm font-bold text-primary">
+                        {ride.id.slice(0, 8)}...
                       </TableCell>
-                      <TableCell>{booking.amount}</TableCell>
                       <TableCell>
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="icon" data-testid={`button-view-${booking.id}`}>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-sm">{ride.date}</span>
+                          <span className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                            <Calendar className="w-3 h-3" /> {ride.pickupTime}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="max-w-[200px]">
+                        <div className="flex flex-col gap-0.5">
+                          <p className="font-bold text-sm flex items-center gap-1.5 truncate">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block mr-1.5" />
+                            {ride.pickupLocation}
+                          </p>
+                          <p className="font-bold text-sm flex items-center gap-1.5 truncate">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block mr-1.5" />
+                            {ride.dropLocation}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-xs">{ride.cargoType}</span>
+                          <span className="text-[10px] text-muted-foreground">{ride.weight}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getStatusVariant(ride.status)} className="capitalize font-bold text-[10px] py-0.5 px-2">
+                          {ride.status.replace("_", " ")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="px-6 text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
                             <Eye className="w-4 h-4" />
                           </Button>
-                          {booking.status.toLowerCase() === "in transit" && (
-                            <Button variant="ghost" size="icon" data-testid={`button-track-${booking.id}`}>
+                          {["in_transit", "active"].includes(ride.status.toLowerCase()) && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
                               <MapPin className="w-4 h-4" />
                             </Button>
                           )}
-                          <Button variant="ghost" size="icon" data-testid={`button-invoice-${booking.id}`}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
                             <FileText className="w-4 h-4" />
                           </Button>
                         </div>

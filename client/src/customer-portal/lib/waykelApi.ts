@@ -112,6 +112,7 @@ export interface WaykelRide {
   weight: number;
   vehicleType?: string;
   status: string;
+  bidCount?: number;
   createdById: string;
   createdAt: string;
   updatedAt: string;
@@ -149,6 +150,7 @@ export interface WaykelBid {
   amount: number;
   status: string;
   createdAt: string;
+  ride?: WaykelRide;
   transporter?: {
     id: string;
     transporterId?: string;

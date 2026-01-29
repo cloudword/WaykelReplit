@@ -204,7 +204,7 @@ function RideCard({ ride, onViewBids }: { ride: WaykelRide; onViewBids: () => vo
                   className="h-8 text-xs font-bold gap-2"
                 >
                   <Gavel className="w-3.5 h-3.5" />
-                  View {bids.length > 0 ? bids.length : ""} Bids
+                  View {ride.bidCount || 0} Bids
                 </Button>
               )}
             </div>
@@ -367,7 +367,7 @@ export function CustomerDashboard() {
             </TabsTrigger>
             <TabsTrigger value="history" className="gap-2" data-testid="tab-history">
               <History className="w-4 h-4" />
-              History
+              Past Orders
             </TabsTrigger>
           </TabsList>
 
@@ -414,7 +414,7 @@ export function CustomerDashboard() {
               <Card className="border-card-border">
                 <CardContent className="p-8 text-center">
                   <History className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-lg font-medium mb-2">No trip history</p>
+                  <p className="text-lg font-medium mb-2">No past orders</p>
                   <p className="text-muted-foreground">Your completed trips will appear here</p>
                 </CardContent>
               </Card>
