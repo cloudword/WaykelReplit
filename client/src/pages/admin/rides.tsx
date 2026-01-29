@@ -103,7 +103,7 @@ export default function AdminBids() {
     <div className="min-h-screen bg-gray-50 pl-64">
       <AdminSidebar />
 
-      <main className="p-8 max-w-6xl mx-auto">
+      <main className="p-8 max-w-4xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Bid Approvals</h1>
           <p className="text-gray-500 mt-1">Review and manage bids for active trips</p>
@@ -137,45 +137,90 @@ export default function AdminBids() {
                   className="bg-white border rounded-xl shadow-sm overflow-hidden hover:border-blue-200 transition-all"
                 >
                   {/* Compact Header */}
-                  <div className="p-4 flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Truck className="h-5 w-5 text-blue-600" />
+                  <div className="p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm border border-blue-100">
+                          <Truck className="h-6 w-6 text-blue-600" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-3">
+                            <h3 className="text-lg font-bold text-gray-900 tracking-tight">Trip #{ride.entityId || ride.id.substring(0, 8)}</h3>
+                            {getStatusBadge(ride.status)}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-4 font-medium">
+                            <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> {ride.date}</span>
+                            <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> {ride.pickupTime}</span>
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <div className="flex items-center gap-3">
-                          <h3 className="font-bold text-gray-900">Trip #{ride.entityId || ride.id.substring(0, 8)}</h3>
-                          {getStatusBadge(ride.status)}
+
+                      <div className="flex items-center gap-6">
+                        <div className="text-right">
+                          <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-0.5">Base Price</p>
+                          <p className="text-xl font-black text-gray-900 leading-none">₹{Number(ride.price).toLocaleString()}</p>
                         </div>
-                        <div className="flex items-center gap-4 text-xs text-gray-500 mt-1">
-                          <span className="flex items-center gap-1 font-medium text-gray-700">
-                            <MapPin className="h-3 w-3 text-green-500" /> {ride.pickupLocation.split(',')[0]}
-                          </span>
-                          <span className="text-gray-300">→</span>
-                          <span className="flex items-center gap-1 font-medium text-gray-700">
-                            <MapPin className="h-3 w-3 text-red-500" /> {ride.dropLocation.split(',')[0]}
-                          </span>
-                          <span className="h-3 w-px bg-gray-200" />
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" /> {ride.date}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" /> {ride.pickupTime}
-                          </span>
-                        </div>
+                        <CollapsibleTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-10 w-10 p-0 rounded-xl bg-gray-50 hover:bg-gray-100 border border-transparent hover:border-gray-200 transition-all">
+                            {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                          </Button>
+                        </CollapsibleTrigger>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-6">
-                      <div className="text-right">
-                        <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Base Price</p>
-                        <p className="text-lg font-bold text-gray-900">₹{Number(ride.price).toLocaleString()}</p>
+                    {/* Summary Info Row */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Full Route Details */}
+                      <div className="space-y-2 py-3 px-4 bg-gray-50/50 rounded-xl border border-gray-100/50">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-1 flex-shrink-0"><div className="w-2.5 h-2.5 rounded-full bg-green-500 ring-4 ring-green-100" /></div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] text-gray-400 uppercase font-bold leading-none mb-1">Pickup</p>
+                            <p className="text-xs font-semibold text-gray-800 leading-snug">{ride.pickupLocation}</p>
+                            {ride.pickupPincode && <Badge variant="outline" className="mt-1 h-4 text-[9px] px-1.5 font-bold bg-white">{ride.pickupPincode}</Badge>}
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <div className="mt-1 flex-shrink-0"><div className="w-2.5 h-2.5 rounded-full bg-red-500 ring-4 ring-red-100" /></div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] text-gray-400 uppercase font-bold leading-none mb-1">Drop</p>
+                            <p className="text-xs font-semibold text-gray-800 leading-snug">{ride.dropLocation}</p>
+                            {ride.dropPincode && <Badge variant="outline" className="mt-1 h-4 text-[9px] px-1.5 font-bold bg-white">{ride.dropPincode}</Badge>}
+                          </div>
+                        </div>
                       </div>
-                      <CollapsibleTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full">
-                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        </Button>
-                      </CollapsibleTrigger>
+
+                      {/* Load Summary Details */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-white p-3 rounded-xl border border-gray-100 flex flex-col justify-center shadow-sm">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <Package className="h-3.5 w-3.5 text-blue-500" />
+                            <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Cargo Type</span>
+                          </div>
+                          <p className="text-sm font-bold text-gray-800 truncate">{ride.cargoType}</p>
+                        </div>
+                        <div className="bg-white p-3 rounded-xl border border-gray-100 flex flex-col justify-center shadow-sm">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <Info className="h-3.5 w-3.5 text-orange-500" />
+                            <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Weight</span>
+                          </div>
+                          <p className="text-sm font-bold text-gray-800 truncate">{ride.weight}</p>
+                        </div>
+                        <div className="bg-white p-3 rounded-xl border border-gray-100 flex flex-col justify-center shadow-sm">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <Truck className="h-3.5 w-3.5 text-purple-500" />
+                            <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Vehicle</span>
+                          </div>
+                          <p className="text-sm font-bold text-gray-800 truncate">{ride.requiredVehicleType || "Any"}</p>
+                        </div>
+                        <div className="bg-white p-3 rounded-xl border border-gray-100 flex flex-col justify-center shadow-sm">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <User className="h-3.5 w-3.5 text-green-500" />
+                            <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Customer</span>
+                          </div>
+                          <p className="text-sm font-bold text-gray-800 truncate">{ride.customerName || "Walk-in"}</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
