@@ -587,6 +587,182 @@ export default function TransporterVehicles() {
               </form>
             </DialogContent>
           </Dialog>
+
+          <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+            <DialogContent aria-describedby="edit-vehicle-desc">
+              <DialogHeader>
+                <DialogTitle>Edit Vehicle</DialogTitle>
+              </DialogHeader>
+              <p id="edit-vehicle-desc" className="sr-only">
+                Update vehicle details and capacity information
+              </p>
+              <form onSubmit={handleEditVehicle} className="space-y-4">
+                <div>
+                  <Label htmlFor="edit-type">Vehicle Type</Label>
+                  <Select
+                    value={editVehicle.vehicleTypeCode || ""}
+                    onValueChange={(value) => setEditVehicle({ ...editVehicle, vehicleTypeCode: value })}
+                  >
+                    <SelectTrigger id="edit-type" data-testid="select-edit-vehicle-type">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {VEHICLE_CATEGORIES.map(cat => (
+                        <div key={cat.code}>
+                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted">{cat.name}</div>
+                          {VEHICLE_TYPES.filter(vt => vt.category === cat.code).map(vt => (
+                            <SelectItem key={vt.code} value={vt.code}>{vt.name}</SelectItem>
+                          ))}
+                        </div>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="edit-plateNumber">Registration Number</Label>
+                  <Input
+                    id="edit-plateNumber"
+                    value={editVehicle.plateNumber}
+                    onChange={(e) => setEditVehicle({ ...editVehicle, plateNumber: e.target.value.toUpperCase() })}
+                    required
+                    data-testid="input-edit-plate-number"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-model">Make/Model</Label>
+                  <Input
+                    id="edit-model"
+                    value={editVehicle.model}
+                    onChange={(e) => setEditVehicle({ ...editVehicle, model: e.target.value })}
+                    required
+                    data-testid="input-edit-model"
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2">
+                    <Label htmlFor="edit-capacityValue">Capacity</Label>
+                    <Input
+                      id="edit-capacityValue"
+                      type="number"
+                      value={editVehicle.capacityValue}
+                      onChange={(e) => setEditVehicle({ ...editVehicle, capacityValue: e.target.value })}
+                      required
+                      data-testid="input-edit-capacity"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-capacityUnit">Unit</Label>
+                    <Select
+                      value={editVehicle.capacityUnit}
+                      onValueChange={(v: WeightUnit) => setEditVehicle({ ...editVehicle, capacityUnit: v })}
+                    >
+                      <SelectTrigger id="edit-capacityUnit" data-testid="select-edit-capacity-unit">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="kg">Kg</SelectItem>
+                        <SelectItem value="tons">Tons</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="edit-bodyType">Body Type</Label>
+                    <Select
+                      value={editVehicle.bodyType}
+                      onValueChange={(value) => setEditVehicle({ ...editVehicle, bodyType: value })}
+                    >
+                      <SelectTrigger id="edit-bodyType" data-testid="select-edit-body-type">
+                        <SelectValue placeholder="Select Body" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BODY_TYPES.map((type) => (
+                          <SelectItem key={type.code} value={type.name}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-fuelType">Fuel Type</Label>
+                    <Select
+                      value={editVehicle.fuelType}
+                      onValueChange={(value) => setEditVehicle({ ...editVehicle, fuelType: value })}
+                    >
+                      <SelectTrigger id="edit-fuelType" data-testid="select-edit-fuel-type">
+                        <SelectValue placeholder="Select Fuel" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FUEL_TYPES.map((type) => (
+                          <SelectItem key={type.code} value={type.name}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="edit-axleType">Axle Type</Label>
+                    <Select
+                      value={editVehicle.axleType}
+                      onValueChange={(value) => setEditVehicle({ ...editVehicle, axleType: value })}
+                    >
+                      <SelectTrigger id="edit-axleType" data-testid="select-edit-axle-type">
+                        <SelectValue placeholder="Select Axle" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AXLE_TYPES.map((type) => (
+                          <SelectItem key={type.code} value={type.name}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-lengthFt">Length (Feet)</Label>
+                    <Select
+                      value={editVehicle.lengthFt}
+                      onValueChange={(value) => setEditVehicle({ ...editVehicle, lengthFt: value })}
+                    >
+                      <SelectTrigger id="edit-lengthFt" data-testid="select-edit-length">
+                        <SelectValue placeholder="Select Length" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {VEHICLE_LENGTHS.map((len) => (
+                          <SelectItem key={len.code} value={String(len.valueFt)}>
+                            {len.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={isSubmitting}
+                  data-testid="button-save-edit-vehicle"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {loading ? (

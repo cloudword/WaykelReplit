@@ -149,9 +149,9 @@ export function CustomerDashboard() {
     },
   });
 
-  const ongoing = allRides.filter(r => ["in_transit", "active", "confirmed", "accepted"].includes(r.status.toLowerCase()));
-  const upcoming = allRides.filter(r => ["pending", "open"].includes(r.status.toLowerCase()));
-  const history = allRides.filter(r => ["delivered", "completed"].includes(r.status.toLowerCase()));
+  const ongoing = allRides.filter(r => ["in_transit", "active", "confirmed", "accepted", "assigned"].includes(r.status.toLowerCase()));
+  const upcoming = allRides.filter(r => ["pending", "open", "bidding"].includes(r.status.toLowerCase()));
+  const history = allRides.filter(r => ["delivered", "completed", "cancelled"].includes(r.status.toLowerCase()));
 
   const handleViewBids = (ride: WaykelRide) => {
     setSelectedRide(ride);

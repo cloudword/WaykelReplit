@@ -1419,14 +1419,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // Customer rides - get customer's own rides
   app.get("/api/customer/rides", async (req, res) => {
-    const user = getCurrentUser(req);
-    if (!user?.id) {
+    const sessionUser = getCurrentUser(req);
+    if (!sessionUser?.id) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
     try {
-      const rides = await storage.getCustomerRides(user.id);
-      res.json(rides);
+      const rides = await storage.getCustomerRides(sessionUser.id);
+      res.json(rides.map(r => serializeRide(r as any, sessionUser)));
     } catch (error) {
       console.error("Failed to get customer rides:", error);
       res.status(500).json({ error: "Failed to get rides" });
@@ -1495,6 +1495,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         ...req.body,
         createdById: user.id,
         customerId: user.id,
+        customerName: user.name,
+        customerPhone: user.phone ? normalizePhone(user.phone) : null,
         customerEntityId: user.entityId,
         status: "pending",
         // Provide defaults for fields that may not be sent by customer portal

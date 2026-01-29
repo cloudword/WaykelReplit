@@ -20,6 +20,8 @@ export default function TransporterDrivers() {
   const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingDriverId, setEditingDriverId] = useState<string | null>(null);
   const [showCredentialsDialog, setShowCredentialsDialog] = useState(false);
   const [showResetPasswordDialog, setShowResetPasswordDialog] = useState(false);
   const [resetPasswordDriver, setResetPasswordDriver] = useState<any>(null);
@@ -27,6 +29,11 @@ export default function TransporterDrivers() {
   const [credentials, setCredentials] = useState<{ phone: string; password: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [newDriver, setNewDriver] = useState({
+    name: "",
+    phone: "",
+    email: "",
+  });
+  const [editDriver, setEditDriver] = useState({
     name: "",
     phone: "",
     email: "",
@@ -193,6 +200,39 @@ export default function TransporterDrivers() {
     } catch (error) {
       toast.error("Failed to reset password");
     }
+  };
+
+  const handleEditDriver = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDriverId) return;
+
+    setIsSubmitting(true);
+    try {
+      await api.users.update(editingDriverId, {
+        name: editDriver.name,
+        phone: editDriver.phone,
+        email: editDriver.email || undefined,
+      });
+      toast.success("Driver updated successfully");
+      setShowEditDialog(false);
+      setEditingDriverId(null);
+      loadDrivers();
+    } catch (error) {
+      console.error("Update driver error:", error);
+      toast.error("Failed to update driver");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const openEditDialog = (driver: any) => {
+    setEditingDriverId(driver.id);
+    setEditDriver({
+      name: driver.name || "",
+      phone: driver.phone || "",
+      email: driver.email || "",
+    });
+    setShowEditDialog(true);
   };
 
   const openResetPasswordDialog = (driver: any) => {
@@ -375,6 +415,61 @@ export default function TransporterDrivers() {
                     </>
                   ) : (
                     "Add Driver"
+                  )}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Edit Driver</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleEditDriver} className="space-y-4">
+                <div>
+                  <Label htmlFor="edit-name">Full Name</Label>
+                  <Input
+                    id="edit-name"
+                    value={editDriver.name}
+                    onChange={(e) => setEditDriver({ ...editDriver, name: e.target.value })}
+                    required
+                    data-testid="input-edit-driver-name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-phone">Phone Number</Label>
+                  <Input
+                    id="edit-phone"
+                    value={editDriver.phone}
+                    onChange={(e) => setEditDriver({ ...editDriver, phone: e.target.value })}
+                    required
+                    data-testid="input-edit-driver-phone"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-email">Email (Optional)</Label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={editDriver.email}
+                    onChange={(e) => setEditDriver({ ...editDriver, email: e.target.value })}
+                    data-testid="input-edit-driver-email"
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={isSubmitting}
+                  data-testid="button-save-edit-driver"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Changes"
                   )}
                 </Button>
               </form>
@@ -573,16 +668,25 @@ export default function TransporterDrivers() {
                         </div>
                       )}
                       {/* Reset Password Button */}
-                      <div className="mt-3">
+                      <div className="mt-3 flex gap-2">
                         <Button
                           size="sm"
                           variant="outline"
+                          onClick={() => openEditDialog(driver)}
+                          className="flex-1 text-xs"
+                          data-testid={`button-edit-driver-${driver.id}`}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           onClick={() => openResetPasswordDialog(driver)}
-                          className="w-full text-xs"
+                          className="flex-1 text-xs text-muted-foreground"
                           data-testid={`button-reset-password-${driver.id}`}
                         >
                           <Key className="h-3 w-3 mr-1" />
-                          Reset Password
+                          Reset PW
                         </Button>
                       </div>
                       {/* Driver Documents */}
@@ -598,10 +702,10 @@ export default function TransporterDrivers() {
                                 key={doc.id}
                                 variant="outline"
                                 className={`text-xs ${doc.status === "verified"
-                                    ? "bg-green-50 text-green-700 border-green-200"
-                                    : doc.status === "pending"
-                                      ? "bg-yellow-50 text-yellow-700 border-yellow-200"
-                                      : "bg-red-50 text-red-700 border-red-200"
+                                  ? "bg-green-50 text-green-700 border-green-200"
+                                  : doc.status === "pending"
+                                    ? "bg-yellow-50 text-yellow-700 border-yellow-200"
+                                    : "bg-red-50 text-red-700 border-red-200"
                                   }`}
                                 data-testid={`doc-badge-${doc.id}`}
                               >
