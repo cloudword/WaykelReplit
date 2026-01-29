@@ -35,9 +35,12 @@ declare module "express-session" {
     user: {
       id: string;
       role: string;
-      isSuperAdmin?: boolean;
-      isSelfDriver?: boolean;
-      transporterId?: string;
+      isSuperAdmin: boolean;
+      isSelfDriver: boolean;
+      transporterId?: string | null;
+      entityId?: string | null;
+      transporterEntityId?: string | null;
+      phone?: string;
     };
   }
 }
@@ -69,6 +72,14 @@ const ALLOWED_ORIGINS = [
   // Customer portal
   'https://dev.waykel.com',
   'https://www.dev.waykel.com',
+  'https://portal.waykel.com',
+  'https://www.portal.waykel.com',
+  'https://my.waykel.com',
+  'https://www.my.waykel.com',
+  'https://app.waykel.com',
+  'https://www.app.waykel.com',
+  'https://go.waykel.com',
+  'https://www.go.waykel.com',
   // Customer portal on DigitalOcean (direct URL)
   'https://waykelcustomerfacing-smswi.ondigitalocean.app',
   // Driver app
@@ -93,7 +104,7 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, X-CSRF-Token');
     res.setHeader('Access-Control-Max-Age', '86400'); // Cache preflight for 24 hours
   }
-  
+
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
@@ -124,12 +135,12 @@ const getCookieValue = (cookieHeader: string | undefined, name: string): string 
 const createSessionStore = () => {
   if (isProduction && process.env.DATABASE_URL) {
     console.log("Using PostgreSQL session store for production");
-    
+
     // SSL configuration: NODE_EXTRA_CA_CERTS > DIGITALOCEAN_CA_PATH > fallback
     const fs = require('fs');
     const path = require('path');
     let sslConfig: { ca?: string; rejectUnauthorized: boolean } | boolean = false;
-    
+
     // In development, skip SSL for local databases
     if (process.env.DATABASE_URL.includes('localhost')) {
       sslConfig = false;
@@ -142,7 +153,7 @@ const createSessionStore = () => {
       // Fallback: manually load CA certificate
       const DEFAULT_CA_PATH = './certs/digitalocean-ca.crt';
       const caPath = path.resolve(process.cwd(), process.env.DIGITALOCEAN_CA_PATH || DEFAULT_CA_PATH);
-      
+
       if (fs.existsSync(caPath)) {
         try {
           const ca = fs.readFileSync(caPath, 'utf8');
@@ -157,7 +168,7 @@ const createSessionStore = () => {
         sslConfig = { rejectUnauthorized: false };
       }
     }
-    
+
     const sessionPool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: sslConfig,
@@ -167,11 +178,11 @@ const createSessionStore = () => {
       connectionTimeoutMillis: 5000,
       allowExitOnIdle: false,
     });
-    
+
     sessionPool.on("error", (err) => {
       console.error("[session] Pool error:", err.message);
     });
-    
+
     return new PgSessionStore({
       pool: sessionPool,
       tableName: 'user_sessions',
@@ -182,7 +193,7 @@ const createSessionStore = () => {
       },
     });
   }
-  
+
   console.log("Using MemoryStore for sessions (development)");
   return new MemoryStoreSession({ checkPeriod: 86400000 });
 };
@@ -301,13 +312,13 @@ app.use((req, res, next) => {
       }
 
       log(logLine);
-      
+
       const origin = req.headers.origin || '';
       const currentHost = `${req.protocol}://${req.headers.host}`;
       const isExternal = origin !== '' && origin !== currentHost && !origin.includes('localhost');
-      
+
       const user = req.session?.user;
-      
+
       storage.createApiLog({
         method: req.method,
         path: path,
@@ -319,8 +330,8 @@ app.use((req, res, next) => {
         ipAddress: req.ip || null,
         requestBody: req.body ? sanitizeRequestBody(req.body) : null,
         responseTime: duration,
-        errorMessage: res.statusCode >= 400 && capturedJsonResponse?.error 
-          ? String(capturedJsonResponse.error) 
+        errorMessage: res.statusCode >= 400 && capturedJsonResponse?.error
+          ? String(capturedJsonResponse.error)
           : null,
         isExternal,
       }).catch((err) => {
@@ -337,11 +348,11 @@ app.use((req, res, next) => {
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     console.error("🔥 API ERROR:", err);
-    
+
     if (res.headersSent) {
       return next(err);
     }
-    
+
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
@@ -350,8 +361,8 @@ app.use((req, res, next) => {
 
   // Return JSON 404 for undefined API routes (before HTML catch-all)
   app.use("/api/*", (req: Request, res: Response) => {
-    res.status(404).json({ 
-      error: "API endpoint not found", 
+    res.status(404).json({
+      error: "API endpoint not found",
       path: req.originalUrl,
     });
   });
@@ -366,8 +377,8 @@ app.use((req, res, next) => {
       console.error("[static] Failed to set up static file serving:", error);
       // Still serve API endpoints even if static files fail
       app.use("*", (_req, res) => {
-        res.status(503).json({ 
-          error: "Frontend not available", 
+        res.status(503).json({
+          error: "Frontend not available",
           message: "Static files could not be loaded. API endpoints are still available at /api/*"
         });
       });
