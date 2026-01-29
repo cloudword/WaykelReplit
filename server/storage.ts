@@ -763,6 +763,9 @@ export class DatabaseStorage implements IStorage {
 
     if (userPhone) {
       conditions.push(eq(rides.customerPhone, userPhone));
+      if (!userPhone.startsWith('+91')) {
+        conditions.push(eq(rides.customerPhone, `+91${userPhone}`));
+      }
     }
 
     return await db

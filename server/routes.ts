@@ -153,6 +153,7 @@ declare global {
         entityId?: string | null;
         isSelfDriver?: boolean;
         name?: string;
+        phone?: string;
       };
     }
   }
@@ -169,6 +170,7 @@ declare module "express-session" {
       transporterId?: string | null;
       entityId?: string | null;
       transporterEntityId?: string | null;
+      phone?: string;
     };
   }
 }
@@ -185,6 +187,7 @@ const extractTokenUser = (req: Request, res: Response, next: NextFunction) => {
         isSuperAdmin?: boolean;
         isSelfDriver?: boolean;
         transporterId?: string;
+        phone?: string;
       };
       req.tokenUser = decoded;
     } catch (err) {
@@ -694,6 +697,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           transporterId: user.transporterId || undefined,
           entityId: (user.entityId || transporterEntityId || undefined) as string | undefined,
           transporterEntityId: transporterEntityId || undefined,
+          phone: user.phone,
         };
         // Use role-based expiry
         const expiresIn = (user.role === "admin" || user.role === "transporter")
@@ -878,6 +882,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         isSuperAdmin: user.isSuperAdmin || false,
         isSelfDriver: user.isSelfDriver || false,
         transporterId: user.transporterId || undefined,
+        phone: user.phone,
       };
 
       // Use shorter expiry for admin/transporter users
@@ -918,6 +923,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         isSuperAdmin: freshUser.isSuperAdmin || false,
         isSelfDriver: freshUser.isSelfDriver || false,
         transporterId: freshUser.transporterId || undefined,
+        phone: freshUser.phone,
       };
 
       // Use role-based expiry for token refresh
@@ -1062,6 +1068,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         isSuperAdmin: user.isSuperAdmin || false,
         isSelfDriver: user.isSelfDriver || false,
         transporterId: user.transporterId || undefined,
+        phone: user.phone,
       };
 
       req.session.save((saveErr) => {
@@ -1220,6 +1227,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           isSuperAdmin: updatedUser.isSuperAdmin || false,
           isSelfDriver: updatedUser.isSelfDriver || false,
           transporterId: updatedUser.transporterId || undefined,
+          phone: updatedUser.phone,
         };
       }
 
@@ -1232,6 +1240,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         isSuperAdmin: updatedUser.isSuperAdmin || false,
         isSelfDriver: updatedUser.isSelfDriver || false,
         transporterId: updatedUser.transporterId || undefined,
+        phone: updatedUser.phone,
       };
       const expiresIn = (updatedUser.role === "admin" || updatedUser.role === "transporter")
         ? JWT_ADMIN_EXPIRES_IN
@@ -1324,6 +1333,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           role: user.role,
           isSuperAdmin: false,
           isSelfDriver: user.isSelfDriver || false,
+          phone: user.phone,
         };
         token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_CUSTOMER_EXPIRES_IN });
       } catch (jwtError: any) {
@@ -1382,6 +1392,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         role: user.role,
         isSuperAdmin: user.isSuperAdmin || false,
         isSelfDriver: user.isSelfDriver || false,
+        phone: user.phone,
       };
       const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_CUSTOMER_EXPIRES_IN });
 
@@ -1421,11 +1432,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/customer/rides", async (req, res) => {
     const sessionUser = getCurrentUser(req);
     if (!sessionUser?.id) {
+      console.warn("[Customer PORTAL] Unauthorized access attempt to /rides");
       return res.status(401).json({ error: "Authentication required" });
     }
 
     try {
+      console.log(`[Customer PORTAL] Fetching rides for user ID: ${sessionUser.id}, phone: ${sessionUser.phone}`);
       const rides = await storage.getCustomerRides(sessionUser.id);
+      console.log(`[Customer PORTAL] Found ${rides.length} rides for user ${sessionUser.id}`);
       res.json(rides.map(r => serializeRide(r as any, sessionUser)));
     } catch (error) {
       console.error("Failed to get customer rides:", error);
