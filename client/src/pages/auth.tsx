@@ -30,10 +30,10 @@ export default function AuthPage() {
     setIsLoading(true);
     try {
       const isPhone = /^\d+$/.test(loginIdentifier);
-      const credentials = isPhone 
+      const credentials = isPhone
         ? { phone: loginIdentifier, password: loginPassword }
         : { username: loginIdentifier, password: loginPassword };
-      
+
       const user = await api.auth.login(credentials);
       if (user.error) {
         toast.error(user.error);
@@ -67,7 +67,7 @@ export default function AuthPage() {
           setIsLoading(false);
           return;
         }
-        
+
         // Backend creates transporter automatically during registration
         const user = await api.auth.register({
           name: signupName,
@@ -139,15 +139,15 @@ export default function AuthPage() {
               <TabsTrigger value="login">Login</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="identifier">Phone Number or Username</Label>
-                  <Input 
-                    id="identifier" 
-                    placeholder="Enter phone number or username" 
-                    required 
+                  <Input
+                    id="identifier"
+                    placeholder="Enter phone number or username"
+                    required
                     value={loginIdentifier}
                     onChange={(e) => setLoginIdentifier(e.target.value)}
                     data-testid="input-identifier"
@@ -165,10 +165,10 @@ export default function AuthPage() {
                       Forgot Password?
                     </button>
                   </div>
-                  <Input 
-                    id="password" 
-                    type="password" 
-                    required 
+                  <Input
+                    id="password"
+                    type="password"
+                    required
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     placeholder="Enter your password"
@@ -180,13 +180,13 @@ export default function AuthPage() {
                 </Button>
               </form>
             </TabsContent>
-            
+
             <TabsContent value="signup">
               <form onSubmit={handleSignup} className="space-y-4">
                 <div className="space-y-3">
                   <Label className="text-sm font-medium">I want to register as:</Label>
-                  <RadioGroup 
-                    value={signupRole} 
+                  <RadioGroup
+                    value={signupRole}
                     onValueChange={(v) => setSignupRole(v as "driver" | "transporter")}
                     className="grid grid-cols-2 gap-2"
                   >
@@ -209,10 +209,10 @@ export default function AuthPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="name">{signupRole === "transporter" ? "Owner Name" : "Full Name"}</Label>
-                  <Input 
-                    id="name" 
-                    placeholder="Rajesh Kumar" 
-                    required 
+                  <Input
+                    id="name"
+                    placeholder="Rajesh Kumar"
+                    required
                     value={signupName}
                     onChange={(e) => setSignupName(e.target.value)}
                     data-testid="input-name"
@@ -223,8 +223,8 @@ export default function AuthPage() {
                   <>
                     <div className="space-y-3">
                       <Label className="text-sm font-medium">Entity Type:</Label>
-                      <RadioGroup 
-                        value={transporterType} 
+                      <RadioGroup
+                        value={transporterType}
                         onValueChange={(v) => setTransporterType(v as "business" | "individual")}
                         className="grid grid-cols-2 gap-2"
                       >
@@ -244,19 +244,19 @@ export default function AuthPage() {
                         </div>
                       </RadioGroup>
                       <p className="text-xs text-muted-foreground">
-                        {transporterType === "business" 
-                          ? "Business registration document required after signup" 
+                        {transporterType === "business"
+                          ? "Business registration document required after signup"
                           : "No business documents required"}
                       </p>
                     </div>
-                    
+
                     {transporterType === "business" && (
                       <div className="space-y-2">
                         <Label htmlFor="company-name">Company Name</Label>
-                        <Input 
-                          id="company-name" 
-                          placeholder="ABC Logistics Pvt Ltd" 
-                          required 
+                        <Input
+                          id="company-name"
+                          placeholder="ABC Logistics Pvt Ltd"
+                          required
                           value={companyName}
                           onChange={(e) => setCompanyName(e.target.value)}
                           data-testid="input-company-name"
@@ -268,11 +268,11 @@ export default function AuthPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="signup-phone">Phone Number</Label>
-                  <Input 
-                    id="signup-phone" 
-                    placeholder="9999999999" 
-                    type="tel" 
-                    required 
+                  <Input
+                    id="signup-phone"
+                    placeholder="9999999999"
+                    type="tel"
+                    required
                     value={signupPhone}
                     onChange={(e) => setSignupPhone(e.target.value)}
                     data-testid="input-signup-phone"
@@ -280,10 +280,10 @@ export default function AuthPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-email">Email (Optional)</Label>
-                  <Input 
-                    id="signup-email" 
-                    placeholder="email@example.com" 
-                    type="email" 
+                  <Input
+                    id="signup-email"
+                    placeholder="email@example.com"
+                    type="email"
                     value={signupEmail}
                     onChange={(e) => setSignupEmail(e.target.value)}
                     data-testid="input-signup-email"
@@ -291,28 +291,28 @@ export default function AuthPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password-signup">Password</Label>
-                  <Input 
-                    id="password-signup" 
-                    type="password" 
-                    required 
+                  <Input
+                    id="password-signup"
+                    type="password"
+                    required
                     value={signupPassword}
                     onChange={(e) => setSignupPassword(e.target.value)}
                     data-testid="input-signup-password"
                   />
                 </div>
                 <Button className="w-full h-12 text-base" type="submit" disabled={isLoading} data-testid="button-signup">
-                  {isLoading ? "Creating Account..." : 
-                    signupRole === "driver" ? "Register as Driver" : 
-                    "Register as Transporter"}
+                  {isLoading ? "Creating Account..." :
+                    signupRole === "driver" ? "Register as Driver" :
+                      "Register as Transporter"}
                 </Button>
               </form>
             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
-      
-      <Button 
-        variant="ghost" 
+
+      <Button
+        variant="ghost"
         className="mt-6 text-muted-foreground"
         onClick={() => setLocation("/customer/auth")}
         data-testid="link-customer-auth"
@@ -320,7 +320,7 @@ export default function AuthPage() {
         <User className="h-4 w-4 mr-2" />
         Looking to book transport? Customer Login
       </Button>
-      
+
       <p className="mt-4 text-xs text-gray-400 text-center max-w-xs">
         By continuing, you agree to our Terms of Service and Privacy Policy.
       </p>

@@ -1,8 +1,8 @@
 import { CUSTOMER_API_BASE } from "../config/api";
 
 // JWT token storage keys
-const TOKEN_KEY = "waykel_token";
-const USER_KEY = "waykel_user";
+// JWT token storage keys - Aligned with main app (lib/api.ts)
+const STORAGE_KEY = "currentUser";
 const TOKEN_EXPIRY_KEY = "waykel_token_expiry";
 const LAST_ACTIVITY_KEY = "waykel_last_activity";
 
@@ -43,47 +43,57 @@ export function updateLastActivity(): void {
 }
 
 export function getAuthToken(): string | null {
-  const token = localStorage.getItem(TOKEN_KEY);
-  if (!token) return null;
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return null;
 
-  if (isTokenExpired()) {
-    clearAuthData();
+    const { token } = JSON.parse(stored);
+    if (!token) return null;
+
+    if (isTokenExpired()) {
+      clearAuthData();
+      return null;
+    }
+
+    if (isSessionInactive()) {
+      clearAuthData();
+      return null;
+    }
+
+    return token;
+  } catch (e) {
     return null;
   }
-
-  if (isSessionInactive()) {
-    clearAuthData();
-    return null;
-  }
-
-  return token;
 }
 
 export function getStoredUser(): WaykelUser | null {
-  if (!getAuthToken()) return null;
-  const userData = localStorage.getItem(USER_KEY);
-  if (userData) {
-    try {
-      return JSON.parse(userData);
-    } catch {
-      return null;
-    }
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return null;
+
+    const { user } = JSON.parse(stored);
+    return user || null;
+  } catch (e) {
+    return null;
   }
-  return null;
 }
 
 export function setAuthToken(token: string, user: WaykelUser): void {
-  localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
-  const jwtExpiry = parseJwtExpiry(token);
-  const expiry = jwtExpiry || Date.now() + SESSION_TIMEOUT_MS;
-  localStorage.setItem(TOKEN_EXPIRY_KEY, expiry.toString());
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, user }));
+
+  const expiry = parseJwtExpiry(token);
+  if (expiry) {
+    localStorage.setItem(TOKEN_EXPIRY_KEY, expiry.toString());
+  } else {
+    // Default 1h expiry if none in JWT
+    localStorage.setItem(TOKEN_EXPIRY_KEY, (Date.now() + SESSION_TIMEOUT_MS).toString());
+  }
+
   updateLastActivity();
 }
 
 export function clearAuthData(): void {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem(TOKEN_EXPIRY_KEY);
   localStorage.removeItem(LAST_ACTIVITY_KEY);
 }
