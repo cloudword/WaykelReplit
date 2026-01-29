@@ -8,7 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Gavel, Truck, Timer, History, CheckCircle, IndianRupee, Plus, ShieldCheck } from "lucide-react";
+import { Gavel, Truck, Timer, History, CheckCircle, IndianRupee, Plus, ShieldCheck, ChevronDown, ChevronUp, MapPin, Calendar, Clock, Gauge } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { waykelApi, WaykelRide, WaykelBid } from "../lib/waykelApi";
 import { formatWeight } from "../lib/weightUtils";
 import { useToast } from "@/hooks/use-toast";
@@ -43,64 +44,174 @@ const formatDate = (date: string | null) => {
 };
 
 function RideCard({ ride, onViewBids }: { ride: WaykelRide; onViewBids: () => void }) {
+  const [isOpen, setIsOpen] = useState(false);
   const { status, pickupLocation, dropLocation, date, pickupTime, cargoType, weight, transporter, driver, vehicle } = ride;
   const showTrack = ["in_transit", "active", "confirmed", "accepted"].includes(status.toLowerCase());
-  const showBids = ["pending", "open"].includes(status.toLowerCase());
+  const showBids = ["pending", "open", "bidding"].includes(status.toLowerCase());
 
   return (
-    <Card className="border-card-border">
-      <CardContent className="p-4 space-y-3">
-        <div className="flex justify-between items-start gap-4">
-          <div>
-            <p className="text-xs text-muted-foreground">Trip ID: {ride.id}</p>
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <Badge variant="outline">{cargoType}</Badge>
-              <Badge variant="outline">{formatWeight(weight).display}</Badge>
-              {vehicle?.vehicleType && <Badge variant="outline">{vehicle.vehicleType}</Badge>}
+    <Collapsible
+      open={isOpen}
+      onOpenChange={setIsOpen}
+      className="group"
+    >
+      <Card className="border-card-border overflow-hidden transition-all duration-200 hover:shadow-md">
+        <CollapsibleTrigger asChild>
+          <div className="p-4 cursor-pointer hover:bg-muted/30 transition-colors">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-mono font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                    {ride.id}
+                  </span>
+                  <Badge className={`${getStatusColor(status)} text-[10px] px-2 py-0 h-4 border-none uppercase tracking-wider font-bold`}>
+                    {status}
+                  </Badge>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <p className="font-bold text-sm truncate">{pickupLocation}</p>
+                    <div className="h-px w-4 bg-border shrink-0" />
+                    <p className="font-bold text-sm truncate">{dropLocation}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 mt-2">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+                    <Calendar className="w-3 h-3" />
+                    {formatDate(date)}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+                    <Clock className="w-3 h-3" />
+                    {pickupTime}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+                    <Truck className="w-3 h-3" />
+                    {cargoType}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 shrink-0">
+                <div className="text-right hidden sm:block">
+                  <p className="text-xs text-muted-foreground font-medium">Weight</p>
+                  <p className="text-sm font-bold">{formatWeight(weight).display}</p>
+                </div>
+                <div className="h-8 w-px bg-border hidden sm:block" />
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted/50 group-data-[state=open]:rotate-180 transition-transform duration-200">
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                </div>
+              </div>
             </div>
           </div>
-          <Badge className={getStatusColor(status)}>{status}</Badge>
-        </div>
+        </CollapsibleTrigger>
 
-        <div className="grid sm:grid-cols-3 gap-3 bg-muted/50 p-3 rounded-lg">
-          <div>
-            <p className="text-xs text-muted-foreground">Pickup</p>
-            <p className="font-medium">{pickupLocation}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Drop</p>
-            <p className="font-medium">{dropLocation}</p>
-          </div>
-          <div className="text-sm text-muted-foreground flex flex-col gap-1">
-            <span>
-              {date} · {pickupTime}
-            </span>
-            <span>Distance: {ride.distance} km</span>
-          </div>
-        </div>
+        <CollapsibleContent>
+          <div className="px-4 pb-4 pt-2 border-t border-border/50 bg-muted/10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 py-4">
+              <div className="space-y-3">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Route Details</p>
+                <div className="space-y-4 relative">
+                  <div className="absolute left-[7px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-blue-500 to-emerald-500 rounded-full opacity-50" />
+                  <div className="flex items-start gap-3 relative">
+                    <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center shrink-0 mt-0.5 shadow-sm shadow-blue-500/20">
+                      <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground font-medium uppercase">Pickup</p>
+                      <p className="text-sm font-semibold">{pickupLocation}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 relative">
+                    <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 mt-0.5 shadow-sm shadow-emerald-500/20">
+                      <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground font-medium uppercase">Drop</p>
+                      <p className="text-sm font-semibold">{dropLocation}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-        <div className="grid sm:grid-cols-3 gap-3 text-sm">
-          <div>
-            <p className="text-xs text-muted-foreground">Transporter</p>
-            <p className="font-medium">{transporter?.name || "TBD"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Driver</p>
-            <p className="font-medium">{driver?.name || "TBD"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Vehicle</p>
-            <p className="font-medium">{vehicle?.vehicleNumber || vehicle?.vehicleType || "TBD"}</p>
-          </div>
-        </div>
+              <div className="space-y-3">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Trip Economics</p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-2 bg-background rounded-lg border border-border/50 shadow-sm">
+                    <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                      <Gauge className="w-3.5 h-3.5" />
+                      Distance
+                    </span>
+                    <span className="text-sm font-bold">{ride.distance} km</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 bg-background rounded-lg border border-border/50 shadow-sm">
+                    <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                      <IndianRupee className="w-3.5 h-3.5" />
+                      Base Price
+                    </span>
+                    <span className="text-sm font-bold">₹{Number(ride.price).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline">View Details</Button>
-          {showTrack && <Button size="sm">Track Shipment</Button>}
-          {showBids && <Button size="sm" variant="secondary" onClick={onViewBids}>View Bids</Button>}
-        </div>
-      </CardContent>
-    </Card>
+              <div className="space-y-3">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Assigned Team</p>
+                <div className="p-3 bg-background rounded-lg border border-border/50 shadow-sm space-y-3">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="w-8 h-8 rounded-lg">
+                      <AvatarFallback className="bg-primary/5 text-primary text-[10px] font-bold">
+                        {transporter?.name?.[0] || "T"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold truncate">{transporter?.name || "Awaiting Transporter"}</p>
+                      <p className="text-[10px] text-muted-foreground font-medium truncate">Transporter</p>
+                    </div>
+                  </div>
+                  <div className="h-px bg-border/50" />
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                      <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold truncate">{driver?.name || "Awaiting Driver"}</p>
+                      <p className="text-[10px] text-muted-foreground font-medium truncate">Driver</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 mt-2 border-t border-border/50 pt-4">
+              <Button size="sm" variant="outline" className="h-8 text-xs font-bold gap-2">
+                View Detailed Log
+              </Button>
+              {showTrack && (
+                <Button size="sm" className="h-8 text-xs font-bold gap-2">
+                  <MapPin className="w-3.5 h-3.5" />
+                  Track Live
+                </Button>
+              )}
+              {showBids && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onViewBids();
+                  }}
+                  className="h-8 text-xs font-bold gap-2"
+                >
+                  <Gavel className="w-3.5 h-3.5" />
+                  View {bids.length > 0 ? bids.length : ""} Bids
+                </Button>
+              )}
+            </div>
+          </div>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
 }
 
