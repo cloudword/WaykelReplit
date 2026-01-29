@@ -45,7 +45,17 @@ const formatDate = (date: string | null) => {
 
 function RideCard({ ride, onViewBids }: { ride: WaykelRide; onViewBids: () => void }) {
   const [isOpen, setIsOpen] = useState(false);
-  const { status, pickupLocation, dropLocation, date, pickupTime, cargoType, weight, transporter, driver, vehicle } = ride;
+  const { id: rideId, status, pickupLocation, dropLocation, date, pickupTime, cargoType, weight, transporter, driver, vehicle } = ride;
+
+  const { data: cheapestBids = [] } = useQuery({
+    queryKey: ["customer-cheapest-bids", rideId],
+    queryFn: () => waykelApi.bids.getCheapestBids(rideId, 1),
+    enabled: ["pending", "open", "bidding"].includes(status.toLowerCase()),
+    refetchInterval: 30000,
+  });
+
+  const lowestBid = cheapestBids[0];
+
   const showTrack = ["in_transit", "active", "confirmed", "accepted"].includes(status.toLowerCase());
   const showBids = ["pending", "open", "bidding"].includes(status.toLowerCase());
 
@@ -95,8 +105,17 @@ function RideCard({ ride, onViewBids }: { ride: WaykelRide; onViewBids: () => vo
 
               <div className="flex items-center gap-4 shrink-0">
                 <div className="text-right hidden sm:block">
-                  <p className="text-xs text-muted-foreground font-medium">Weight</p>
-                  <p className="text-sm font-bold">{formatWeight(weight).display}</p>
+                  {lowestBid ? (
+                    <>
+                      <p className="text-[10px] text-green-600 font-bold uppercase tracking-tighter">Cheapest Bid</p>
+                      <p className="text-sm font-black text-green-600">₹{lowestBid.amount.toLocaleString()}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs text-muted-foreground font-medium">Weight</p>
+                      <p className="text-sm font-bold">{formatWeight(weight).display}</p>
+                    </>
+                  )}
                 </div>
                 <div className="h-8 w-px bg-border hidden sm:block" />
                 <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted/50 group-data-[state=open]:rotate-180 transition-transform duration-200">

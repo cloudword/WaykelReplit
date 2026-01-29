@@ -208,12 +208,18 @@ export interface LoginData {
 export interface CreateRideData {
   pickupLocation: string;
   dropLocation: string;
+  pickupPincode?: string;
+  dropPincode?: string;
   pickupTime: string;
   date: string;
   price: string;
   distance: string;
   cargoType: string;
   weight: string;
+  weightKg?: number;
+  weightTons?: number;
+  weightUnit?: string;
+  requiredVehicleType?: string;
   createdById?: string;
 }
 
@@ -348,6 +354,9 @@ export const waykelApi = {
   bids: {
     getBidsForRide: (rideId: string) =>
       fetchLocalApi<WaykelBid[]>(`/rides/${rideId}/bids`),
+
+    getCheapestBids: (rideId: string, limit = 5) =>
+      fetchLocalApi<WaykelBid[]>(`/rides/${rideId}/cheapest-bids?limit=${limit}`),
 
     acceptBid: (bidId: string) =>
       fetchLocalApi<WaykelBid>(`/bids/${bidId}/accept`, { method: "POST" }),

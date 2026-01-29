@@ -23,6 +23,10 @@ const getStatusVariant = (status: string) => {
     case "open":
     case "bidding":
       return "secondary";
+    case "accepted":
+    case "confirmed":
+    case "assigned":
+      return "default";
     case "cancelled":
       return "destructive";
     default:
@@ -105,6 +109,7 @@ export function BookingsList({ type, rides, isLoading }: BookingsListProps) {
                   <TableHead className="font-bold text-xs uppercase tracking-tight">Trip Route</TableHead>
                   <TableHead className="font-bold text-xs uppercase tracking-tight">Load</TableHead>
                   <TableHead className="font-bold text-xs uppercase tracking-tight">Status</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-tight">Bids</TableHead>
                   <TableHead className="text-right px-6 font-bold text-xs uppercase tracking-tight">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -156,6 +161,9 @@ export function BookingsList({ type, rides, isLoading }: BookingsListProps) {
                         <Badge variant={getStatusVariant(ride.status)} className="capitalize font-bold text-[10px] py-0.5 px-2">
                           {ride.status.replace("_", " ")}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-bold text-sm">{ride.bidCount || 0}</span>
                       </TableCell>
                       <TableCell className="px-6 text-right">
                         <div className="flex justify-end gap-1">

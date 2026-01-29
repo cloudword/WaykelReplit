@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { Shield, Mail, Phone, Building2 } from "lucide-react";
+import { Shield, Mail, Phone, Building2, IndianRupee, Plus } from "lucide-react";
 
 export default function Profile() {
   const { user, isLoading } = useAuth();
@@ -118,6 +118,27 @@ export default function Profile() {
                   </p>
                 </div>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Wallet Balance Card - Migrated from Legacy */}
+        <Card className="border-card-border bg-primary/5 border-primary/20 shadow-sm overflow-hidden">
+          <CardContent className="p-6">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
+                  <IndianRupee className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-primary/70">Wallet Balance</p>
+                  <p className="text-3xl font-black tracking-tighter">₹0.00</p>
+                </div>
+              </div>
+              <Button className="h-11 px-8 font-bold shadow-lg shadow-primary/20 active:scale-95 transition-all">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Money
+              </Button>
             </div>
           </CardContent>
         </Card>

@@ -77,12 +77,18 @@ export function BookingForm() {
       const ride = await waykelApi.rides.createRide({
         pickupLocation: formData.pickupLocation,
         dropLocation: formData.dropLocation,
+        pickupPincode: formData.pickupPincode,
+        dropPincode: formData.dropPincode,
         pickupTime: formData.pickupTime,
         date: formData.date,
         price: formData.budgetPrice || "0.00",
         distance: "TBD",
         cargoType: formData.cargoType,
         weight: displayWeight || "",
+        weightKg: weightParsed.kg,
+        weightTons: weightParsed.tons,
+        weightUnit: formData.weightUnit,
+        requiredVehicleType: formData.requiredVehicleType,
         createdById: user.id,
       });
 
