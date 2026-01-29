@@ -116,6 +116,10 @@ const serializeRide = (ride: Ride, user?: any) => {
       pickupCompletedAt: ride.pickupCompletedAt,
       deliveryCompleted: ride.deliveryCompleted,
       deliveryCompletedAt: ride.deliveryCompletedAt,
+      // Include full objects if they exist in the ride data (provided by joins in storage)
+      transporter: (ride as any).transporter,
+      driver: (ride as any).driver,
+      vehicle: (ride as any).vehicle,
       finalPrice: ride.finalPrice,
       platformFee: ride.platformFee,
       transporterEarning: ride.transporterEarning,
@@ -1546,6 +1550,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Get bids for a customer's ride
+  // Alias for frontend compatibility (some portals might use /api/rides/:id/bids)
+  app.get("/api/rides/:rideId/bids", async (req, res) => {
+    res.redirect(307, `/api/customer/rides/${req.params.rideId}/bids`);
+  });
+
   app.get("/api/customer/rides/:rideId/bids", async (req, res) => {
     const user = getCurrentUser(req);
     if (!user?.id) {
@@ -1555,29 +1564,48 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const { rideId } = req.params;
 
-      // Verify the ride belongs to this customer
+      // Verify the ride belongs to this customer (robustly)
       const ride = await storage.getRide(rideId);
       if (!ride) {
         return res.status(404).json({ error: "Ride not found" });
       }
-      if (ride.customerId !== user.id && ride.createdById !== user.id) {
+
+      const normalizedUserPhone = user.phone ? normalizePhone(user.phone) : null;
+      const normalizedRidePhone = ride.customerPhone ? normalizePhone(ride.customerPhone) : null;
+      const isOwner =
+        ride.createdById === user.id ||
+        ride.customerId === user.id ||
+        (normalizedUserPhone && normalizedRidePhone && normalizedUserPhone === normalizedRidePhone);
+
+      if (!isOwner && !user.isSuperAdmin) {
         return res.status(403).json({ error: "Access denied" });
       }
 
-      const bids = await storage.getRideBids(rideId);
-      // Mask transporter info if this is the customer viewing their own bids before acceptance
-      const maskedBids = bids.map(bid => ({
-        id: bid.id,
-        entityId: (bid as any).entityId,
-        amount: bid.amount,
-        status: bid.status,
-        createdAt: bid.createdAt,
-        // Mask specific details if not accepted
-        transporterId: bid.status === "accepted" ? bid.transporterId : null,
-        userId: bid.status === "accepted" ? bid.userId : null,
-        vehicleId: bid.status === "accepted" ? bid.vehicleId : null,
-      }));
-      res.json(maskedBids);
+      const result = await storage.getRideBids(rideId);
+
+      // Mask transporter info but allow name/rating for evaluation
+      const formattedBids = result.map(item => {
+        const { bid, transporter } = item;
+        return {
+          id: bid.id,
+          entityId: bid.entityId,
+          amount: bid.amount,
+          status: bid.status,
+          createdAt: bid.createdAt,
+          // Mask sensitive IDs if not accepted, but keep the transporter object for UI
+          transporter: {
+            id: transporter?.id,
+            name: transporter?.name,
+            rating: transporter?.rating,
+            isVerified: transporter?.status === "active",
+            verificationStatus: transporter?.verificationStatus
+          },
+          transporterId: bid.status === "accepted" ? bid.transporterId : null,
+          userId: bid.status === "accepted" ? bid.userId : null,
+          vehicleId: bid.status === "accepted" ? bid.vehicleId : null,
+        };
+      });
+      res.json(formattedBids);
     } catch (error) {
       console.error("Failed to get ride bids:", error);
       res.status(500).json({ error: "Failed to get bids" });
@@ -5549,6 +5577,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // Accept bid route - allows BOTH super admin AND customer to accept bids
+  // PATCH alias for frontend compatibility
+  app.patch("/api/bids/:bidId/accept", (req, res) => {
+    // Forward to the POST handler
+    (app as any)._router.handle({ ...req, method: 'POST' }, res, () => { });
+  });
+
   app.post("/api/bids/:bidId/accept", async (req, res) => {
     const sessionUser = getCurrentUser(req);
 

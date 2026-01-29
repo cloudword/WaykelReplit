@@ -340,7 +340,7 @@ export const waykelApi = {
       fetchLocalApi<WaykelBid[]>(`/rides/${rideId}/bids`),
 
     acceptBid: (bidId: string) =>
-      fetchLocalApi<WaykelBid>(`/bids/${bidId}/accept`, { method: "PATCH" }),
+      fetchLocalApi<WaykelBid>(`/bids/${bidId}/accept`, { method: "POST" }),
   },
 
   addresses: {

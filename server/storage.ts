@@ -21,7 +21,9 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, or, sql, gte, inArray, not, count } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { generateEntityId } from "./utils/entityId";
+import { normalizePhone } from "../shared/utils";
 
 export function sanitizeRequestBody(body: any): any {
   if (!body || typeof body !== 'object') return body;
@@ -751,21 +753,21 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(rides).where(eq(rides.transporterId, transporterId)).orderBy(desc(rides.createdAt));
   }
 
-  async getCustomerRides(customerId: string): Promise<Ride[]> {
-    // Get user to find their phone for fallback lookup
+  async getCustomerRides(customerId: string): Promise<any[]> {
     const user = await this.getUser(customerId);
     const userPhone = user?.phone;
+    const normalizedUserPhone = userPhone ? normalizePhone(userPhone) : null;
 
     const conditions = [
       eq(rides.customerId, customerId),
       eq(rides.createdById, customerId)
     ];
 
-    if (userPhone) {
-      conditions.push(eq(rides.customerPhone, userPhone));
-      if (!userPhone.startsWith('+91')) {
-        conditions.push(eq(rides.customerPhone, `+91${userPhone}`));
-      }
+    if (normalizedUserPhone) {
+      // Robust bidirectional phone matching
+      conditions.push(eq(rides.customerPhone, normalizedUserPhone));
+      conditions.push(eq(rides.customerPhone, `+91${normalizedUserPhone}`));
+      // Also match if stored with +91 and user provided without it (and vice-versa handled by normalizePhone)
     }
 
     const bidCountSubquery = db
@@ -777,17 +779,34 @@ export class DatabaseStorage implements IStorage {
       .groupBy(bids.rideId)
       .as("bid_counts");
 
+    // Dynamic aliases for joined entities to avoid naming collisions
+    const driverAlias = alias(users, "driver");
+    const transporterAlias = transporters; // standard name
+    const vehicleAlias = vehicles; // standard name
+
     const result = await db
       .select({
         ride: rides,
         bidCount: sql<number>`COALESCE(${bidCountSubquery.count}, 0)`.mapWith(Number),
+        transporter: transporterAlias,
+        driver: driverAlias,
+        vehicle: vehicleAlias,
       })
       .from(rides)
       .leftJoin(bidCountSubquery, eq(rides.id, bidCountSubquery.rideId))
+      .leftJoin(transporterAlias, eq(rides.transporterId, transporterAlias.id))
+      .leftJoin(driverAlias, eq(rides.assignedDriverId, driverAlias.id))
+      .leftJoin(vehicleAlias, eq(rides.assignedVehicleId, vehicleAlias.id))
       .where(or(...conditions))
       .orderBy(desc(rides.createdAt));
 
-    return result.map(r => ({ ...r.ride, bidCount: r.bidCount }));
+    return result.map(r => ({
+      ...r.ride,
+      bidCount: r.bidCount,
+      transporter: r.transporter,
+      driver: r.driver,
+      vehicle: r.vehicle,
+    }));
   }
 
   async createRide(insertRide: InsertRide): Promise<Ride> {
@@ -917,9 +936,11 @@ export class DatabaseStorage implements IStorage {
       .select({
         bid: bids,
         ride: rides,
+        transporter: transporters,
       })
       .from(bids)
       .leftJoin(rides, eq(bids.rideId, rides.id))
+      .leftJoin(transporters, eq(bids.transporterId, transporters.id))
       .where(eq(bids.rideId, rideId))
       .orderBy(desc(bids.createdAt));
   }
