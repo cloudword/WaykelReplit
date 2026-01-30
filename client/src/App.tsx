@@ -57,7 +57,18 @@ import TransporterAddresses from "@/pages/transporter/addresses";
 import TransporterAnalytics from "@/pages/transporter/analytics";
 import TransporterSettings from "@/pages/transporter/settings";
 
-import CustomerPortalApp from "./customer-portal/CustomerPortalApp";
+import Dashboard from "./customer-portal/pages/Dashboard";
+import CustomerAuth from "./customer-portal/pages/Auth";
+import Book from "./customer-portal/pages/Book";
+import ActiveBookings from "./customer-portal/pages/ActiveBookings";
+import BookingHistory from "./customer-portal/pages/BookingHistory";
+import Payments from "./customer-portal/pages/Payments";
+import Track from "./customer-portal/pages/Track";
+import Profile from "./customer-portal/pages/Profile";
+import Addresses from "./customer-portal/pages/Addresses";
+import Help from "./customer-portal/pages/Help";
+import { AuthProvider as CustomerAuthProvider } from "./customer-portal/lib/auth";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 function Router() {
   return (
@@ -92,12 +103,20 @@ function Router() {
       <Route path="/transporter/analytics" component={TransporterAnalytics} />
       <Route path="/transporter/settings" component={TransporterSettings} />
 
-      {/* Customer/Rider Portal */}
-      <Route path="/customer/:rest*">
-        <CustomerPortalApp />
-      </Route>
+      {/* Customer/Rider Portal - Explicit routes in main Switch for reliability */}
+      <Route path="/customer/auth" component={CustomerAuth} />
+      <Route path="/customer/book" component={Book} />
+      <Route path="/customer/dashboard/active" component={ActiveBookings} />
+      <Route path="/customer/dashboard/history" component={BookingHistory} />
+      <Route path="/customer/dashboard/payments" component={Payments} />
+      <Route path="/customer/dashboard/track" component={Track} />
+      <Route path="/customer/dashboard/profile" component={Profile} />
+      <Route path="/customer/dashboard/addresses" component={Addresses} />
+      <Route path="/customer/dashboard/help" component={Help} />
+      <Route path="/customer/dashboard" component={Dashboard} />
+      <Route path="/customer/notifications" component={Notifications} />
       <Route path="/customer">
-        <CustomerPortalApp />
+        <Redirect to="/customer/dashboard" />
       </Route>
 
       {/* Legacy Redirects to Modern Portal */}
@@ -152,8 +171,12 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Router />
-      <Toaster />
+      <CustomerAuthProvider>
+        <TooltipProvider>
+          <Router />
+          <Toaster />
+        </TooltipProvider>
+      </CustomerAuthProvider>
     </QueryClientProvider>
   );
 }
