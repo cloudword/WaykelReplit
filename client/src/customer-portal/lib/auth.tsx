@@ -47,7 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refresh();
 
     const trackActivity = () => {
-      if (user) {
+      // Only track if we have a user
+      const currentUser = getStoredUser();
+      if (currentUser) {
         updateLastActivity();
       }
     };
@@ -70,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       clearInterval(sessionCheckInterval);
     };
-  }, [user, refresh]);
+  }, [refresh]);
 
   const formatPhone = (phone: string): string => {
     const cleaned = phone.replace(/\D/g, "");
