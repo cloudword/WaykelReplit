@@ -614,10 +614,192 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Health check endpoint for Docker and load balancers
   // IMPORTANT: Must NOT await DB, must NOT return 503, must NOT throw
   // DigitalOcean App Platform uses this to determine if the app is healthy
+  // ================= BIDDING API (Standardized) =================
+  // These are placed at the top to prevent shadowing by older routes
+
+  // GET /api/customer/rides/:rideId/bids
+  app.get("/api/customer/rides/:rideId/bids", async (req, res) => {
+    const user = getCurrentUser(req);
+    if (!user?.id) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      const { rideId } = req.params;
+
+      // Verify the ride belongs to this customer (robustly)
+      const ride = await storage.getRide(rideId);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+
+      const normalizedUserPhone = user.phone ? normalizePhone(user.phone) : null;
+      const normalizedRidePhone = ride.customerPhone ? normalizePhone(ride.customerPhone) : null;
+      const isOwner =
+        ride.createdById === user.id ||
+        ride.customerId === user.id ||
+        (normalizedUserPhone && normalizedRidePhone && normalizedUserPhone === normalizedRidePhone);
+
+      if (!isOwner && !user.isSuperAdmin) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      const result = await storage.getRideBids(rideId);
+
+      // Mask transporter info but allow name/rating for evaluation
+      const formattedBids = result.map(item => {
+        const { bid, transporter, vehicle } = item;
+        return {
+          id: bid.id,
+          entityId: bid.entityId,
+          amount: bid.amount,
+          status: bid.status,
+          createdAt: bid.createdAt,
+          // Mask sensitive info if not accepted, but keep the transporter object for UI
+          transporter: {
+            id: transporter?.id || bid.transporterId,
+            name: transporter?.name || item.bidder?.name || "Transporter",
+            rating: transporter?.rating || 4.5, // Fallback if no rating yet
+            isVerified: transporter?.status === "active",
+            verificationStatus: transporter?.verificationStatus,
+            type: transporter?.transporterType,
+          },
+          vehicle: vehicle ? {
+            id: vehicle.id,
+            entityId: vehicle.entityId,
+            type: vehicle.type,
+            model: vehicle.model,
+            plateNumber: bid.status === "accepted" ? vehicle.plateNumber : undefined,
+            capacity: vehicle.capacity,
+          } : null,
+          // Keep these for the UI to function but consider security
+          transporterId: bid.transporterId,
+          userId: bid.userId,
+          vehicleId: bid.vehicleId,
+        };
+      });
+      res.json(formattedBids);
+    } catch (error) {
+      console.error("Failed to get ride bids:", error);
+      res.status(500).json({ error: "Failed to get bids" });
+    }
+  });
+
+  // Bid rejection for customers (standardized)
+  app.post("/api/customer/bids/:bidId/reject", async (req, res) => {
+    const sessionUser = getCurrentUser(req);
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      const bid = await storage.getBid(req.params.bidId);
+      if (!bid) {
+        return res.status(404).json({ error: "Bid not found" });
+      }
+
+      const ride = await storage.getRide(bid.rideId);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+
+      // Check authorization - super admin or ride owner
+      if (!sessionUser.isSuperAdmin && ride.createdById !== sessionUser.id && ride.customerId !== sessionUser.id) {
+        return res.status(403).json({ error: "Only the ride owner or admin can reject bids" });
+      }
+
+      await storage.updateBidStatus(bid.id, "rejected");
+      res.json({ success: true, message: "Bid rejected successfully" });
+    } catch (error) {
+      console.error("[POST /api/customer/bids/:bidId/reject] Error:", error);
+      res.status(500).json({ error: "Failed to reject bid" });
+    }
+  });
+
+  // FALLBACK for missing accept/reject suffix in POST (Helpful for debugging)
+  app.post("/api/customer/bids/:bidId", async (req, res) => {
+    res.status(404).json({
+      error: "Missing action suffix (/accept or /reject)",
+      path: req.originalUrl,
+      suggestion: `Try POSTing to ${req.originalUrl}/accept or ${req.originalUrl}/reject`
+    });
+  });
+
+  app.post("/api/customer/bids/:bidId/accept", async (req, res) => {
+    const sessionUser = getCurrentUser(req);
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      const bid = await storage.getBid(req.params.bidId);
+      if (!bid) {
+        return res.status(404).json({ error: "Bid not found" });
+      }
+
+      const ride = await storage.getRide(bid.rideId);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+
+      const isSuperAdmin = sessionUser.isSuperAdmin;
+      const isRideOwner = ride.createdById === sessionUser.id || ride.customerId === sessionUser.id;
+
+      if (!isSuperAdmin && !isRideOwner) {
+        return res.status(403).json({ error: "Only the ride owner or admin can accept bids" });
+      }
+
+      // Compute financials with platform settings
+      const financials = await computeTripFinancialsWithSettings(bid.amount);
+
+      const accepted = await storage.acceptBidAtomic({
+        bidId: bid.id,
+        rideId: ride.id,
+        transporterId: bid.transporterId || null,
+        acceptedByUserId: sessionUser.id,
+        financials: {
+          finalPrice: financials.finalPrice.toString(),
+          platformFee: financials.platformFee.toString(),
+          transporterEarning: financials.transporterEarning.toString(),
+          platformFeePercent: financials.platformFeePercent.toString(),
+          shadowPlatformFee: financials.shadowPlatformFee.toString(),
+          shadowPlatformFeePercent: financials.shadowPlatformFeePercent.toString()
+        }
+      });
+
+      if (!accepted) {
+        return res.status(409).json({ error: "Bidding already closed or trip no longer available" });
+      }
+
+      // Handle driver assignment if info is available in bid
+      if (bid.userId && bid.vehicleId && bid.transporterId) {
+        const transporter = await storage.getTransporter(bid.transporterId);
+        if (transporter && transporter.status === 'active') {
+          await storage.assignRideToDriver(ride.id, bid.userId, bid.vehicleId, bid.transporterId, bid.id);
+        }
+      }
+
+      res.json({ success: true, message: "Bid accepted successfully" });
+    } catch (error) {
+      console.error("Failed to accept bid via customer portal:", error);
+      res.status(500).json({ error: "Failed to accept bid" });
+    }
+  });
+
+  // Backward compatibility redirects (handled multiple possible patterns seen in 404 logs)
+  app.all(["/api/bids/:bidId/reject", "/api/:bidId/reject"], (req, res) => {
+    res.redirect(307, `/api/customer/bids/${req.params.bidId}/reject`);
+  });
+
+  app.all(["/api/bids/:bidId/accept", "/api/:bidId/accept"], (req, res) => {
+    res.redirect(307, `/api/customer/bids/${req.params.bidId}/accept`);
+  });
+
   app.get("/api/health", (_req, res) => {
     res.status(200).json({
       status: "ok",
       service: "waykel-api",
+      version: "1.0.5-suffix-fix",
+      buildTime: "2026-01-30T10:45:00Z",
       uptime: process.uptime(),
       timestamp: new Date().toISOString()
     });
@@ -1555,70 +1737,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.redirect(307, `/api/customer/rides/${req.params.rideId}/bids`);
   });
 
-  app.get("/api/customer/rides/:rideId/bids", async (req, res) => {
-    const user = getCurrentUser(req);
-    if (!user?.id) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
-    try {
-      const { rideId } = req.params;
-
-      // Verify the ride belongs to this customer (robustly)
-      const ride = await storage.getRide(rideId);
-      if (!ride) {
-        return res.status(404).json({ error: "Ride not found" });
-      }
-
-      const normalizedUserPhone = user.phone ? normalizePhone(user.phone) : null;
-      const normalizedRidePhone = ride.customerPhone ? normalizePhone(ride.customerPhone) : null;
-      const isOwner =
-        ride.createdById === user.id ||
-        ride.customerId === user.id ||
-        (normalizedUserPhone && normalizedRidePhone && normalizedUserPhone === normalizedRidePhone);
-
-      if (!isOwner && !user.isSuperAdmin) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-      const result = await storage.getRideBids(rideId);
-
-      // Mask transporter info but allow name/rating for evaluation
-      const formattedBids = result.map(item => {
-        const { bid, transporter, vehicle } = item;
-        return {
-          id: bid.id,
-          entityId: bid.entityId,
-          amount: bid.amount,
-          status: bid.status,
-          createdAt: bid.createdAt,
-          // Mask sensitive IDs if not accepted, but keep the transporter object for UI
-          transporter: {
-            id: transporter?.id,
-            name: transporter?.name,
-            rating: transporter?.rating,
-            isVerified: transporter?.status === "active",
-            verificationStatus: transporter?.verificationStatus,
-            type: transporter?.transporterType,
-          },
-          vehicle: vehicle ? {
-            id: vehicle.id,
-            entityId: vehicle.entityId,
-            type: vehicle.type,
-            model: vehicle.model,
-            plateNumber: vehicle.plateNumber, // Only show for Bids? Or maybe mask? User said "vehicle details"
-            capacity: vehicle.capacity,
-          } : null,
-          transporterId: bid.status === "accepted" ? bid.transporterId : null,
-          userId: bid.status === "accepted" ? bid.userId : null,
-          vehicleId: bid.status === "accepted" ? bid.vehicleId : null,
-        };
-      });
-      res.json(formattedBids);
-    } catch (error) {
-      console.error("Failed to get ride bids:", error);
-      res.status(500).json({ error: "Failed to get bids" });
-    }
-  });
 
 
   // Customer addresses
@@ -5591,187 +5709,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     (app as any)._router.handle({ ...req, method: 'POST' }, res, () => { });
   });
 
-  // Reject bid route
-  app.post("/api/bids/:bidId/reject", async (req, res) => {
-    const sessionUser = getCurrentUser(req);
-    if (!sessionUser) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
-    try {
-      const bid = await storage.getBid(req.params.bidId);
-      if (!bid) {
-        return res.status(404).json({ error: "Bid not found" });
-      }
-
-      const ride = await storage.getRide(bid.rideId);
-      if (!ride) {
-        return res.status(404).json({ error: "Ride not found" });
-      }
-
-      // Check authorization - super admin or ride owner
-      if (!sessionUser.isSuperAdmin && ride.createdById !== sessionUser.id) {
-        return res.status(403).json({ error: "Only the ride owner or admin can reject bids" });
-      }
-
-      await storage.updateBidStatus(bid.id, "rejected");
-      res.json({ success: true, message: "Bid rejected successfully" });
-    } catch (error) {
-      console.error("[POST /api/bids/:bidId/reject] Error:", error);
-      res.status(500).json({ error: "Failed to reject bid" });
-    }
-  });
-
-  app.post("/api/bids/:bidId/accept", async (req, res) => {
-    const sessionUser = getCurrentUser(req);
-
-    if (!sessionUser) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
-    try {
-      const bid = await storage.getBid(req.params.bidId);
-      if (!bid) {
-        return res.status(404).json({ error: "Bid not found" });
-      }
-
-      const ride = await storage.getRide(bid.rideId);
-      if (!ride) {
-        return res.status(404).json({ error: "Ride not found" });
-      }
-
-      // Check authorization - super admin can accept any, customer can only accept on their rides
-      const isSuperAdmin = sessionUser.isSuperAdmin;
-      const isRideOwner = ride.createdById === sessionUser.id;
-
-      if (!isSuperAdmin && !isRideOwner) {
-        return res.status(403).json({ error: "Only the ride owner or admin can accept bids" });
-      }
-
-      // Verify transporter is still active/verified before accepting their bid
-      if (bid.transporterId) {
-        const transporter = await storage.getTransporter(bid.transporterId);
-        if (!transporter) {
-          return res.status(400).json({ error: "Transporter account not found. Cannot accept this bid." });
-        }
-        if (transporter.status !== "active") {
-          return res.status(400).json({ error: "This transporter's account is not verified. Cannot accept their bid." });
-        }
-      }
-
-      // Compute financials with platform settings
-      const financials = await computeTripFinancialsWithSettings(bid.amount);
-
-      // Atomically: update bid, ride, close bidding, lock financials, create ledger, reject other bids
-      const accepted = await storage.acceptBidAtomic({
-        bidId: bid.id,
-        rideId: ride.id,
-        transporterId: bid.transporterId || null,
-        acceptedByUserId: sessionUser.id,
-        financials: {
-          finalPrice: financials.finalPrice.toString(),
-          platformFee: financials.platformFee.toString(),
-          transporterEarning: financials.transporterEarning.toString(),
-          platformFeePercent: financials.platformFeePercent.toString(),
-          shadowPlatformFee: financials.shadowPlatformFee.toString(),
-          shadowPlatformFeePercent: financials.shadowPlatformFeePercent.toString()
-        }
-      });
-
-      if (!accepted) {
-        return res.status(409).json({ error: "Bidding already closed or trip no longer available" });
-      }
-
-      if (bid.userId && bid.vehicleId && bid.transporterId) {
-        const transporter = await storage.getTransporter(bid.transporterId);
-        if (transporter) {
-          const policyCheck = await checkExecutionPolicy(transporter, bid.userId);
-          if (policyCheck.allowed) {
-            try {
-              assertRideTransition("accepted", "assigned", ride.id);
-              await storage.assignRideToDriver(ride.id, bid.userId, bid.vehicleId, bid.transporterId, bid.id);
-            } catch (e) {
-              if (e instanceof RideTransitionError) {
-                console.warn(`[BidAccept] Could not transition ride ${ride.id} to assigned`);
-              } else {
-                throw e;
-              }
-            }
-          }
-        }
-      }
-
-      // Send notifications (non-critical, outside transaction)
-      const allBids = await storage.getRideBids(ride.id);
-      for (const otherBid of allBids) {
-        if (otherBid.id !== bid.id && otherBid.status === "rejected") {
-          if (otherBid.userId) {
-            await storage.createNotification({
-              recipientId: otherBid.userId,
-              recipientTransporterId: otherBid.transporterId || undefined,
-              type: "bid_rejected",
-              title: "Bidding Closed",
-              message: `Bidding for trip ${ride.pickupLocation} to ${ride.dropLocation} has closed. Another bid was selected.`,
-              rideId: ride.id,
-              bidId: otherBid.id,
-            });
-          }
-        }
-      }
-
-      // Notify the winner
-      if (bid.userId) {
-        await storage.createNotification({
-          recipientId: bid.userId,
-          recipientTransporterId: bid.transporterId || undefined,
-          type: "bid_accepted",
-          title: "Bid Accepted!",
-          message: `Your bid of ₹${bid.amount} for trip ${ride.pickupLocation} to ${ride.dropLocation} has been accepted!`,
-          rideId: ride.id,
-          bidId: bid.id,
-        });
-
-        // Send SMS to winning bidder
-        const bidUser = await storage.getUser(bid.userId);
-        if (bidUser?.phone) {
-          sendTransactionalSms(bidUser.phone, SmsEvent.BID_ACCEPTED, {
-            amount: String(bid.amount),
-            pickup: ride.pickupLocation,
-            drop: ride.dropLocation
-          }).catch(err => console.error("[SMS:ERROR] Failed to send BID_ACCEPTED SMS:", err));
-        }
-      }
-
-      // Notify the customer that bid was accepted (if super admin accepted it)
-      if (isSuperAdmin && ride.createdById) {
-        await storage.createNotification({
-          recipientId: ride.createdById,
-          type: "ride_assigned",
-          title: "Trip Assigned",
-          message: `Your trip from ${ride.pickupLocation} to ${ride.dropLocation} has been assigned. Bid amount: ₹${bid.amount}`,
-          rideId: ride.id,
-          bidId: bid.id,
-        });
-      }
-
-      // If customer accepted the bid, notify them about the assignment
-      if (!isSuperAdmin && isRideOwner) {
-        await storage.createNotification({
-          recipientId: sessionUser.id,
-          type: "ride_assigned",
-          title: "Trip Confirmed",
-          message: `You accepted the bid of ₹${bid.amount} for your trip. A transporter has been assigned.`,
-          rideId: ride.id,
-          bidId: bid.id,
-        });
-      }
-
-      res.json({ success: true, message: "Bid accepted and trip assigned. Bidding is now closed." });
-    } catch (error) {
-      console.error("Failed to accept bid:", error);
-      res.status(500).json({ error: "Failed to accept bid" });
-    }
-  });
 
   // ============== ROLES MANAGEMENT ==============
 

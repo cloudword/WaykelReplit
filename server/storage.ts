@@ -932,19 +932,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getRideBids(rideId: string): Promise<any[]> {
-    return await db
+    const result = await db
       .select({
         bid: bids,
         ride: rides,
         transporter: transporters,
         vehicle: vehicles,
+        bidder: users,
       })
       .from(bids)
       .leftJoin(rides, eq(bids.rideId, rides.id))
       .leftJoin(transporters, eq(bids.transporterId, transporters.id))
       .leftJoin(vehicles, eq(bids.vehicleId, vehicles.id))
+      .leftJoin(users, eq(bids.userId, users.id))
       .where(eq(bids.rideId, rideId))
       .orderBy(desc(bids.createdAt));
+
+    return result;
   }
 
   async getCheapestRideBids(rideId: string, limit: number = 5): Promise<any[]> {

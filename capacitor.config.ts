@@ -1,35 +1,41 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.waykel.app',
-  appName: 'Waykel',
-  webDir: 'dist/public',
+  appId: 'com.waykel.driver',
+  appName: 'Waykel Driver',
+  webDir: 'dist/driver',
   server: {
     androidScheme: 'https',
-    // For development, uncomment this to connect to local server
-    // url: 'http://10.0.2.2:5000',
-    // cleartext: true
   },
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,
-      backgroundColor: "#2563eb",
+      backgroundColor: "#059669",
       androidSplashResourceName: "splash",
       androidScaleType: "CENTER_CROP",
+      showSpinner: false,
     },
     StatusBar: {
       style: "DARK",
-      backgroundColor: "#2563eb"
+      backgroundColor: "#059669"
     },
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"]
+    },
+    Geolocation: {
+      enableHighAccuracy: true
+    },
+    Camera: {
+      presentationStyle: "fullscreen"
     }
   },
   ios: {
-    contentInset: "automatic"
+    contentInset: "automatic",
+    scheme: "WaykelDriver"
   },
   android: {
-    allowMixedContent: true
+    allowMixedContent: false,
+    backgroundColor: "#059669"
   }
 };
 
