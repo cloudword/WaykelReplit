@@ -38,10 +38,6 @@ function Router() {
 
   return (
     <Switch>
-      <Route path="/customer/auth" component={Auth} />
-      <Route path="/customer" component={Dashboard} />
-      <Route path="/customer/dashboard" component={Dashboard} />
-      <Route path="/customer/book" component={Book} />
       <Route path="/customer/dashboard/active" component={ActiveBookings} />
       <Route path="/customer/dashboard/history" component={BookingHistory} />
       <Route path="/customer/dashboard/payments" component={Payments} />
@@ -50,7 +46,10 @@ function Router() {
       <Route path="/customer/dashboard/addresses" component={Addresses} />
       <Route path="/customer/dashboard/help" component={Help} />
       <Route path="/customer/notifications" component={Notifications} />
-      <Route component={NotFound} />
+      <Route path="/customer/auth" component={Auth} />
+      <Route path="/customer" component={Dashboard} />
+      <Route path="/customer/dashboard" component={Dashboard} />
+      <Route path="/customer/book" component={Book} />
     </Switch>
   );
 }

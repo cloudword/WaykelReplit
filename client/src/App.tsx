@@ -93,12 +93,16 @@ function Router() {
       <Route path="/transporter/settings" component={TransporterSettings} />
 
       {/* Customer/Rider Portal */}
-      <Route path="/customer/:rest*" component={CustomerPortalApp} />
-      <Route path="/customer" component={CustomerPortalApp} />
+      <Route path="/customer/:rest*">
+        <CustomerPortalApp />
+      </Route>
+      <Route path="/customer">
+        <CustomerPortalApp />
+      </Route>
 
       {/* Legacy Redirects to Modern Portal */}
       <Route path="/dashboard/:rest*">
-        {(params) => <Redirect to={`/customer/dashboard/${params.rest}`} />}
+        {(params) => <Redirect to={`/customer/dashboard/${params["rest*"]}`} />}
       </Route>
       <Route path="/dashboard">
         <Redirect to="/customer/dashboard" />
