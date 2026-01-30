@@ -208,12 +208,13 @@ app.use(
     proxy: true,
     store: createSessionStore(),
     cookie: {
-      secure: isProduction, // Only require HTTPS in production
+      // Chrome requires Secure: true if SameSite: none is used
+      secure: isProduction || needsCrossOriginCookies,
       httpOnly: true,
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days instead of 24 hours
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       sameSite: needsCrossOriginCookies ? "none" : "lax",
-      // Share cookie across waykel.com subdomains in production
-      domain: isProduction ? ".waykel.com" : undefined,
+      // Share cookie across waykel.com subdomains in production or if configured
+      domain: isProduction || process.env.COOKIE_DOMAIN ? (process.env.COOKIE_DOMAIN || ".waykel.com") : undefined,
     },
   })
 );

@@ -26,7 +26,7 @@ function parseJwtExpiry(token: string): number | null {
 
 export function isTokenExpired(): boolean {
   const expiryStr = localStorage.getItem(TOKEN_EXPIRY_KEY);
-  if (!expiryStr) return true;
+  if (!expiryStr) return false; // Don't assume expired if key is missing (e.g. session-based login)
   const expiry = parseInt(expiryStr, 10);
   return Date.now() >= expiry;
 }
@@ -34,7 +34,7 @@ export function isTokenExpired(): boolean {
 export function isSessionInactive(): boolean {
   if (INACTIVITY_TIMEOUT_MS <= 0) return false;
   const lastActivityStr = localStorage.getItem(LAST_ACTIVITY_KEY);
-  if (!lastActivityStr) return true;
+  if (!lastActivityStr) return false; // Don't assume inactive if key is missing
   const lastActivity = parseInt(lastActivityStr, 10);
   return Date.now() - lastActivity > INACTIVITY_TIMEOUT_MS;
 }
@@ -48,7 +48,9 @@ export function getAuthToken(): string | null {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) return null;
 
-    const { token } = JSON.parse(stored);
+    const parsed = JSON.parse(stored);
+    const token = parsed.token || parsed.user?.token;
+
     if (!token) return null;
 
     if (isTokenExpired()) {
@@ -72,8 +74,20 @@ export function getStoredUser(): WaykelUser | null {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) return null;
 
-    const { user } = JSON.parse(stored);
-    return user || null;
+    const parsed = JSON.parse(stored);
+
+    // Handle both wrapped { user, token } format and direct user object format
+    // This allows better compatibility between different login pages
+    if (parsed.user) {
+      return parsed.user;
+    }
+
+    // If it has role/id directly, it's likely a raw user object
+    if (parsed.id && (parsed.role || parsed.phone)) {
+      return parsed.user || parsed;
+    }
+
+    return null;
   } catch (e) {
     return null;
   }
@@ -261,14 +275,21 @@ export interface CreateAddressData {
 
 export function getApiUrl(endpoint: string): string {
   // Use VITE_API_BASE_URL if set, otherwise fallback to /api for development
-  // Ensure we don't duplicate the /api prefix if CUSTOMER_API_BASE already includes it
-  const base = CUSTOMER_API_BASE || "/api";
+  // Ensure we don't duplicate the /api prefix
+  const base = CUSTOMER_API_BASE || "";
   const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
 
-  if (base.endsWith('/api')) {
-    return `${base}${path}`;
+  // If base exists and doesn't end with /api, and path doesn't start with /api, add it
+  if (base && !base.endsWith('/api') && !path.startsWith('/api')) {
+    return `${base}/api${path}`;
   }
-  return `${base}/api${path}`;
+
+  // If no base (development), use /api prefix
+  if (!base && !path.startsWith('/api')) {
+    return `/api${path}`;
+  }
+
+  return `${base}${path}`;
 }
 
 async function fetchLocalApi<T>(
@@ -333,6 +354,9 @@ export const waykelApi = {
         method: "POST",
         body: JSON.stringify(data),
       }, true),
+
+    getSession: () =>
+      fetchLocalApi<{ authenticated: boolean; user?: WaykelUser }>("/session", {}, true),
 
     logout: () =>
       fetchLocalApi<{ success: boolean }>("/logout", { method: "POST" }),
@@ -411,4 +435,9 @@ export const waykelApi = {
     deleteAddress: (id: string) =>
       fetchLocalApi<{ success: boolean }>(`/addresses/${id}`, { method: "DELETE" }),
   },
+
+  tracking: {
+    getTrackInfo: (id: string) =>
+      fetchLocalApi<any>(`/track/${id}`),
+  }
 };

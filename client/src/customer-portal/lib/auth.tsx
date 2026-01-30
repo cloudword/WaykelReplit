@@ -31,12 +31,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     try {
       const storedUser = getStoredUser();
+      console.log("[Auth] Checking stored user:", storedUser?.id || "none", "Role:", storedUser?.role);
+
       if (storedUser) {
         setUser(storedUser);
+        updateLastActivity();
       } else {
-        setUser(null);
+        // No local storage, try syncing with server session
+        console.log("[Auth] No stored user, fetching server session...");
+        const session = await waykelApi.auth.getSession();
+        console.log("[Auth] Server session response:", session.authenticated ? "Authenticated" : "Not authenticated");
+
+        if (session.authenticated && session.user) {
+          console.log("[Auth] Syncing user from server:", session.user.id);
+          setUser(session.user);
+          localStorage.setItem("currentUser", JSON.stringify(session.user));
+          updateLastActivity();
+        } else {
+          setUser(null);
+        }
       }
-    } catch {
+    } catch (err) {
+      console.warn("[Auth] Session refresh/sync failed:", err);
       setUser(null);
     } finally {
       setIsLoading(false);

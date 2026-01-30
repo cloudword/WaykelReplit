@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, MapPin, Search } from "lucide-react";
-import { getApiUrl } from "../lib/waykelApi";
+import { WaykelRide, waykelApi } from "../lib/waykelApi";
 
 interface TrackingResult {
   id: string;
@@ -27,11 +27,7 @@ export function TrackingView() {
     setError(null);
     setResult(null);
     try {
-      const response = await fetch(getApiUrl(`/track/${searchId}`), { credentials: "include" });
-      if (!response.ok) {
-        throw new Error(`Failed to fetch: ${response.status}`);
-      }
-      const data = await response.json();
+      const data = await waykelApi.tracking.getTrackInfo(searchId);
       setResult(data as TrackingResult);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not fetch tracking info");

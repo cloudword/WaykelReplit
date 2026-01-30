@@ -1624,6 +1624,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json({ authenticated: false });
   });
 
+  // Customer OTP/Forgot Password Aliases (Internal Redirects)
+  app.post("/api/customer/auth/request-otp", (req, res) => res.redirect(307, "/api/auth/request-otp"));
+  app.post("/api/customer/auth/verify-otp", (req, res) => res.redirect(307, "/api/auth/verify-otp"));
+  app.post("/api/customer/forgot-password/request-otp", (req, res) => res.redirect(307, "/api/auth/request-otp"));
+  app.post("/api/customer/forgot-password/verify-otp", (req, res) => res.redirect(307, "/api/auth/verify-otp"));
+  app.post("/api/customer/forgot-password/reset", (req, res) => res.redirect(307, "/api/auth/reset-password-with-token"));
+
   // Customer rides - get customer's own rides
   app.get("/api/customer/rides", async (req, res) => {
     const sessionUser = getCurrentUser(req);
@@ -1735,6 +1742,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Alias for frontend compatibility (some portals might use /api/rides/:id/bids)
   app.get("/api/rides/:rideId/bids", async (req, res) => {
     res.redirect(307, `/api/customer/rides/${req.params.rideId}/bids`);
+  });
+
+  // Customer cheapest bids alias
+  app.get("/api/customer/rides/:rideId/cheapest-bids", (req, res) => {
+    res.redirect(307, `/api/rides/${req.params.rideId}/cheapest-bids`);
+  });
+
+  // Tracking alias (publicly accessible view of a ride)
+  app.get("/api/customer/track/:rideId", (req, res) => {
+    res.redirect(307, `/api/rides/${req.params.rideId}`);
   });
 
 
