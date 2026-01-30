@@ -1,10 +1,11 @@
-import { CUSTOMER_API_BASE } from "../config/api";
+import { getApiUrl } from "./waykelApi";
+import { withCsrfHeader } from "@/lib/api";
 
 export async function trackLogin(user: { id: string; name?: string; email?: string; phone?: string }) {
   try {
-    await fetch(`${CUSTOMER_API_BASE}/api/customer-events`, {
+    await fetch(getApiUrl("/customer-events"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: withCsrfHeader({ "Content-Type": "application/json" }) as HeadersInit,
       credentials: "include",
       body: JSON.stringify({
         event: "customer_login",
@@ -18,9 +19,9 @@ export async function trackLogin(user: { id: string; name?: string; email?: stri
 
 export async function trackRegistration(user: { id: string; name?: string; email?: string; phone?: string }) {
   try {
-    await fetch(`${CUSTOMER_API_BASE}/api/customer-events`, {
+    await fetch(getApiUrl("/customer-events"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: withCsrfHeader({ "Content-Type": "application/json" }) as HeadersInit,
       credentials: "include",
       body: JSON.stringify({
         event: "customer_registration",
@@ -34,9 +35,9 @@ export async function trackRegistration(user: { id: string; name?: string; email
 
 export async function trackBidAccepted(user: { id: string; name?: string; email?: string; phone?: string }, bid: { bidId: string; rideId: string; transporterName?: string; amount?: string }) {
   try {
-    await fetch(`${CUSTOMER_API_BASE}/api/customer-events`, {
+    await fetch(getApiUrl("/customer-events"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: withCsrfHeader({ "Content-Type": "application/json" }) as HeadersInit,
       credentials: "include",
       body: JSON.stringify({
         event: "customer_bid_accepted",

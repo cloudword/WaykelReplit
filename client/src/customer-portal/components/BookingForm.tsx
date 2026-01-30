@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapPin, Hash, Truck, Calendar, Clock, Zap, Package } from "lucide-react";
-import { waykelApi } from "../lib/waykelApi";
+import { waykelApi, getApiUrl } from "../lib/waykelApi";
 import { useAuth } from "../lib/auth";
 import { queryClient } from "@/lib/queryClient";
+import { withCsrfHeader } from "@/lib/api";
 import { VEHICLE_CATEGORIES, VEHICLE_TYPES, getVehicleTypeDisplay, parseWeightInput, WeightUnit } from "@shared/vehicleData";
 import { useQuery } from "@tanstack/react-query";
 import { BookOpen } from "lucide-react";
@@ -92,9 +93,12 @@ export function BookingForm() {
         createdById: user.id,
       });
 
-      // Fire-and-forget notify call
       try {
-        await fetch(`/api/rides/${ride.id}/notify-transporters`, { method: "POST", credentials: "include" });
+        await fetch(getApiUrl(`/rides/${ride.id}/notify-transporters`), {
+          method: "POST",
+          headers: withCsrfHeader() as HeadersInit,
+          credentials: "include"
+        });
       } catch (notifyError) {
         console.warn("Could not notify transporters automatically", notifyError);
       }

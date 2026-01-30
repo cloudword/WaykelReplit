@@ -1,4 +1,5 @@
 import { CUSTOMER_API_BASE } from "../config/api";
+import { withCsrfHeader } from "@/lib/api";
 
 // JWT token storage keys
 // JWT token storage keys - Aligned with main app (lib/api.ts)
@@ -249,12 +250,25 @@ export interface CreateAddressData {
   addressType?: string;
 }
 
+export function getApiUrl(endpoint: string): string {
+  // Use VITE_API_BASE_URL if set, otherwise fallback to /api for development
+  // Ensure we don't duplicate the /api prefix if CUSTOMER_API_BASE already includes it
+  const base = CUSTOMER_API_BASE || "/api";
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+
+  if (base.endsWith('/api')) {
+    return `${base}${path}`;
+  }
+  return `${base}/api${path}`;
+}
+
 async function fetchLocalApi<T>(
   endpoint: string,
   options: RequestInit = {},
   skipAuthRedirect = false
 ): Promise<T> {
-  const url = `${CUSTOMER_API_BASE}/api/customer${endpoint}`;
+  const url = getApiUrl(`/customer${endpoint}`);
+
   const token = getAuthToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -265,9 +279,14 @@ async function fetchLocalApi<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
+  // Add CSRF header for non-GET requests
+  const finalHeaders = options.method && options.method !== 'GET'
+    ? withCsrfHeader(headers)
+    : headers;
+
   const response = await fetch(url, {
     ...options,
-    headers,
+    headers: finalHeaders as HeadersInit,
     credentials: "include",
   });
 
