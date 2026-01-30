@@ -67,6 +67,7 @@ import Track from "./customer-portal/pages/Track";
 import Profile from "./customer-portal/pages/Profile";
 import Addresses from "./customer-portal/pages/Addresses";
 import Help from "./customer-portal/pages/Help";
+import TripDetails from "./customer-portal/pages/TripDetails";
 import { AuthProvider as CustomerAuthProvider } from "./customer-portal/lib/auth";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -113,6 +114,7 @@ function Router() {
       <Route path="/customer/dashboard/profile" component={Profile} />
       <Route path="/customer/dashboard/addresses" component={Addresses} />
       <Route path="/customer/dashboard/help" component={Help} />
+      <Route path="/customer/dashboard/trip/:id" component={TripDetails} />
       <Route path="/customer/dashboard" component={Dashboard} />
       <Route path="/customer/notifications" component={Notifications} />
       <Route path="/customer">

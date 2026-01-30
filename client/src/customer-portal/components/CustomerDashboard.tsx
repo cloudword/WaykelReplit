@@ -72,7 +72,7 @@ function RideCard({ ride, onViewBids }: { ride: WaykelRide; onViewBids: () => vo
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-[10px] font-mono font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                    {ride.id}
+                    {ride.entityId || ride.id.slice(0, 6)}
                   </span>
                   <Badge className={`${getStatusColor(status)} text-[10px] px-2 py-0 h-4 border-none uppercase tracking-wider font-bold`}>
                     {status}
@@ -274,6 +274,21 @@ export function CustomerDashboard() {
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to accept bid",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const rejectBidMutation = useMutation({
+    mutationFn: (bidId: string) => waykelApi.bids.rejectBid(bidId),
+    onSuccess: () => {
+      toast({ title: "Bid Rejected", description: "The bid has been marked as rejected" });
+      queryClient.invalidateQueries({ queryKey: ["customer-bids", selectedRide?.id] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to reject bid",
         variant: "destructive",
       });
     },
@@ -509,19 +524,36 @@ export function CustomerDashboard() {
                                 Rating: {bid.transporter.rating.toFixed(1)} ★
                               </p>
                             )}
+                            {bid.vehicle && (
+                              <div className="mt-2 p-1.5 bg-muted/40 rounded border border-card-border/50">
+                                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-tight mb-0.5">Assigned Vehicle</p>
+                                <p className="text-xs font-semibold">{bid.vehicle.model} • {bid.vehicle.type}</p>
+                                <p className="text-[10px] text-muted-foreground">Capacity: {bid.vehicle.capacity}</p>
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right flex flex-col gap-2 shrink-0">
                           <p className="text-lg font-bold text-gray-900">₹{Number(bid.amount).toLocaleString()}</p>
-                          <Button
-                            size="sm"
-                            className="mt-2"
-                            onClick={() => acceptBidMutation.mutate(bid.id)}
-                            disabled={acceptBidMutation.isPending}
-                            data-testid={`button-accept-bid-${bid.id}`}
-                          >
-                            {acceptBidMutation.isPending ? "Accepting..." : "Accept Bid"}
-                          </Button>
+                          <div className="flex flex-col gap-2">
+                            <Button
+                              size="sm"
+                              className="h-8 font-bold"
+                              onClick={() => acceptBidMutation.mutate(bid.id)}
+                              disabled={acceptBidMutation.isPending || rejectBidMutation.isPending}
+                            >
+                              {acceptBidMutation.isPending ? "Accepting..." : "Accept Bid"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700 font-bold"
+                              onClick={() => rejectBidMutation.mutate(bid.id)}
+                              disabled={acceptBidMutation.isPending || rejectBidMutation.isPending}
+                            >
+                              {rejectBidMutation.isPending ? "Rejecting..." : "Reject"}
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </CardContent>

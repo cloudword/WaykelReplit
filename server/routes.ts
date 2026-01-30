@@ -1580,12 +1580,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!isOwner && !user.isSuperAdmin) {
         return res.status(403).json({ error: "Access denied" });
       }
-
       const result = await storage.getRideBids(rideId);
 
       // Mask transporter info but allow name/rating for evaluation
       const formattedBids = result.map(item => {
-        const { bid, transporter } = item;
+        const { bid, transporter, vehicle } = item;
         return {
           id: bid.id,
           entityId: bid.entityId,
@@ -1598,8 +1597,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             name: transporter?.name,
             rating: transporter?.rating,
             isVerified: transporter?.status === "active",
-            verificationStatus: transporter?.verificationStatus
+            verificationStatus: transporter?.verificationStatus,
+            type: transporter?.transporterType,
           },
+          vehicle: vehicle ? {
+            id: vehicle.id,
+            entityId: vehicle.entityId,
+            type: vehicle.type,
+            model: vehicle.model,
+            plateNumber: vehicle.plateNumber, // Only show for Bids? Or maybe mask? User said "vehicle details"
+            capacity: vehicle.capacity,
+          } : null,
           transporterId: bid.status === "accepted" ? bid.transporterId : null,
           userId: bid.status === "accepted" ? bid.userId : null,
           vehicleId: bid.status === "accepted" ? bid.vehicleId : null,
@@ -5583,6 +5591,37 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     (app as any)._router.handle({ ...req, method: 'POST' }, res, () => { });
   });
 
+  // Reject bid route
+  app.post("/api/bids/:bidId/reject", async (req, res) => {
+    const sessionUser = getCurrentUser(req);
+    if (!sessionUser) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    try {
+      const bid = await storage.getBid(req.params.bidId);
+      if (!bid) {
+        return res.status(404).json({ error: "Bid not found" });
+      }
+
+      const ride = await storage.getRide(bid.rideId);
+      if (!ride) {
+        return res.status(404).json({ error: "Ride not found" });
+      }
+
+      // Check authorization - super admin or ride owner
+      if (!sessionUser.isSuperAdmin && ride.createdById !== sessionUser.id) {
+        return res.status(403).json({ error: "Only the ride owner or admin can reject bids" });
+      }
+
+      await storage.updateBidStatus(bid.id, "rejected");
+      res.json({ success: true, message: "Bid rejected successfully" });
+    } catch (error) {
+      console.error("[POST /api/bids/:bidId/reject] Error:", error);
+      res.status(500).json({ error: "Failed to reject bid" });
+    }
+  });
+
   app.post("/api/bids/:bidId/accept", async (req, res) => {
     const sessionUser = getCurrentUser(req);
 
@@ -5643,7 +5682,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(409).json({ error: "Bidding already closed or trip no longer available" });
       }
 
-      // Post-acceptance: Assign driver if policy allows (non-critical, outside transaction)
       if (bid.userId && bid.vehicleId && bid.transporterId) {
         const transporter = await storage.getTransporter(bid.transporterId);
         if (transporter) {

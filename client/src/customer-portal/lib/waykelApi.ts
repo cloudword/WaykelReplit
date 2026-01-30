@@ -113,6 +113,7 @@ export interface WaykelUser {
 
 export interface WaykelRide {
   id: string;
+  entityId?: string;
   pickupLocation: string;
   dropLocation: string;
   pickupTime: string;
@@ -170,6 +171,14 @@ export interface WaykelBid {
     rating?: number;
     isVerified?: boolean;
     verificationStatus?: "verified" | "pending" | "unverified";
+  };
+  vehicle?: {
+    id: string;
+    entityId: string;
+    type: string;
+    model: string;
+    plateNumber: string;
+    capacity: string;
   };
 }
 
@@ -379,6 +388,9 @@ export const waykelApi = {
 
     acceptBid: (bidId: string) =>
       fetchLocalApi<WaykelBid>(`/bids/${bidId}/accept`, { method: "POST" }),
+
+    rejectBid: (bidId: string) =>
+      fetchLocalApi<{ success: boolean; message: string }>(`/bids/${bidId}/reject`, { method: "POST" }),
   },
 
   addresses: {

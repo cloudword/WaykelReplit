@@ -815,7 +815,7 @@ export class DatabaseStorage implements IStorage {
 
     while (retries < maxRetries) {
       try {
-        const entityId = generateEntityId('R');
+        const entityId = generateEntityId('B');
         const [ride] = await db.insert(rides).values({ ...insertRide, entityId } as any).returning();
         return ride;
       } catch (error: any) {
@@ -937,10 +937,12 @@ export class DatabaseStorage implements IStorage {
         bid: bids,
         ride: rides,
         transporter: transporters,
+        vehicle: vehicles,
       })
       .from(bids)
       .leftJoin(rides, eq(bids.rideId, rides.id))
       .leftJoin(transporters, eq(bids.transporterId, transporters.id))
+      .leftJoin(vehicles, eq(bids.vehicleId, vehicles.id))
       .where(eq(bids.rideId, rideId))
       .orderBy(desc(bids.createdAt));
   }
@@ -1020,7 +1022,7 @@ export class DatabaseStorage implements IStorage {
       throw new Error("You have already placed an active bid for this trip.");
     }
 
-    const entityId = generateEntityId('B');
+    const entityId = generateEntityId('Q');
     const [bid] = await db.insert(bids).values({ ...insertBid, entityId } as any).returning();
     return bid;
   }

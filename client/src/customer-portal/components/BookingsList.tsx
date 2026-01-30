@@ -129,7 +129,7 @@ export function BookingsList({ type, rides, isLoading }: BookingsListProps) {
                   filteredRides.map(ride => (
                     <TableRow key={ride.id} className="hover:bg-muted/20 transition-colors">
                       <TableCell className="px-6 font-mono text-sm font-bold text-primary">
-                        {ride.id.slice(0, 8)}...
+                        {ride.entityId || "B-NEW"}
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
@@ -139,16 +139,25 @@ export function BookingsList({ type, rides, isLoading }: BookingsListProps) {
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell className="max-w-[200px]">
-                        <div className="flex flex-col gap-0.5">
-                          <p className="font-bold text-sm flex items-center gap-1.5 truncate">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block mr-1.5" />
-                            {ride.pickupLocation}
-                          </p>
-                          <p className="font-bold text-sm flex items-center gap-1.5 truncate">
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block mr-1.5" />
-                            {ride.dropLocation}
-                          </p>
+                      <TableCell className="max-w-[200px] py-4">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-start gap-2">
+                            <div className="flex flex-col items-center gap-0.5 mt-1">
+                              <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                              <div className="w-0.5 h-6 bg-muted-foreground/20 rounded-full" />
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">From</span>
+                              <p className="font-bold text-sm truncate leading-tight">{ride.pickupLocation}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)] mt-1" />
+                            <div className="flex flex-col">
+                              <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">To</span>
+                              <p className="font-bold text-sm truncate leading-tight">{ride.dropLocation}</p>
+                            </div>
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -167,7 +176,12 @@ export function BookingsList({ type, rides, isLoading }: BookingsListProps) {
                       </TableCell>
                       <TableCell className="px-6 text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-primary transition-colors"
+                            onClick={() => window.location.href = `/customer/dashboard/trip/${ride.id}`}
+                          >
                             <Eye className="w-4 h-4" />
                           </Button>
                           {["in_transit", "active"].includes(ride.status.toLowerCase()) && (

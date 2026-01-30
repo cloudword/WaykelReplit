@@ -1,4 +1,4 @@
-type EntityPrefix = 'T' | 'V' | 'D' | 'C' | 'B' | 'R';
+type EntityPrefix = 'T' | 'V' | 'D' | 'C' | 'B' | 'Q';
 
 const CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -14,7 +14,7 @@ export function generateEntityId(prefix: EntityPrefix): string {
 export function isValidEntityId(id: string): boolean {
   if (!id || id.length !== 6) return false;
   const prefix = id[0];
-  if (!['T', 'V', 'D', 'C'].includes(prefix)) return false;
+  if (!['T', 'V', 'D', 'C', 'B', 'Q'].includes(prefix)) return false;
   const rest = id.slice(1);
   return /^[A-HJ-NP-Z2-9]{5}$/.test(rest);
 }
@@ -26,8 +26,8 @@ export function getEntityTypeFromId(id: string): 'transporter' | 'vehicle' | 'dr
     case 'V': return 'vehicle';
     case 'D': return 'driver';
     case 'C': return 'customer';
-    case 'R': return 'ride';
-    case 'B': return 'bid';
+    case 'B': return 'ride';
+    case 'Q': return 'bid';
     default: return null;
   }
 }
