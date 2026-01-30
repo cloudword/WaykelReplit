@@ -68,6 +68,21 @@ export default function TripDetails() {
         },
     });
 
+    const rejectBidMutation = useMutation({
+        mutationFn: (bidId: string) => waykelApi.bids.rejectBid(bidId),
+        onSuccess: () => {
+            toast({ title: "Bid Rejected", description: "The bid has been marked as rejected" });
+            queryClient.invalidateQueries({ queryKey: ["customer-bids", id] });
+        },
+        onError: (error) => {
+            toast({
+                title: "Error",
+                description: error instanceof Error ? error.message : "Failed to reject bid",
+                variant: "destructive",
+            });
+        },
+    });
+
     if (rideLoading) {
         return (
             <DashboardLayout currentPage="/customer/dashboard">
@@ -245,25 +260,39 @@ export default function TripDetails() {
                                                                 {bid.transporter?.isVerified && <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />}
                                                             </div>
                                                             <div className="flex items-center gap-2 mt-0.5">
-                                                                <span className="text-xs font-bold text-amber-500">★ {bid.transporter?.rating || '4.5'}</span>
+                                                                <span className="text-xs font-bold text-amber-500">★ {bid.transporter?.rating?.toFixed(1) || 'N/A'}</span>
                                                                 <span className="text-muted-foreground/30">•</span>
-                                                                <span className="text-[10px] text-muted-foreground font-semibold uppercase">{bid.vehicle?.model || 'Tata Ace'}</span>
+                                                                <span className="text-[10px] text-muted-foreground font-semibold uppercase">{bid.vehicle?.model || 'Generic Vehicle'}</span>
+                                                                <span className="text-muted-foreground/30">•</span>
+                                                                <span className="text-[10px] text-muted-foreground font-semibold uppercase">{bid.vehicle?.type || '-'}</span>
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    <div className="flex items-center gap-4 shrink-0">
+                                                    <div className="flex flex-col gap-2 shrink-0 sm:items-end">
                                                         <div className="text-right">
                                                             <p className="text-lg font-black tracking-tight">₹{Number(bid.amount).toLocaleString()}</p>
-                                                            <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-tighter italic">Recommended</p>
+                                                            <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-tighter italic">Low Price</p>
                                                         </div>
-                                                        <Button
-                                                            size="sm"
-                                                            className="font-bold px-6"
-                                                            onClick={() => acceptBidMutation.mutate(bid.id)}
-                                                            disabled={acceptBidMutation.isPending}
-                                                        >
-                                                            Accept
-                                                        </Button>
+                                                        <div className="flex gap-2">
+                                                            <Button
+                                                                size="sm"
+                                                                className="font-bold px-6 h-8"
+                                                                onClick={() => acceptBidMutation.mutate(bid.id)}
+                                                                disabled={acceptBidMutation.isPending || rejectBidMutation.isPending}
+                                                            >
+                                                                {acceptBidMutation.isPending ? "Accepting..." : "Accept"}
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-8 text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700 font-bold px-4"
+                                                                onClick={() => rejectBidMutation.mutate(bid.id)}
+                                                                disabled={acceptBidMutation.isPending || rejectBidMutation.isPending}
+                                                                data-testid={`button-reject-bid-${bid.id}`}
+                                                            >
+                                                                {rejectBidMutation.isPending ? "Rejecting..." : "Reject"}
+                                                            </Button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))}
@@ -347,6 +376,6 @@ export default function TripDetails() {
                     </div>
                 </div>
             </div>
-        </DashboardLayout>
+        </DashboardLayout >
     );
 }

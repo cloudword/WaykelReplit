@@ -106,7 +106,7 @@ export function BookingsList({ type, rides, isLoading }: BookingsListProps) {
                 <TableRow className="bg-muted/30">
                   <TableHead className="px-6 font-bold text-xs uppercase tracking-tight">Booking ID</TableHead>
                   <TableHead className="font-bold text-xs uppercase tracking-tight">Schedule</TableHead>
-                  <TableHead className="font-bold text-xs uppercase tracking-tight">Trip Route</TableHead>
+                  <TableHead className="font-bold text-xs uppercase tracking-tight w-[320px]">Trip Route</TableHead>
                   <TableHead className="font-bold text-xs uppercase tracking-tight">Load</TableHead>
                   <TableHead className="font-bold text-xs uppercase tracking-tight">Status</TableHead>
                   <TableHead className="font-bold text-xs uppercase tracking-tight">Bids</TableHead>
@@ -128,8 +128,8 @@ export function BookingsList({ type, rides, isLoading }: BookingsListProps) {
                 ) : (
                   filteredRides.map(ride => (
                     <TableRow key={ride.id} className="hover:bg-muted/20 transition-colors">
-                      <TableCell className="px-6 font-mono text-sm font-bold text-primary">
-                        {ride.entityId || "B-NEW"}
+                      <TableCell className="px-6 font-mono text-sm font-bold text-primary whitespace-nowrap">
+                        {ride.entityId || `B-${ride.id.slice(0, 4).toUpperCase()}`}
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
@@ -139,23 +139,23 @@ export function BookingsList({ type, rides, isLoading }: BookingsListProps) {
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell className="max-w-[200px] py-4">
+                      <TableCell className="w-[320px] py-4">
                         <div className="flex flex-col gap-2">
                           <div className="flex items-start gap-2">
-                            <div className="flex flex-col items-center gap-0.5 mt-1">
+                            <div className="flex flex-col items-center gap-0.5 mt-1 shrink-0">
                               <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
                               <div className="w-0.5 h-6 bg-muted-foreground/20 rounded-full" />
                             </div>
-                            <div className="flex flex-col">
+                            <div className="flex flex-col min-w-0">
                               <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">From</span>
-                              <p className="font-bold text-sm truncate leading-tight">{ride.pickupLocation}</p>
+                              <p className="font-bold text-xs line-clamp-2 leading-tight break-words">{ride.pickupLocation}</p>
                             </div>
                           </div>
                           <div className="flex items-start gap-2">
-                            <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)] mt-1" />
-                            <div className="flex flex-col">
+                            <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)] mt-1 shrink-0" />
+                            <div className="flex flex-col min-w-0">
                               <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">To</span>
-                              <p className="font-bold text-sm truncate leading-tight">{ride.dropLocation}</p>
+                              <p className="font-bold text-xs line-clamp-2 leading-tight break-words">{ride.dropLocation}</p>
                             </div>
                           </div>
                         </div>
