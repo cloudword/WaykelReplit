@@ -440,6 +440,7 @@ export function BookingForm() {
               </p>
             </div>
           </form>
+        </div>
       </CardContent>
     </Card>
   );
