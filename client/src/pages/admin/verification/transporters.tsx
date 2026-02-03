@@ -13,6 +13,7 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { API_BASE, withCsrfHeader } from "@/lib/api";
 import { useAdminSessionGate } from "@/hooks/useAdminSession";
+import { getFileTypeFromUrl } from "@/lib/document-utils";
 
 interface Document {
   id: string;
@@ -476,8 +477,8 @@ export default function VerificationTransporters() {
                                 doc.status === "verified"
                                   ? "bg-green-100 text-green-700"
                                   : doc.status === "pending"
-                                  ? "bg-yellow-100 text-yellow-700"
-                                  : "bg-red-100 text-red-700"
+                                    ? "bg-yellow-100 text-yellow-700"
+                                    : "bg-red-100 text-red-700"
                               }
                             >
                               {doc.status}
@@ -623,7 +624,7 @@ export default function VerificationTransporters() {
             </DialogHeader>
             <div className="flex justify-center">
               {previewUrl && (
-                previewUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                getFileTypeFromUrl(previewUrl).isImage ? (
                   <img src={previewUrl} alt="Document" className="max-w-full max-h-[70vh] object-contain" />
                 ) : (
                   <iframe src={previewUrl} className="w-full h-[70vh]" title="Document Preview" />

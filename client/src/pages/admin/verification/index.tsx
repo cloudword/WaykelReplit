@@ -16,6 +16,7 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { API_BASE, withCsrfHeader } from "@/lib/api";
 import { useAdminSessionGate } from "@/hooks/useAdminSession";
+import { getFileTypeFromUrl } from "@/lib/document-utils";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Document {
@@ -1120,7 +1121,11 @@ export default function VerificationOverview() {
           </DialogHeader>
           {previewUrl && (
             <div className="flex items-center justify-center">
-              <img src={previewUrl} alt="Document" className="max-w-full max-h-[70vh] object-contain" />
+              {getFileTypeFromUrl(previewUrl).isImage ? (
+                <img src={previewUrl} alt="Document" className="max-w-full max-h-[70vh] object-contain" />
+              ) : (
+                <iframe src={previewUrl} className="w-full h-[70vh]" title="Document Preview" />
+              )}
             </div>
           )}
         </DialogContent>

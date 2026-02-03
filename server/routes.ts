@@ -27,6 +27,7 @@ import { assertRideTransition, RideTransitionError, isValidStatus, type RideStat
 import { lockTripFinancialsAtomic, computeTripFinancials, computeTripFinancialsWithSettings, settingsToFeeConfig } from "./tripFinancials";
 import { sendTransactionalSms, SmsEvent } from "./sms/smsService";
 import crypto from "crypto";
+import { parseBookingPrompt } from "./ai";
 
 // JWT Configuration
 const envJwtSecret = process.env.JWT_SECRET || process.env.SESSION_SECRET;
@@ -1622,6 +1623,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
     }
     res.json({ authenticated: false });
+  });
+
+  // AI Booking Parser
+  app.post("/api/customer/parse-booking", heavyOperationLimiter, async (req, res) => {
+    const { prompt } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ error: "No prompt provided" });
+    }
+
+    try {
+      const result = await parseBookingPrompt(prompt);
+      res.json(result);
+    } catch (error: any) {
+      console.error("AI Parse Error:", error);
+      res.status(500).json({ error: error?.message || "Failed to parse request" });
+    }
   });
 
   // Customer OTP/Forgot Password Aliases (Internal Redirects)

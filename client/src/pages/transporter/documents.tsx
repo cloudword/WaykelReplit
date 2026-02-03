@@ -15,15 +15,14 @@ import { api, API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 import { useTransporterSessionGate } from "@/hooks/useTransporterSession";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { getFileTypeFromUrl, isImageDocument } from "@/lib/document-utils";
 
 function DocumentThumbnail({ doc, onView }: { doc: any; onView: () => void }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  const isImage = doc.url?.match(/\.(jpg|jpeg|png|gif|webp)$/i) ||
-    doc.url?.includes("image") ||
-    doc.contentType?.startsWith("image/");
+  const { isImage } = getFileTypeFromUrl(doc.url);
 
   useEffect(() => {
     const loadPreview = async () => {
@@ -683,8 +682,8 @@ export default function TransporterDocuments() {
             Document preview
           </p>
 
-          {previewUrl?.endsWith(".pdf") ? (
-            <iframe src={previewUrl} className="w-full h-[80vh]" />
+          {getFileTypeFromUrl(previewUrl).isPdf ? (
+            <iframe src={previewUrl!} className="w-full h-[80vh]" />
           ) : (
             <img src={previewUrl!} className="max-h-[80vh] mx-auto" alt="Document Preview" />
           )}

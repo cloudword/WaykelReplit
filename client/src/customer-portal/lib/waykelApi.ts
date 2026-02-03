@@ -439,5 +439,13 @@ export const waykelApi = {
   tracking: {
     getTrackInfo: (id: string) =>
       fetchLocalApi<any>(`/track/${id}`),
+  },
+
+  ai: {
+    parseBooking: (prompt: string) =>
+      fetchLocalApi<any>("/parse-booking", {
+        method: "POST",
+        body: JSON.stringify({ prompt }),
+      }),
   }
 };
