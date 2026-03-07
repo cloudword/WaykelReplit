@@ -2474,8 +2474,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
 
     try {
-      // Get all pending rides
-      const pendingRides = await storage.getPendingRides();
+      // Get marketplace rides where bidding is still open
+      const pendingRides = await storage.getOpenMarketplaceRides();
 
       if (!sessionUser.transporterId) {
         return res.json(pendingRides.map(ride => ({ ...ride, matchScore: 0, matchReason: "No transporter profile" })));
@@ -2490,19 +2490,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // Get transporter's vehicles
       const vehicles = await storage.getTransporterVehicles(sessionUser.transporterId);
 
-      // Calculate match scores for each ride
+      // Calculate match scores and strict eligibility for each ride
       const ridesWithScores = pendingRides.map(ride => {
         let score = 0;
         const reasons: string[] = [];
+        let hasEligibleVehicle = false;
 
         // Check vehicle matching
         for (const vehicle of vehicles) {
-          if (vehicle.status !== "active") continue;
+          if (vehicle.status !== "active" || vehicle.isActiveForBidding !== true) continue;
+
+          let vehicleEligibleForRide = true;
 
           // Vehicle type match
           if (ride.requiredVehicleType && vehicle.type === ride.requiredVehicleType) {
             score += 30;
             reasons.push(`Vehicle type matches (${vehicle.type})`);
+          } else if (ride.requiredVehicleType) {
+            vehicleEligibleForRide = false;
           } else if (!ride.requiredVehicleType) {
             score += 10;
           }
@@ -2511,6 +2516,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           if (ride.weightKg && vehicle.capacityKg && vehicle.capacityKg >= ride.weightKg) {
             score += 25;
             reasons.push(`Capacity sufficient (${vehicle.capacityKg}kg)`);
+          } else if (ride.weightKg) {
+            vehicleEligibleForRide = false;
           } else if (!ride.weightKg) {
             score += 5;
           }
@@ -2520,13 +2527,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             score += 20;
             reasons.push(`Vehicle at pickup location`);
           }
+
+          if (vehicleEligibleForRide) {
+            hasEligibleVehicle = true;
+          }
         }
+
+        let hasLocationMatch = false;
 
         // Service area match
         if (transporter.servicePincodes && Array.isArray(transporter.servicePincodes) && ride.pickupPincode) {
           if (transporter.servicePincodes.includes(ride.pickupPincode)) {
             score += 15;
             reasons.push(`In service area`);
+            hasLocationMatch = true;
           }
         }
 
@@ -2534,6 +2548,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         if (transporter.basePincode && ride.pickupPincode && transporter.basePincode === ride.pickupPincode) {
           score += 10;
           reasons.push(`Near base location`);
+          hasLocationMatch = true;
+        }
+
+        // When no pincode is available on ride, allow location criteria to pass
+        if (!ride.pickupPincode) {
+          hasLocationMatch = true;
         }
 
         // Route preference match
@@ -2551,14 +2571,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           ...serializedRide,
           matchScore: Math.min(score, 100),
           matchReason: reasons.length > 0 ? reasons.join(", ") : "General match",
-          isMatched: score > 0
+          isMatched: score > 0,
+          isEligible: hasEligibleVehicle && hasLocationMatch
         };
       });
 
-      // Sort by match score (highest first), then by date
-      ridesWithScores.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
+      const strictlyEligibleRides = ridesWithScores.filter((ride) => ride.isEligible);
 
-      res.json(ridesWithScores);
+      // Sort by match score (highest first), then by date
+      strictlyEligibleRides.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
+
+      res.json(strictlyEligibleRides);
     } catch (error) {
       console.error("Failed to fetch marketplace rides:", error);
       res.status(500).json({ error: "Failed to fetch marketplace rides", details: error instanceof Error ? error.message : "Unknown error" });
@@ -4807,6 +4830,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         document = await storage.replaceDocumentAtomically(autoReplaceDocumentId, newDocData as any, sessionUser.id);
       } else {
         document = await storage.createDocument(newDocData as any);
+      }
+
+      // Keep verification status in sync immediately after upload of required docs.
+      const normalizedDocType = type.toLowerCase();
+      if (
+        entityType === "vehicle" &&
+        vehicleId &&
+        ["rc", "registration_certificate", "vehicle_rc"].includes(normalizedDocType)
+      ) {
+        await storage.updateVehicleDocumentStatus(vehicleId, "verification_pending");
+      }
+
+      if (
+        entityType === "driver" &&
+        userId &&
+        ["driving_license", "license", "dl"].includes(normalizedDocType)
+      ) {
+        await storage.updateDriverDocumentStatus(userId, "verification_pending");
       }
 
       res.status(201).json(document);

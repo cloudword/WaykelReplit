@@ -131,6 +131,14 @@ export default function TransporterMarketplace() {
     loadVehicles();
     loadBids();
     refetchBidEligibility();
+
+    const marketplacePoll = setInterval(() => {
+      loadRides();
+      loadBids();
+      refetchBidEligibility();
+    }, 10000);
+
+    return () => clearInterval(marketplacePoll);
   }, [sessionReady, sessionUser?.transporterId]);
 
   const handlePlaceBid = (rideId: string, price: number) => {
