@@ -41,6 +41,10 @@ export default function TransporterBids() {
 
   useEffect(() => {
     loadData();
+
+    if (!sessionReady || !sessionUser?.transporterId) return;
+    const bidsPoll = setInterval(loadData, 10000);
+    return () => clearInterval(bidsPoll);
   }, [sessionReady, sessionUser?.transporterId]);
 
   const getRideDetails = (rideId: string) => {

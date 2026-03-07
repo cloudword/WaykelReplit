@@ -52,12 +52,16 @@ export default function TripDetails() {
             return match;
         },
         enabled: !!id,
+        refetchInterval: 10000,
+        refetchOnWindowFocus: true,
     });
 
     const { data: bids = [], isLoading: bidsLoading } = useQuery<WaykelBid[]>({
         queryKey: ["customer-bids", id],
         queryFn: () => (id ? waykelApi.bids.getBidsForRide(id) : Promise.resolve([])),
         enabled: !!id && ["pending", "open", "bidding"].includes(ride?.status.toLowerCase() || ""),
+        refetchInterval: 10000,
+        refetchOnWindowFocus: true,
     });
 
     const acceptBidMutation = useMutation({

@@ -109,6 +109,7 @@ export interface IStorage {
   getRide(id: string): Promise<Ride | undefined>;
   getAllRides(limit?: number, offset?: number): Promise<Ride[]>;
   getPendingRides(): Promise<Ride[]>;
+  getOpenMarketplaceRides(): Promise<Ride[]>;
   getScheduledRides(): Promise<Ride[]>;
   getActiveRides(): Promise<Ride[]>;
   getCompletedRides(): Promise<Ride[]>;
@@ -731,6 +732,19 @@ export class DatabaseStorage implements IStorage {
 
   async getPendingRides(): Promise<Ride[]> {
     return await db.select().from(rides).where(eq(rides.status, "pending")).orderBy(desc(rides.createdAt));
+  }
+
+  async getOpenMarketplaceRides(): Promise<Ride[]> {
+    return await db
+      .select()
+      .from(rides)
+      .where(
+        and(
+          inArray(rides.status, ["pending", "bidding"]),
+          eq(rides.biddingStatus, "open")
+        )
+      )
+      .orderBy(desc(rides.createdAt));
   }
 
   async getScheduledRides(): Promise<Ride[]> {
