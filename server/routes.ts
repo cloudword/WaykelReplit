@@ -4947,6 +4947,30 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
       }
 
+      // Auto-approve transporter if all requirements are met
+      if (document?.transporterId && status === "verified") {
+        try {
+          const transporter = await storage.getTransporter(document.transporterId);
+          // Only attempt auto-approval if they are not already active
+          if (transporter && transporter.status !== "active") {
+            const onboardingStatus = await storage.getTransporterOnboardingStatus(document.transporterId);
+            if (onboardingStatus) {
+              const isBusiness = onboardingStatus.transporterType === "business";
+              const isReadyToApprove = (!isBusiness || onboardingStatus.hasBusinessDocs) &&
+                onboardingStatus.hasApprovedVehicle &&
+                onboardingStatus.hasApprovedDriver;
+
+              if (isReadyToApprove) {
+                await storage.approveTransporter(document.transporterId, adminUser.id);
+                console.log(`Auto-approved transporter ${document.transporterId} after document verification`);
+              }
+            }
+          }
+        } catch (autoApproveError) {
+          console.error("Failed to auto-approve transporter:", autoApproveError);
+        }
+      }
+
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ error: "Failed to update document status" });
