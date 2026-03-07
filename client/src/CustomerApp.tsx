@@ -8,28 +8,44 @@ import { StatusBar, Style } from "@capacitor/status-bar";
 import { SplashScreen } from "@capacitor/splash-screen";
 
 import NotFound from "@/pages/not-found";
-import AuthPage from "@/pages/auth";
-import CustomerDashboard from "@/pages/customer/dashboard";
-import CustomerRides from "@/pages/customer/rides";
-import CustomerProfile from "@/pages/customer/profile";
 import Notifications from "@/pages/notifications";
-import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
-
-const customerNavItems = [
-  { href: "/customer", icon: "home" as const, label: "Home" },
-  { href: "/customer/rides", icon: "package" as const, label: "Bookings" },
-  { href: "/customer/notifications", icon: "bell" as const, label: "Alerts" },
-  { href: "/customer/profile", icon: "user" as const, label: "Profile" },
-];
+import Dashboard from "./customer-portal/pages/Dashboard";
+import CustomerAuth from "./customer-portal/pages/Auth";
+import Book from "./customer-portal/pages/Book";
+import ActiveBookings from "./customer-portal/pages/ActiveBookings";
+import BookingHistory from "./customer-portal/pages/BookingHistory";
+import Payments from "./customer-portal/pages/Payments";
+import Track from "./customer-portal/pages/Track";
+import Profile from "./customer-portal/pages/Profile";
+import Addresses from "./customer-portal/pages/Addresses";
+import Help from "./customer-portal/pages/Help";
+import TripDetails from "./customer-portal/pages/TripDetails";
+import { AuthProvider as CustomerAuthProvider } from "./customer-portal/lib/auth";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 function CustomerRouter() {
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="text-center space-y-4">
-        <p className="text-muted-foreground animate-pulse">Redirecting to new customer portal...</p>
-        <Redirect to="/customer" />
-      </div>
-    </div>
+    <Switch>
+      <Route path="/customer/auth" component={CustomerAuth} />
+      <Route path="/customer/book" component={Book} />
+      <Route path="/customer/dashboard/active" component={ActiveBookings} />
+      <Route path="/customer/dashboard/history" component={BookingHistory} />
+      <Route path="/customer/dashboard/payments" component={Payments} />
+      <Route path="/customer/dashboard/track" component={Track} />
+      <Route path="/customer/dashboard/profile" component={Profile} />
+      <Route path="/customer/dashboard/addresses" component={Addresses} />
+      <Route path="/customer/dashboard/help" component={Help} />
+      <Route path="/customer/dashboard/trip/:id" component={TripDetails} />
+      <Route path="/customer/dashboard" component={Dashboard} />
+      <Route path="/customer/notifications" component={Notifications} />
+      <Route path="/customer">
+        <Redirect to="/customer/dashboard" />
+      </Route>
+      <Route path="/">
+        <Redirect to="/customer/dashboard" />
+      </Route>
+      <Route component={NotFound} />
+    </Switch>
   );
 }
 
@@ -56,8 +72,12 @@ function CustomerApp() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <CustomerRouter />
-      <Toaster />
+      <CustomerAuthProvider>
+        <TooltipProvider>
+          <CustomerRouter />
+          <Toaster />
+        </TooltipProvider>
+      </CustomerAuthProvider>
     </QueryClientProvider>
   );
 }
