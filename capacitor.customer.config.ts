@@ -27,10 +27,12 @@ const config: CapacitorConfig = {
     }
   },
   ios: {
+    path: "ios-customer",
     contentInset: "automatic",
     scheme: "WaykelCustomer"
   },
   android: {
+    path: "android-customer",
     allowMixedContent: false,
     backgroundColor: "#2563eb"
   }

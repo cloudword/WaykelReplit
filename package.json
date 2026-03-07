@@ -7,6 +7,8 @@
     "dev:client": "vite dev --port 5000",
     "dev": "NODE_ENV=development tsx server/index.ts",
     "build": "tsx script/build.ts",
+    "build:customer": "vite build --config vite.customer.config.ts && mv dist/customer/customer.html dist/customer/index.html && cp capacitor.customer.config.ts capacitor.config.ts && npx cap sync",
+    "build:driver": "vite build --config vite.driver.config.ts && mv dist/driver/driver.html dist/driver/index.html && cp capacitor.driver.config.ts capacitor.config.ts && npx cap sync",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
     "test": "cross-env NODE_ENV=test vitest run --run",

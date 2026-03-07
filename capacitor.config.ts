@@ -30,10 +30,12 @@ const config: CapacitorConfig = {
     }
   },
   ios: {
+    path: "ios-driver",
     contentInset: "automatic",
     scheme: "WaykelDriver"
   },
   android: {
+    path: "android-driver",
     allowMixedContent: false,
     backgroundColor: "#059669"
   }
