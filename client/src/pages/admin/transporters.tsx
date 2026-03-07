@@ -248,6 +248,37 @@ export default function AdminTransporters() {
     }
   };
 
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSyncTransporters = async () => {
+    if (!confirm("This will retroactively check and approve all pending transporters who have verified their required documents. Proceed?")) {
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const response = await fetch(`${API_BASE}/admin/retroactive-approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include"
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(`Successfully approved ${data.approvedCount} transporters!`);
+        if (data.approvedCount > 0) {
+          fetchData();
+        }
+      } else {
+        toast.error("Failed to sync transporters");
+      }
+    } catch (error) {
+      toast.error("An error occurred while syncing");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const getTransporterDrivers = (transporterId: string) => {
     return drivers.filter(d => d.transporterId === transporterId);
   };
@@ -535,6 +566,15 @@ export default function AdminTransporters() {
             <p className="text-gray-500">Manage fleet owners and logistics companies ({transporters.length} total)</p>
           </div>
           <div className="flex gap-3">
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={handleSyncTransporters}
+              disabled={isSyncing}
+            >
+              <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? 'Syncing...' : 'Sync Approvals'}
+            </Button>
             <Button variant="outline" className="gap-2" data-testid="button-export">
               <Download className="h-4 w-4" /> Export Excel
             </Button>

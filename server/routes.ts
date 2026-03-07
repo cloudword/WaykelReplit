@@ -4977,6 +4977,36 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // POST /api/admin/retroactive-approve - Admin only (Temporary endpoint to fix existing transporters)
+  app.post("/api/admin/retroactive-approve", requireAdmin, async (req, res) => {
+    try {
+      const adminUser = getCurrentUser(req);
+      if (!adminUser) return res.status(401).json({ error: "Not authenticated" });
+
+      const allTransporters = await storage.getTransportersByStatus("pending_verification");
+      let approvedCount = 0;
+
+      for (const t of allTransporters) {
+        const onboardingStatus = await storage.getTransporterOnboardingStatus(t.id);
+        if (onboardingStatus) {
+          const isBusiness = onboardingStatus.transporterType === "business";
+          const isReadyToApprove = (!isBusiness || onboardingStatus.hasBusinessDocs) &&
+            onboardingStatus.hasApprovedVehicle &&
+            onboardingStatus.hasApprovedDriver;
+
+          if (isReadyToApprove) {
+            await storage.approveTransporter(t.id, adminUser.id);
+            approvedCount++;
+          }
+        }
+      }
+      res.json({ success: true, approvedCount });
+    } catch (error) {
+      console.error("Failed retroactive approval:", error);
+      res.status(500).json({ error: "Internal server error during retroactive approval" });
+    }
+  });
+
   // ===========================================
   // TRIP-SCOPED DOCUMENT APIs
   // ===========================================
