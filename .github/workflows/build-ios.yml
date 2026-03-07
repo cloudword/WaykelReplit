@@ -60,11 +60,11 @@ jobs:
         run: npx cap sync ios
 
       - name: Install CocoaPods dependencies
-        working-directory: ios/App
+        working-directory: ios-customer/App
         run: pod install
 
       - name: Build iOS app (Simulator)
-        working-directory: ios/App
+        working-directory: ios-customer/App
         run: |
           xcodebuild build \
             -workspace App.xcworkspace \
@@ -77,7 +77,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: waykel-customer-ios-simulator
-          path: ios/App/build/Build/Products/Debug-iphonesimulator/
+          path: ios-customer/App/build/Build/Products/Debug-iphonesimulator/
           retention-days: 14
 
   build-driver:
@@ -113,11 +113,11 @@ jobs:
         run: npx cap sync ios
 
       - name: Install CocoaPods dependencies
-        working-directory: ios/App
+        working-directory: ios-driver/App
         run: pod install
 
       - name: Build iOS app (Simulator)
-        working-directory: ios/App
+        working-directory: ios-driver/App
         run: |
           xcodebuild build \
             -workspace App.xcworkspace \
@@ -130,5 +130,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: waykel-driver-ios-simulator
-          path: ios/App/build/Build/Products/Debug-iphonesimulator/
+          path: ios-driver/App/build/Build/Products/Debug-iphonesimulator/
           retention-days: 14
