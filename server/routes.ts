@@ -2576,12 +2576,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         };
       });
 
-      const strictlyEligibleRides = ridesWithScores.filter((ride) => ride.isEligible);
-
       // Sort by match score (highest first), then by date
-      strictlyEligibleRides.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
+      ridesWithScores.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
 
-      res.json(strictlyEligibleRides);
+      res.json(ridesWithScores);
     } catch (error) {
       console.error("Failed to fetch marketplace rides:", error);
       res.status(500).json({ error: "Failed to fetch marketplace rides", details: error instanceof Error ? error.message : "Unknown error" });
