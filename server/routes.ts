@@ -1399,7 +1399,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     } catch (error: any) {
       console.error("[auth/otp/send] Error:", error?.message || error);
-      res.status(500).json({ error: "Failed to send OTP. Please try again." });
+      res.status(500).json({ error: error?.message || "Failed to send OTP. Please try again." });
     }
   });
 
