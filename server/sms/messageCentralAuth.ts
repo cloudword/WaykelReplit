@@ -123,7 +123,7 @@ export async function validateVerificationOtp(verificationId: string, code: stri
     const url = `${MESSAGE_CENTRAL_BASE_URL}/verification/v3/validateOtp?verificationId=${encodeURIComponent(verificationId)}&code=${encodeURIComponent(code)}`;
 
     const response = await fetch(url, {
-        method: "POST",
+        method: "GET", // NOTE: The documentation might use GET for validation, testing this.
         headers: {
             "authToken": token,
             "accept": "*/*"
@@ -131,9 +131,11 @@ export async function validateVerificationOtp(verificationId: string, code: stri
     });
 
     const text = await response.text();
+    console.log(`[Message Central Validate Raw]:`, text);
+
     if (!response.ok) {
         console.error(`[Message Central] Validate OTP failed with status ${response.status}: ${text}`);
-        return false; // Typically bad request or 400 for wrong OTP
+        return false;
     }
 
     try {
@@ -144,12 +146,11 @@ export async function validateVerificationOtp(verificationId: string, code: stri
         }
 
         if (data.responseCode === 702 || data.responseCode === 700 || data.responseCode === 705) {
-            // 702 = WRONG_OTP_PROVIDED, 700 = VERIFICATION_FAILED, 705 = VERIFICATION_EXPIRED
             console.warn(`[Message Central] Validation failed: Code ${data.responseCode}`);
             return false;
         }
 
-        console.error(`[Message Central] Validate OTP API returned non-success code:`, data);
+        console.error(`[Message Central] Validate OTP API returned non-success code. Raw block:`, data);
         return false;
     } catch (err) {
         console.error(`[Message Central] Failed to parse validate OTP response`, err);
