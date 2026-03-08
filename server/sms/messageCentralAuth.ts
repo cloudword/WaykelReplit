@@ -18,7 +18,7 @@ export async function getMessageCentralToken(): Promise<string> {
     }
 
     const customerId = process.env.MESSAGE_CENTRAL_CUSTOMER_ID || "C-B5A348A6682248A";
-    const key = process.env.MESSAGE_CENTRAL_KEY;
+    const key = process.env.MESSAGE_CENTRAL_KEY || "TWF5YW5rNkBzaW5naA==";
 
     if (!key) {
         console.warn("MESSAGE_CENTRAL_KEY is missing from environment. OTP services may fail.");
