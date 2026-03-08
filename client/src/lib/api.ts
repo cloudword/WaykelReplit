@@ -210,6 +210,26 @@ export const api = {
       });
       return res.json();
     },
+    sendOtp: async (data: { phone: string; purpose: "signup" | "login"; name?: string; role?: string; companyName?: string; transporterType?: string; location?: string; city?: string; fleetSize?: number }) => {
+      const res = await apiFetch(`${API_BASE}/auth/otp/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }, true);
+      return res.json();
+    },
+    verifyOtp: async (data: { phone: string; otp: string; verificationId: string }) => {
+      const res = await apiFetch(`${API_BASE}/auth/otp/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }, true);
+      const result = await res.json();
+      if (res.ok && result && !result.error) {
+        startSessionHeartbeat();
+      }
+      return result;
+    },
   },
   rides: {
     list: async (filters?: any) => {

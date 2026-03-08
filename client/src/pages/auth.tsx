@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,115 +8,250 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Truck, Building2, User, Briefcase, UserCircle } from "lucide-react";
+import { Truck, Building2, User, Briefcase, UserCircle, Phone, ShieldCheck, ArrowLeft, Loader2 } from "lucide-react";
+
+type AuthStep = "form" | "otp";
 
 export default function AuthPage() {
   const [_, setLocation] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
-  const [loginIdentifier, setLoginIdentifier] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
+  const [step, setStep] = useState<AuthStep>("form");
+
+  // Login state
+  const [loginPhone, setLoginPhone] = useState("");
+
+  // Signup state
   const [signupName, setSignupName] = useState("");
   const [signupPhone, setSignupPhone] = useState("");
-  const [signupEmail, setSignupEmail] = useState("");
-  const [signupPassword, setSignupPassword] = useState("");
   const [signupRole, setSignupRole] = useState<"driver" | "transporter">("driver");
   const [transporterType, setTransporterType] = useState<"business" | "individual">("individual");
   const [companyName, setCompanyName] = useState("");
-  const [fleetSize, setFleetSize] = useState("");
   const [location, setLocationInput] = useState("");
 
-  const handleLogin = async (e: React.FormEvent) => {
+  // OTP state
+  const [otp, setOtp] = useState("");
+  const [verificationId, setVerificationId] = useState("");
+  const [activePhone, setActivePhone] = useState(""); // phone used for the current OTP flow
+  const [activePurpose, setActivePurpose] = useState<"signup" | "login">("login");
+  const [resendTimer, setResendTimer] = useState(0);
+
+  // Resend countdown
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const timer = setInterval(() => setResendTimer((t) => t - 1), 1000);
+    return () => clearInterval(timer);
+  }, [resendTimer]);
+
+  const redirectByRole = useCallback((role: string) => {
+    if (role === "driver") setLocation("/driver");
+    else if (role === "transporter") setLocation("/transporter");
+    else if (role === "admin") setLocation("/admin");
+    else if (role === "customer") setLocation("/customer");
+    else setLocation("/");
+  }, [setLocation]);
+
+  const handleLoginSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const isPhone = /^\d+$/.test(loginIdentifier);
-      const credentials = isPhone
-        ? { phone: loginIdentifier, password: loginPassword }
-        : { username: loginIdentifier, password: loginPassword };
-
-      const user = await api.auth.login(credentials);
-      if (user.error) {
-        toast.error(user.error);
+      const result = await api.auth.sendOtp({ phone: loginPhone, purpose: "login" });
+      if (result.error) {
+        toast.error(result.error);
       } else {
-        // Clear any stale user data before storing new user to prevent cross-tenant data leaks
+        setVerificationId(result.verificationId);
+        setActivePhone(loginPhone);
+        setActivePurpose("login");
+        setStep("otp");
+        setResendTimer(30);
+        toast.success("OTP sent to your phone!");
+      }
+    } catch {
+      toast.error("Failed to send OTP");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignupSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (signupRole === "transporter" && transporterType === "business" && !companyName) {
+      toast.error("Please enter your company name");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const result = await api.auth.sendOtp({
+        phone: signupPhone,
+        purpose: "signup",
+        name: signupName,
+        role: signupRole,
+        companyName: transporterType === "business" ? companyName : signupName,
+        transporterType,
+        location: location || "India",
+        city: location || "India",
+      });
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        setVerificationId(result.verificationId);
+        setActivePhone(signupPhone);
+        setActivePurpose("signup");
+        setStep("otp");
+        setResendTimer(30);
+        toast.success("OTP sent to your phone!");
+      }
+    } catch {
+      toast.error("Failed to send OTP");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (otp.length < 4) {
+      toast.error("Please enter the complete OTP");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const result = await api.auth.verifyOtp({
+        phone: activePhone,
+        otp,
+        verificationId,
+      });
+      if (result.error) {
+        toast.error(result.error);
+        if (result.remainingAttempts !== undefined) {
+          toast.info(`${result.remainingAttempts} attempts remaining`);
+        }
+      } else {
         localStorage.removeItem("currentUser");
-        localStorage.setItem("currentUser", JSON.stringify(user));
-        const role = user.role;
-        if (role === "driver") setLocation("/driver");
-        else if (role === "transporter") setLocation("/transporter");
-        else if (role === "admin") setLocation("/admin");
-        else if (role === "customer") setLocation("/customer");
-        toast.success("Logged in successfully!");
+        const userData = result.user || result;
+        if (result.token) {
+          localStorage.setItem("currentUser", JSON.stringify({ ...userData, token: result.token }));
+        } else {
+          localStorage.setItem("currentUser", JSON.stringify(userData));
+        }
+        toast.success(activePurpose === "signup" ? "Account created successfully!" : "Logged in successfully!");
+        const role = userData.role;
+
+        if (activePurpose === "signup" && role === "transporter" && transporterType === "business") {
+          setLocation("/transporter/documents?onboarding=true");
+        } else {
+          redirectByRole(role);
+        }
       }
-    } catch (error) {
-      toast.error("Login failed");
+    } catch {
+      toast.error("OTP verification failed");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleResendOtp = async () => {
+    if (resendTimer > 0) return;
     setIsLoading(true);
     try {
-      if (signupRole === "transporter") {
-        // Simplified: Only require company name for business entities
-        const effectiveCompanyName = transporterType === "business" ? companyName : signupName;
-        if (transporterType === "business" && !companyName) {
-          toast.error("Please enter your company name");
-          setIsLoading(false);
-          return;
-        }
-
-        // Backend creates transporter automatically during registration
-        const user = await api.auth.register({
-          name: signupName,
-          email: signupEmail || undefined,
-          phone: signupPhone,
-          password: signupPassword,
-          role: "transporter",
-          companyName: effectiveCompanyName,
-          transporterType, // Pass entity type to backend
-          location: location || "India", // Default location
-          city: location || "India",
-          fleetSize: parseInt(fleetSize) || 1,
-        });
-        if (user.error) {
-          toast.error(user.error);
-        } else {
-          localStorage.setItem("currentUser", JSON.stringify(user));
-          // Business entities go to document upload first
-          if (transporterType === "business") {
-            toast.success("Registration successful! Please upload your business registration document to continue.");
-            setLocation("/transporter/documents?onboarding=true");
-          } else {
-            toast.success("Registration successful! Add a vehicle to start bidding.");
-            setLocation("/transporter");
-          }
-        }
-      } else {
-        const user = await api.auth.register({
-          name: signupName,
-          email: signupEmail || undefined,
-          phone: signupPhone,
-          password: signupPassword,
-          role: signupRole,
-        });
-        if (user.error) {
-          toast.error(user.error);
-        } else {
-          localStorage.setItem("currentUser", JSON.stringify(user));
-          setLocation("/driver");
-          toast.success("Registration successful!");
-        }
+      const payload: any = { phone: activePhone, purpose: activePurpose };
+      if (activePurpose === "signup") {
+        payload.name = signupName;
+        payload.role = signupRole;
+        payload.companyName = transporterType === "business" ? companyName : signupName;
+        payload.transporterType = transporterType;
+        payload.location = location || "India";
       }
-    } catch (error) {
-      toast.error("Registration failed");
+      const result = await api.auth.sendOtp(payload);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        setVerificationId(result.verificationId);
+        setOtp("");
+        setResendTimer(30);
+        toast.success("OTP resent!");
+      }
+    } catch {
+      toast.error("Failed to resend OTP");
     } finally {
       setIsLoading(false);
     }
   };
 
+  const goBack = () => {
+    setStep("form");
+    setOtp("");
+    setVerificationId("");
+  };
+
+  // OTP Verification Step
+  if (step === "otp") {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <div className="mb-8 text-center">
+          <h1 className="text-4xl font-black tracking-tighter">
+            WAY<span className="text-primary">KEL</span>
+          </h1>
+          <p className="text-muted-foreground mt-2">Commercial Vehicle Logistics</p>
+        </div>
+
+        <Card className="w-full max-w-md shadow-lg border-none">
+          <CardHeader>
+            <button onClick={goBack} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-2 -ml-1">
+              <ArrowLeft className="h-4 w-4" /> Back
+            </button>
+            <CardTitle className="text-2xl text-center flex items-center justify-center gap-2">
+              <ShieldCheck className="h-6 w-6 text-primary" />
+              Verify OTP
+            </CardTitle>
+            <CardDescription className="text-center">
+              Enter the OTP sent to <span className="font-semibold text-foreground">+91 {activePhone}</span>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleVerifyOtp} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="otp">One-Time Password</Label>
+                <Input
+                  id="otp"
+                  placeholder="Enter 4-6 digit OTP"
+                  required
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  className="h-14 text-center text-2xl tracking-[0.5em] font-bold"
+                  autoFocus
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  data-testid="input-otp"
+                />
+              </div>
+              <Button className="w-full h-12 text-base" type="submit" disabled={isLoading || otp.length < 4} data-testid="button-verify-otp">
+                {isLoading ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Verifying...</>
+                ) : (
+                  "Verify & Continue"
+                )}
+              </Button>
+              <div className="text-center">
+                {resendTimer > 0 ? (
+                  <p className="text-sm text-muted-foreground">Resend OTP in <span className="font-semibold text-primary">{resendTimer}s</span></p>
+                ) : (
+                  <button type="button" onClick={handleResendOtp} disabled={isLoading} className="text-sm text-primary hover:underline font-medium">
+                    Resend OTP
+                  </button>
+                )}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        <p className="mt-4 text-xs text-gray-400 text-center max-w-xs">
+          By continuing, you agree to our Terms of Service and Privacy Policy.
+        </p>
+      </div>
+    );
+  }
+
+  // Form Step (Login / Signup)
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
       <div className="mb-8 text-center">
@@ -130,7 +265,7 @@ export default function AuthPage() {
         <CardHeader>
           <CardTitle className="text-2xl text-center">Welcome</CardTitle>
           <CardDescription className="text-center">
-            Enter your credentials to access your account
+            Login or sign up with your mobile number
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -141,48 +276,38 @@ export default function AuthPage() {
             </TabsList>
 
             <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4">
+              <form onSubmit={handleLoginSendOtp} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="identifier">Phone Number or Username</Label>
-                  <Input
-                    id="identifier"
-                    placeholder="Enter phone number or username"
-                    required
-                    value={loginIdentifier}
-                    onChange={(e) => setLoginIdentifier(e.target.value)}
-                    data-testid="input-identifier"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="password">Password</Label>
-                    <button
-                      type="button"
-                      className="text-xs text-primary hover:underline"
-                      onClick={() => setLocation("/forgot-password")}
-                      data-testid="link-forgot-password"
-                    >
-                      Forgot Password?
-                    </button>
+                  <Label htmlFor="login-phone">Phone Number</Label>
+                  <div className="flex gap-2">
+                    <div className="flex items-center justify-center px-3 bg-muted rounded-md border text-sm font-medium text-muted-foreground">
+                      +91
+                    </div>
+                    <Input
+                      id="login-phone"
+                      placeholder="Enter your phone number"
+                      required
+                      type="tel"
+                      inputMode="numeric"
+                      value={loginPhone}
+                      onChange={(e) => setLoginPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      className="flex-1 h-11"
+                      data-testid="input-login-phone"
+                    />
                   </div>
-                  <Input
-                    id="password"
-                    type="password"
-                    required
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    data-testid="input-password"
-                  />
                 </div>
-                <Button className="w-full h-12 text-base" type="submit" disabled={isLoading} data-testid="button-login">
-                  {isLoading ? "Logging in..." : "Login"}
+                <Button className="w-full h-12 text-base gap-2" type="submit" disabled={isLoading || loginPhone.length < 10} data-testid="button-login">
+                  {isLoading ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Sending OTP...</>
+                  ) : (
+                    <><Phone className="h-4 w-4" /> Send OTP</>
+                  )}
                 </Button>
               </form>
             </TabsContent>
 
             <TabsContent value="signup">
-              <form onSubmit={handleSignup} className="space-y-4">
+              <form onSubmit={handleSignupSendOtp} className="space-y-4">
                 <div className="space-y-3">
                   <Label className="text-sm font-medium">I want to register as:</Label>
                   <RadioGroup
@@ -268,42 +393,30 @@ export default function AuthPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="signup-phone">Phone Number</Label>
-                  <Input
-                    id="signup-phone"
-                    placeholder="9999999999"
-                    type="tel"
-                    required
-                    value={signupPhone}
-                    onChange={(e) => setSignupPhone(e.target.value)}
-                    data-testid="input-signup-phone"
-                  />
+                  <div className="flex gap-2">
+                    <div className="flex items-center justify-center px-3 bg-muted rounded-md border text-sm font-medium text-muted-foreground">
+                      +91
+                    </div>
+                    <Input
+                      id="signup-phone"
+                      placeholder="9999999999"
+                      type="tel"
+                      inputMode="numeric"
+                      required
+                      value={signupPhone}
+                      onChange={(e) => setSignupPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      className="flex-1 h-11"
+                      data-testid="input-signup-phone"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email (Optional)</Label>
-                  <Input
-                    id="signup-email"
-                    placeholder="email@example.com"
-                    type="email"
-                    value={signupEmail}
-                    onChange={(e) => setSignupEmail(e.target.value)}
-                    data-testid="input-signup-email"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password-signup">Password</Label>
-                  <Input
-                    id="password-signup"
-                    type="password"
-                    required
-                    value={signupPassword}
-                    onChange={(e) => setSignupPassword(e.target.value)}
-                    data-testid="input-signup-password"
-                  />
-                </div>
-                <Button className="w-full h-12 text-base" type="submit" disabled={isLoading} data-testid="button-signup">
-                  {isLoading ? "Creating Account..." :
-                    signupRole === "driver" ? "Register as Driver" :
-                      "Register as Transporter"}
+
+                <Button className="w-full h-12 text-base gap-2" type="submit" disabled={isLoading || signupPhone.length < 10} data-testid="button-signup">
+                  {isLoading ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Sending OTP...</>
+                  ) : (
+                    <><Phone className="h-4 w-4" /> Send OTP to Register</>
+                  )}
                 </Button>
               </form>
             </TabsContent>

@@ -392,6 +392,43 @@ export const waykelApi = {
         method: "POST",
         body: JSON.stringify({ phone, code }),
       }, true),
+
+    // Message Central OTP methods (global auth endpoints, not customer-prefixed)
+    sendOtpGlobal: async (data: { phone: string; purpose: "signup" | "login"; name?: string; role?: string }) => {
+      const base = CUSTOMER_API_BASE || "";
+      const url = base ? `${base}/api/auth/otp/send` : `/api/auth/otp/send`;
+      const token = getAuthToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const csrfHeaders = data ? withCsrfHeader(headers) : headers;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: csrfHeaders as HeadersInit,
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      const text = await res.text();
+      if (!text) return {};
+      return JSON.parse(text);
+    },
+
+    verifyOtpGlobal: async (data: { phone: string; otp: string; verificationId: string }) => {
+      const base = CUSTOMER_API_BASE || "";
+      const url = base ? `${base}/api/auth/otp/verify` : `/api/auth/otp/verify`;
+      const token = getAuthToken();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const csrfHeaders = withCsrfHeader(headers);
+      const res = await fetch(url, {
+        method: "POST",
+        headers: csrfHeaders as HeadersInit,
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      const text = await res.text();
+      if (!text) return {};
+      return JSON.parse(text);
+    },
   },
 
   rides: {

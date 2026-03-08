@@ -493,7 +493,7 @@ export const insertPlatformSettingsSchema = createInsertSchema(platformSettings)
 export type InsertPlatformSettings = z.infer<typeof insertPlatformSettingsSchema>;
 export type PlatformSettings = typeof platformSettings.$inferSelect;
 
-// OTP for phone verification
+// OTP for phone verification -> legacy keeping for fallback if needed, or migration
 export const otpCodes = pgTable("otp_codes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   phone: varchar("phone", { length: 15 }).notNull(),
@@ -508,6 +508,24 @@ export const otpCodes = pgTable("otp_codes", {
     phonePurposeVerifiedUnique: uniqueIndex("idx_otp_phone_purpose_verified").on(table.phone, table.purpose, table.verified),
   };
 });
+
+// New OTP Verification Sessions leveraging Message Central
+export const verificationSessions = pgTable("verification_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  verificationId: text("verification_id").notNull(),
+  phone: text("phone").notNull(),
+  purpose: text("purpose").$type<"signup" | "login">().notNull(),
+  status: text("status").$type<"pending" | "verified" | "expired">().default("pending"),
+  sessionData: json("session_data"), // Stores role, name, etc. for signup payload
+  attempts: integer("attempts").default(0),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertVerificationSessionSchema = createInsertSchema(verificationSessions).omit({ id: true, createdAt: true });
+export type InsertVerificationSession = z.infer<typeof insertVerificationSessionSchema>;
+export type VerificationSession = typeof verificationSessions.$inferSelect;
+
 
 // Ride status history for audit trails
 export const rideStatusHistory = pgTable("ride_status_history", {

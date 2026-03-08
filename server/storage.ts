@@ -1,6 +1,7 @@
 import {
   users, vehicles, rides, bids, transporters, documents, notifications, apiLogs,
   roles, userRoles, savedAddresses, driverApplications, ledgerEntries, platformSettings, otpCodes,
+  verificationSessions,
   rideStatusHistory, verificationLogs, type VerificationLog,
   type User, type InsertUser,
   type Vehicle, type InsertVehicle,
@@ -17,6 +18,7 @@ import {
   type LedgerEntry, type InsertLedgerEntry,
   type PlatformSettings, type InsertPlatformSettings,
   type OtpCode, type InsertOtpCode,
+  type VerificationSession, type InsertVerificationSession,
   type RideStatusHistory, type InsertRideStatusHistory
 } from "@shared/schema";
 import { db } from "./db";
@@ -246,6 +248,13 @@ export interface IStorage {
   incrementOtpAttempts(id: string): Promise<void>;
   markOtpVerified(id: string): Promise<void>;
   invalidateOtpCodes(phone: string, purpose: "login" | "forgot_password" | "verify_phone"): Promise<void>;
+
+  // Verification Sessions
+  createVerificationSession(session: InsertVerificationSession): Promise<VerificationSession>;
+  getActiveVerificationSession(verificationId: string): Promise<VerificationSession | undefined>;
+  getActiveVerificationSessionByPhone(phone: string, purpose: "signup" | "login"): Promise<VerificationSession | undefined>;
+  updateVerificationSession(id: string, updates: Partial<InsertVerificationSession>): Promise<void>;
+  invalidateVerificationSessions(phone: string, purpose: "signup" | "login"): Promise<void>;
 
   // Onboarding
   getTransporterOnboardingStatus(transporterId: string): Promise<{
@@ -1724,6 +1733,51 @@ export class DatabaseStorage implements IStorage {
         eq(otpCodes.phone, phone),
         eq(otpCodes.purpose, purpose),
         eq(otpCodes.verified, false)
+      )
+    );
+  }
+
+  // Verification Sessions
+  async createVerificationSession(session: InsertVerificationSession): Promise<VerificationSession> {
+    const [created] = await db.insert(verificationSessions).values(session as any).returning();
+    return created;
+  }
+
+  async getActiveVerificationSession(verificationId: string): Promise<VerificationSession | undefined> {
+    const [session] = await db.select().from(verificationSessions)
+      .where(and(
+        eq(verificationSessions.verificationId, verificationId),
+        eq(verificationSessions.status, "pending"),
+        gte(verificationSessions.expiresAt, new Date())
+      ))
+      .orderBy(desc(verificationSessions.createdAt))
+      .limit(1);
+    return session || undefined;
+  }
+
+  async getActiveVerificationSessionByPhone(phone: string, purpose: "signup" | "login"): Promise<VerificationSession | undefined> {
+    const [session] = await db.select().from(verificationSessions)
+      .where(and(
+        eq(verificationSessions.phone, phone),
+        eq(verificationSessions.purpose, purpose),
+        eq(verificationSessions.status, "pending"),
+        gte(verificationSessions.expiresAt, new Date())
+      ))
+      .orderBy(desc(verificationSessions.createdAt))
+      .limit(1);
+    return session || undefined;
+  }
+
+  async updateVerificationSession(id: string, updates: Partial<InsertVerificationSession>): Promise<void> {
+    await db.update(verificationSessions).set(updates as any).where(eq(verificationSessions.id, id));
+  }
+
+  async invalidateVerificationSessions(phone: string, purpose: "signup" | "login"): Promise<void> {
+    await db.update(verificationSessions).set({ status: "expired" }).where(
+      and(
+        eq(verificationSessions.phone, phone),
+        eq(verificationSessions.purpose, purpose),
+        eq(verificationSessions.status, "pending")
       )
     );
   }

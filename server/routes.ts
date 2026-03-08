@@ -1320,6 +1320,297 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // ============== MESSAGE CENTRAL OTP AUTHENTICATION ==============
+
+  app.post("/api/auth/otp/send", sensitiveAuthLimiter, async (req, res) => {
+    try {
+      const { phone, purpose = "login", name, role, companyName, transporterType, location: userLocation, city, fleetSize } = req.body;
+
+      if (!phone) {
+        return res.status(400).json({ error: "Phone number is required" });
+      }
+
+      if (!["signup", "login"].includes(purpose)) {
+        return res.status(400).json({ error: "Purpose must be 'signup' or 'login'" });
+      }
+
+      let normalizedPhone: string;
+      try {
+        normalizedPhone = normalizePhone(phone);
+      } catch (e) {
+        return res.status(400).json({ error: "Invalid phone number format. Must be 10 digits." });
+      }
+
+      const existingUser = await storage.getUserByPhone(normalizedPhone);
+
+      if (purpose === "signup") {
+        if (existingUser) {
+          return res.status(400).json({ error: "Phone number already registered. Please login instead." });
+        }
+        if (!name || !role) {
+          return res.status(400).json({ error: "Name and role are required for signup" });
+        }
+        const validRoles = ["driver", "transporter", "customer"];
+        if (!validRoles.includes(role)) {
+          return res.status(400).json({ error: "Invalid role for signup" });
+        }
+      }
+
+      if (purpose === "login") {
+        if (!existingUser) {
+          return res.status(404).json({ error: "No account found with this phone number. Please sign up first." });
+        }
+      }
+
+      // Invalidate any previous pending sessions for this phone + purpose
+      await storage.invalidateVerificationSessions(normalizedPhone, purpose);
+
+      // Send OTP via Message Central
+      const { sendVerificationOtp } = await import("./sms/messageCentralAuth");
+      const verificationId = await sendVerificationOtp(normalizedPhone);
+
+      // Build session data for signup (stores the intent)
+      const sessionData = purpose === "signup" ? {
+        name,
+        role,
+        companyName,
+        transporterType: transporterType || "individual",
+        location: userLocation || city || "India",
+        city: city || userLocation || "India",
+        fleetSize: fleetSize || 1,
+      } : null;
+
+      // Store the verification session
+      await storage.createVerificationSession({
+        verificationId: String(verificationId),
+        phone: normalizedPhone,
+        purpose: purpose as "signup" | "login",
+        status: "pending",
+        sessionData,
+        attempts: 0,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+      });
+
+      res.json({
+        success: true,
+        message: "OTP sent successfully",
+        verificationId: String(verificationId),
+        expiresIn: 600,
+      });
+    } catch (error: any) {
+      console.error("[auth/otp/send] Error:", error?.message || error);
+      res.status(500).json({ error: "Failed to send OTP. Please try again." });
+    }
+  });
+
+  app.post("/api/auth/otp/verify", sensitiveAuthLimiter, async (req, res) => {
+    try {
+      const { phone, otp, verificationId } = req.body;
+
+      if (!phone || !otp || !verificationId) {
+        return res.status(400).json({ error: "Phone, OTP, and verificationId are required" });
+      }
+
+      let normalizedPhone: string;
+      try {
+        normalizedPhone = normalizePhone(phone);
+      } catch (e) {
+        return res.status(400).json({ error: "Invalid phone number format." });
+      }
+
+      // Find the active session
+      const session = await storage.getActiveVerificationSession(String(verificationId));
+      if (!session) {
+        return res.status(400).json({ error: "OTP expired or invalid. Please request a new one." });
+      }
+
+      // Check phone matches
+      if (session.phone !== normalizedPhone) {
+        return res.status(400).json({ error: "Phone number mismatch." });
+      }
+
+      // Check attempts
+      if ((session.attempts || 0) >= 5) {
+        await storage.updateVerificationSession(session.id, { status: "expired" } as any);
+        return res.status(400).json({ error: "Too many attempts. Please request a new OTP." });
+      }
+
+      // Increment attempts
+      await storage.updateVerificationSession(session.id, { attempts: (session.attempts || 0) + 1 } as any);
+
+      // Validate OTP with Message Central
+      const { validateVerificationOtp } = await import("./sms/messageCentralAuth");
+      const isValid = await validateVerificationOtp(String(verificationId), otp);
+
+      if (!isValid) {
+        const remaining = 4 - (session.attempts || 0);
+        return res.status(400).json({
+          error: "Invalid OTP",
+          remainingAttempts: Math.max(0, remaining),
+        });
+      }
+
+      // Mark session as verified
+      await storage.updateVerificationSession(session.id, { status: "verified" } as any);
+
+      // === SIGNUP FLOW ===
+      if (session.purpose === "signup") {
+        const data = session.sessionData as any;
+        if (!data || !data.role || !data.name) {
+          return res.status(400).json({ error: "Invalid signup session data" });
+        }
+
+        // Double-check no user was created in the meantime (race condition guard)
+        const raceCheck = await storage.getUserByPhone(normalizedPhone);
+        if (raceCheck) {
+          return res.status(400).json({ error: "Account already exists. Please login." });
+        }
+
+        // Create a random password hash (user will never need it; OTP-only)
+        const dummyPassword = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10);
+
+        let transporterId: string | undefined;
+        let transporterEntityId: string | undefined;
+
+        if (data.role === "transporter") {
+          const transporterData = {
+            companyName: data.companyName || `${data.name}'s Transport`,
+            ownerName: data.name,
+            contact: normalizedPhone,
+            email: undefined,
+            location: data.location || "India",
+            baseCity: data.city || data.location || "India",
+            fleetSize: data.fleetSize || 1,
+            status: "pending_verification" as const,
+            verificationStatus: "unverified",
+            transporterType: data.transporterType || "individual",
+            onboardingStatus: "incomplete" as const,
+          };
+          const transporter = await storage.createTransporter(transporterData);
+          transporterId = transporter.id;
+          transporterEntityId = transporter.entityId || undefined;
+        }
+
+        const user = await storage.createUser({
+          name: data.name,
+          phone: normalizedPhone,
+          password: dummyPassword,
+          role: data.role,
+          transporterId,
+        });
+
+        const { password: _, ...userWithoutPassword } = user;
+
+        // Generate JWT
+        const tokenPayload = {
+          id: user.id,
+          role: user.role,
+          isSuperAdmin: user.isSuperAdmin || false,
+          isSelfDriver: user.isSelfDriver || false,
+          transporterId: user.transporterId || undefined,
+          entityId: (user.entityId || transporterEntityId || undefined) as string | undefined,
+          transporterEntityId: transporterEntityId || undefined,
+          phone: user.phone,
+        };
+        const expiresIn = (user.role === "admin" || user.role === "transporter")
+          ? JWT_ADMIN_EXPIRES_IN
+          : JWT_CUSTOMER_EXPIRES_IN;
+        const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn });
+
+        // Also set session for same-origin requests
+        req.session.user = {
+          id: user.id,
+          role: user.role,
+          isSuperAdmin: user.isSuperAdmin || false,
+          isSelfDriver: user.isSelfDriver || false,
+          transporterId: (transporterId || user.transporterId || undefined) as string | undefined,
+          entityId: (user.entityId || transporterEntityId || undefined) as string | undefined,
+          transporterEntityId: (transporterEntityId || undefined) as string | undefined,
+        };
+
+        return req.session.save((saveErr) => {
+          if (saveErr) console.error("Session save error during OTP signup:", saveErr);
+          res.json({
+            success: true,
+            verified: true,
+            purpose: "signup",
+            user: { ...userWithoutPassword, transporterId },
+            token,
+            tokenType: "Bearer",
+            expiresIn,
+          });
+        });
+      }
+
+      // === LOGIN FLOW ===
+      const user = await storage.getUserByPhone(normalizedPhone);
+      if (!user) {
+        return res.status(404).json({ error: "Account not found" });
+      }
+
+      let transporterEntityId: string | undefined;
+      if (user.role === "transporter" && user.transporterId) {
+        const transporter = await storage.getTransporter(user.transporterId);
+        if (transporter) {
+          transporterEntityId = transporter.entityId || undefined;
+          if (transporter.status === "suspended") {
+            return res.status(403).json({ error: "Your account has been suspended. Please contact support." });
+          }
+        }
+      }
+
+      // Generate JWT
+      const tokenPayload = {
+        id: user.id,
+        role: user.role,
+        isSuperAdmin: user.isSuperAdmin || false,
+        isSelfDriver: user.isSelfDriver || false,
+        transporterId: user.transporterId || undefined,
+        entityId: (user.entityId || transporterEntityId || undefined) as string | undefined,
+        transporterEntityId: transporterEntityId || undefined,
+        phone: user.phone,
+      };
+      const expiresIn = (user.role === "admin" || user.role === "transporter")
+        ? JWT_ADMIN_EXPIRES_IN
+        : JWT_CUSTOMER_EXPIRES_IN;
+      const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn });
+
+      // Session for same-origin
+      req.session.regenerate((regenerateErr) => {
+        if (regenerateErr) {
+          console.error("[OTP Login] Session regenerate failed:", regenerateErr.message);
+        }
+
+        req.session.user = {
+          id: user.id,
+          role: user.role,
+          isSuperAdmin: user.isSuperAdmin || false,
+          isSelfDriver: user.isSelfDriver || false,
+          transporterId: user.transporterId || undefined,
+          entityId: (user.entityId || transporterEntityId || undefined) as string | undefined,
+          transporterEntityId: transporterEntityId || undefined,
+        };
+
+        req.session.save((saveErr) => {
+          if (saveErr) console.error("Session save error during OTP login:", saveErr);
+          const { password: _, ...userWithoutPassword } = user;
+          res.json({
+            success: true,
+            verified: true,
+            purpose: "login",
+            user: userWithoutPassword,
+            token,
+            tokenType: "Bearer",
+            expiresIn,
+          });
+        });
+      });
+    } catch (error: any) {
+      console.error("[auth/otp/verify] Error:", error?.message || error);
+      res.status(500).json({ error: "OTP verification failed. Please try again." });
+    }
+  });
+
   app.post("/api/auth/logout", (req, res) => {
     req.session.destroy((err) => {
       if (err) {
