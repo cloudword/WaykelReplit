@@ -395,8 +395,7 @@ export const waykelApi = {
 
     // Message Central OTP methods (global auth endpoints, not customer-prefixed)
     sendOtpGlobal: async (data: { phone: string; purpose: "signup" | "login"; name?: string; role?: string }) => {
-      const base = CUSTOMER_API_BASE || "";
-      const url = base ? `${base}/api/auth/otp/send` : `/api/auth/otp/send`;
+      const url = getApiUrl("/auth/otp/send").replace("/api/customer/", "/api/");
       const token = getAuthToken();
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -413,8 +412,7 @@ export const waykelApi = {
     },
 
     verifyOtpGlobal: async (data: { phone: string; otp: string; verificationId: string }) => {
-      const base = CUSTOMER_API_BASE || "";
-      const url = base ? `${base}/api/auth/otp/verify` : `/api/auth/otp/verify`;
+      const url = getApiUrl("/auth/otp/verify").replace("/api/customer/", "/api/");
       const token = getAuthToken();
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
