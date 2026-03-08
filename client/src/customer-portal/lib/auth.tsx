@@ -171,7 +171,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       clearAuthData();
       setUser(null);
-      setLocation("/customer");
+      // Force a full window redirect to clear any React/Query state
+      window.location.href = "/customer/auth";
     }
   };
 
