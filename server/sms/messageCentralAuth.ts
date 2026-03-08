@@ -17,15 +17,19 @@ export async function getMessageCentralToken(): Promise<string> {
         return cachedAuthToken;
     }
 
-    const customerId = process.env.MESSAGE_CENTRAL_CUSTOMER_ID;
-    const key = process.env.MESSAGE_CENTRAL_KEY;
+    // Safely extract and trim environment variables (DigitalOcean sometimes includes quotes or spaces)
+    const rawCustomerId = process.env.MESSAGE_CENTRAL_CUSTOMER_ID || "";
+    const rawKey = process.env.MESSAGE_CENTRAL_KEY || "";
+
+    const customerId = rawCustomerId.replace(/["']/g, "").trim();
+    const key = rawKey.replace(/["']/g, "").trim();
 
     if (!customerId || !key) {
         throw new Error("MESSAGE_CENTRAL_CUSTOMER_ID and MESSAGE_CENTRAL_KEY environment variables are required for OTP services.");
     }
 
     // Build the auth url
-    const url = `${MESSAGE_CENTRAL_BASE_URL}/auth/v1/authentication/token?customerId=${encodeURIComponent(customerId)}&key=${encodeURIComponent(key || "")}&scope=NEW`;
+    const url = `${MESSAGE_CENTRAL_BASE_URL}/auth/v1/authentication/token?customerId=${encodeURIComponent(customerId)}&key=${encodeURIComponent(key)}&scope=NEW`;
 
     const response = await fetch(url, {
         method: "GET",
@@ -37,13 +41,14 @@ export async function getMessageCentralToken(): Promise<string> {
     if (!response.ok) {
         const text = await response.text();
         console.error(`[Message Central] Token fetch failed with status ${response.status}: ${text}`);
-        throw new Error(`Failed to authenticate with Message Central: ${response.status}`);
+        throw new Error(`Failed to authenticate with Message Central: ${response.status} - ${text}`);
     }
 
     const data = await response.json();
-    if (data.responseCode !== 200) {
+    if (data.status === 400 || data.responseCode !== 200 && data.responseCode !== undefined) {
         console.error(`[Message Central] Token fetch failed:`, data);
-        throw new Error(`Message Central gave non-200 response: ${data.message || "Unknown error"}`);
+        const errDesc = data.error || data.message || JSON.stringify(data);
+        throw new Error(`Message Central gave non-200 response: ${errDesc}`);
     }
 
     cachedAuthToken = data.token || data.data?.authToken || data.authToken || data.token; // Fallbacks based on usual payload patterns if undocumented
