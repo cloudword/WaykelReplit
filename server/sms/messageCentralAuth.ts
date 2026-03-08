@@ -17,11 +17,11 @@ export async function getMessageCentralToken(): Promise<string> {
         return cachedAuthToken;
     }
 
-    const customerId = process.env.MESSAGE_CENTRAL_CUSTOMER_ID || "C-B5A348A6682248A";
-    const key = process.env.MESSAGE_CENTRAL_KEY || "TWF5YW5rNkBzaW5naA==";
+    const customerId = process.env.MESSAGE_CENTRAL_CUSTOMER_ID;
+    const key = process.env.MESSAGE_CENTRAL_KEY;
 
-    if (!key) {
-        console.warn("MESSAGE_CENTRAL_KEY is missing from environment. OTP services may fail.");
+    if (!customerId || !key) {
+        throw new Error("MESSAGE_CENTRAL_CUSTOMER_ID and MESSAGE_CENTRAL_KEY environment variables are required for OTP services.");
     }
 
     // Build the auth url
