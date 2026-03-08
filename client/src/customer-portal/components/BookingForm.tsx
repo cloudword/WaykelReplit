@@ -284,19 +284,6 @@ export function BookingForm() {
                       )}
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-2">
-                      <Hash className="h-3 w-3" />
-                      Pickup Pincode
-                    </Label>
-                    <Input
-                      placeholder="e.g. 400001"
-                      value={formData.pickupPincode}
-                      onChange={e => setFormData({ ...formData, pickupPincode: e.target.value })}
-                      maxLength={6}
-                      className="h-11 border-border/60 focus:border-primary/50 transition-all font-medium"
-                    />
-                  </div>
                 </div>
 
                 <div className="space-y-4">
@@ -329,19 +316,6 @@ export function BookingForm() {
                       )}
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-2">
-                      <Hash className="h-3 w-3" />
-                      Drop Pincode
-                    </Label>
-                    <Input
-                      placeholder="e.g. 411001"
-                      value={formData.dropPincode}
-                      onChange={e => setFormData({ ...formData, dropPincode: e.target.value })}
-                      maxLength={6}
-                      className="h-11 border-border/60 focus:border-primary/50 transition-all font-medium"
-                    />
-                  </div>
                 </div>
               </div>
             </div>
@@ -352,7 +326,7 @@ export function BookingForm() {
                 <Package className="h-4 w-4 text-blue-500" />
                 <h3 className="text-sm font-bold uppercase tracking-wider text-blue-500">Shipment Details</h3>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-muted-foreground uppercase">Cargo Type</Label>
                   <Input
@@ -420,18 +394,12 @@ export function BookingForm() {
                     )}
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Section: Schedule & Pricing */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 pb-2 border-b border-border/50">
-                <Calendar className="h-4 w-4 text-amber-500" />
-                <h3 className="text-sm font-bold uppercase tracking-wider text-amber-500">Schedule & Budget</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold text-muted-foreground uppercase">Pickup Date</Label>
+                  <Label className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-amber-500" />
+                    Pickup Date
+                  </Label>
                   <Input
                     type="date"
                     value={formData.date}
@@ -439,32 +407,6 @@ export function BookingForm() {
                     className="h-11 border-border/60 focus:border-primary/50 transition-all font-medium"
                     required
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold text-muted-foreground uppercase">Pickup Time</Label>
-                  <Input
-                    type="time"
-                    value={formData.pickupTime}
-                    onChange={e => setFormData({ ...formData, pickupTime: e.target.value })}
-                    className="h-11 border-border/60 focus:border-primary/50 transition-all font-medium"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold text-muted-foreground uppercase flex items-center justify-between">
-                    Your Budget
-                    <span className="text-[10px] font-normal lowercase">(Optional)</span>
-                  </Label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">₹</div>
-                    <Input
-                      type="number"
-                      placeholder="Target price"
-                      value={formData.budgetPrice}
-                      onChange={e => setFormData({ ...formData, budgetPrice: e.target.value })}
-                      className="h-11 pl-7 border-border/60 focus:border-primary/50 transition-all font-medium"
-                    />
-                  </div>
                 </div>
               </div>
             </div>
