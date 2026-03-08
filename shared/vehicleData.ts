@@ -13,41 +13,40 @@ export const VEHICLE_CATEGORIES = [
 export type VehicleCategoryCode = typeof VEHICLE_CATEGORIES[number]["code"];
 
 export const VEHICLE_TYPES = [
-  // Two Wheeler
-  { code: "BIKE_SCOOTER", name: "Bike / Scooter", category: "TWO_WHEELER", minPayloadKg: 0, maxPayloadKg: 40, defaultLengthFt: null },
-  
-  // Three Wheeler
-  { code: "CARGO_AUTO", name: "Cargo Auto", category: "THREE_WHEELER", minPayloadKg: 500, maxPayloadKg: 700, defaultLengthFt: null },
-  { code: "E_RICKSHAW", name: "E-Rickshaw (Cargo)", category: "THREE_WHEELER", minPayloadKg: 300, maxPayloadKg: 500, defaultLengthFt: null },
-  
-  // LCV - Light Commercial Vehicle
-  { code: "TATA_ACE", name: "Tata Ace / Chota Hathi", category: "LCV", minPayloadKg: 500, maxPayloadKg: 750, defaultLengthFt: 8 },
-  { code: "MAHINDRA_JEETO", name: "Mahindra Jeeto", category: "LCV", minPayloadKg: 400, maxPayloadKg: 600, defaultLengthFt: 8 },
-  { code: "ASHOK_LEYLAND_DOST", name: "Ashok Leyland Dost", category: "LCV", minPayloadKg: 1000, maxPayloadKg: 1250, defaultLengthFt: 10 },
-  { code: "PICKUP_407", name: "Pickup 407 (Closed/Open)", category: "LCV", minPayloadKg: 1500, maxPayloadKg: 2500, defaultLengthFt: 14 },
-  { code: "BOLERO_PICKUP", name: "Bolero Pickup", category: "LCV", minPayloadKg: 1000, maxPayloadKg: 1500, defaultLengthFt: 10 },
-  
-  // MCV - Medium Commercial Vehicle
-  { code: "EICHER_14FT", name: "Eicher 14 ft", category: "MCV", minPayloadKg: 3000, maxPayloadKg: 4000, defaultLengthFt: 14 },
-  { code: "EICHER_17FT", name: "Eicher 17 ft", category: "MCV", minPayloadKg: 4000, maxPayloadKg: 5000, defaultLengthFt: 17 },
-  { code: "EICHER_19FT", name: "Eicher 19 ft", category: "MCV", minPayloadKg: 5000, maxPayloadKg: 7000, defaultLengthFt: 19 },
-  { code: "TATA_1109", name: "Tata 1109 / 709", category: "MCV", minPayloadKg: 3000, maxPayloadKg: 5000, defaultLengthFt: 17 },
-  
-  // HCV - Heavy Commercial Vehicle
-  { code: "CONTAINER_20FT", name: "20 ft Container", category: "HCV", minPayloadKg: 6000, maxPayloadKg: 7000, defaultLengthFt: 20 },
-  { code: "CONTAINER_22FT", name: "22 ft Container", category: "HCV", minPayloadKg: 7000, maxPayloadKg: 8000, defaultLengthFt: 22 },
-  { code: "CONTAINER_24FT", name: "24 ft Container", category: "HCV", minPayloadKg: 8000, maxPayloadKg: 10000, defaultLengthFt: 24 },
-  { code: "CONTAINER_32FT_SINGLE", name: "32 ft Single Axle", category: "HCV", minPayloadKg: 7000, maxPayloadKg: 8000, defaultLengthFt: 32 },
-  { code: "CONTAINER_32FT_MULTI", name: "32 ft Multi Axle", category: "HCV", minPayloadKg: 15000, maxPayloadKg: 18000, defaultLengthFt: 32 },
-  { code: "TRAILER_40FT", name: "Trailer (40 ft)", category: "HCV", minPayloadKg: 20000, maxPayloadKg: 25000, defaultLengthFt: 40 },
-  
-  // SPV - Special Purpose Vehicle
-  { code: "REFRIGERATED_TRUCK", name: "Refrigerated Truck", category: "SPV", minPayloadKg: 1000, maxPayloadKg: 15000, defaultLengthFt: null },
-  { code: "TANKER", name: "Tanker", category: "SPV", minPayloadKg: 5000, maxPayloadKg: 25000, defaultLengthFt: null },
-  { code: "CAR_CARRIER", name: "Car Carrier", category: "SPV", minPayloadKg: 0, maxPayloadKg: 0, defaultLengthFt: null },
-  { code: "TIPPER_DUMPER", name: "Tipper / Dumper", category: "SPV", minPayloadKg: 5000, maxPayloadKg: 25000, defaultLengthFt: null },
-  { code: "FLATBED_TRUCK", name: "Flatbed Truck", category: "SPV", minPayloadKg: 5000, maxPayloadKg: 25000, defaultLengthFt: null },
-  { code: "CRANE_HYDRA", name: "Crane / Hydra", category: "SPV", minPayloadKg: 0, maxPayloadKg: 0, defaultLengthFt: null },
+  // Last-mile / Hyperlocal
+  { code: "TWO_WHEELER", name: "Two-Wheeler Delivery", category: "TWO_WHEELER", minPayloadKg: 20, maxPayloadKg: 40, defaultLengthFt: null },
+  { code: "THREE_WHEELER_CARGO", name: "3-Wheeler Cargo Auto", category: "THREE_WHEELER", minPayloadKg: 300, maxPayloadKg: 500, defaultLengthFt: null },
+  { code: "TATA_ACE_MINI", name: "Tata Ace / Mini Truck", category: "LCV", minPayloadKg: 750, maxPayloadKg: 1000, defaultLengthFt: 8 },
+  { code: "PICKUP_TRUCK", name: "Pickup Truck", category: "LCV", minPayloadKg: 1000, maxPayloadKg: 1500, defaultLengthFt: 8 },
+
+  // Light Truck Segment
+  { code: "TRUCK_7FT", name: "7 ft truck", category: "LCV", minPayloadKg: 1000, maxPayloadKg: 1000, defaultLengthFt: 7 },
+  { code: "TRUCK_9FT", name: "9 ft truck", category: "LCV", minPayloadKg: 1500, maxPayloadKg: 1500, defaultLengthFt: 9 },
+  { code: "TRUCK_10FT", name: "10 ft truck", category: "LCV", minPayloadKg: 2000, maxPayloadKg: 2000, defaultLengthFt: 10 },
+  { code: "TRUCK_12FT", name: "12 ft truck", category: "LCV", minPayloadKg: 2500, maxPayloadKg: 2500, defaultLengthFt: 12 },
+  { code: "TRUCK_14FT", name: "14 ft truck", category: "LCV", minPayloadKg: 3000, maxPayloadKg: 4000, defaultLengthFt: 14 },
+
+  // Medium Truck Segment
+  { code: "TRUCK_17FT", name: "17 ft truck", category: "MCV", minPayloadKg: 5000, maxPayloadKg: 5000, defaultLengthFt: 17 },
+  { code: "TRUCK_19FT", name: "19 ft truck", category: "MCV", minPayloadKg: 7000, maxPayloadKg: 7000, defaultLengthFt: 19 },
+  { code: "TRUCK_20FT", name: "20 ft truck", category: "MCV", minPayloadKg: 7000, maxPayloadKg: 9000, defaultLengthFt: 20 },
+  { code: "TRUCK_22FT", name: "22 ft truck", category: "MCV", minPayloadKg: 10000, maxPayloadKg: 10000, defaultLengthFt: 22 },
+
+  // Container Trucks
+  { code: "CONTAINER_19FT", name: "19 ft container", category: "HCV", minPayloadKg: 6000, maxPayloadKg: 7000, defaultLengthFt: 19 },
+  { code: "CONTAINER_20FT", name: "20 ft container", category: "HCV", minPayloadKg: 6000, maxPayloadKg: 10000, defaultLengthFt: 20 },
+  { code: "CONTAINER_22FT", name: "22 ft container", category: "HCV", minPayloadKg: 8000, maxPayloadKg: 10000, defaultLengthFt: 22 },
+  { code: "CONTAINER_24FT", name: "24 ft container", category: "HCV", minPayloadKg: 10000, maxPayloadKg: 15000, defaultLengthFt: 24 },
+  { code: "CONTAINER_32FT_SINGLE", name: "32 ft single axle container", category: "HCV", minPayloadKg: 7000, maxPayloadKg: 9000, defaultLengthFt: 32 },
+  { code: "CONTAINER_32FT_MULTI", name: "32 ft multi axle container", category: "HCV", minPayloadKg: 14000, maxPayloadKg: 20000, defaultLengthFt: 32 },
+  { code: "TRAILER_40FT_CONTAINER", name: "40 ft container trailer", category: "HCV", minPayloadKg: 20000, maxPayloadKg: 30000, defaultLengthFt: 40 },
+
+  // Heavy Truck / Multi-Axle
+  { code: "TRUCK_10_WHEEL", name: "10-wheel truck", category: "HCV", minPayloadKg: 16000, maxPayloadKg: 16000, defaultLengthFt: null },
+  { code: "TRUCK_12_WHEEL", name: "12-wheel truck", category: "HCV", minPayloadKg: 20000, maxPayloadKg: 20000, defaultLengthFt: null },
+
+  // Custom
+  { code: "OTHER", name: "Other (Specify)", category: "SPV", minPayloadKg: 0, maxPayloadKg: 0, defaultLengthFt: null },
 ] as const;
 
 export type VehicleTypeCode = typeof VEHICLE_TYPES[number]["code"];
@@ -113,7 +112,7 @@ export function tonsToKg(tons: number): number {
 export function formatWeight(kg: number, preferredUnit?: WeightUnit): { value: number; unit: WeightUnit; display: string } {
   // Default: use Tons for >= 1000 kg, KG for smaller
   const useKg = preferredUnit === "kg" || (!preferredUnit && kg < 1000);
-  
+
   if (useKg) {
     return { value: kg, unit: "kg", display: `${kg} Kg` };
   } else {
@@ -124,11 +123,11 @@ export function formatWeight(kg: number, preferredUnit?: WeightUnit): { value: n
 
 export function parseWeightInput(value: string | number, unit: WeightUnit): { kg: number; tons: number } {
   const numValue = typeof value === "string" ? parseFloat(value) : value;
-  
+
   if (isNaN(numValue)) {
     return { kg: 0, tons: 0 };
   }
-  
+
   if (unit === "kg") {
     return { kg: Math.round(numValue), tons: kgToTons(numValue) };
   } else {
@@ -144,11 +143,11 @@ export function getVehicleTypesByCategory(categoryCode: VehicleCategoryCode) {
 // Helper to get vehicle type with formatted payload
 export function getVehicleTypeDisplay(vehicleType: typeof VEHICLE_TYPES[number]): string {
   const { name, minPayloadKg, maxPayloadKg } = vehicleType;
-  
+
   if (minPayloadKg === 0 && maxPayloadKg === 0) {
     return name;
   }
-  
+
   // Format payload based on size
   if (maxPayloadKg >= 1000) {
     const minTons = kgToTons(minPayloadKg);

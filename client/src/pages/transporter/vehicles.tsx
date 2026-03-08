@@ -151,7 +151,7 @@ export default function TransporterVehicles() {
 
       // Get vehicle type name from code
       const vehicleType = VEHICLE_TYPES.find(vt => vt.code === newVehicle.vehicleTypeCode);
-      const displayType = vehicleType?.name || newVehicle.type;
+      const displayType = vehicleType?.code === 'OTHER' ? newVehicle.type : (vehicleType?.name || newVehicle.type);
 
       // Step 1: Create the vehicle
       // Note: capacityTons must be string (decimal in DB), capacityKg is integer
@@ -252,7 +252,7 @@ export default function TransporterVehicles() {
         : { kg: 0, tons: 0 };
 
       const vehicleType = VEHICLE_TYPES.find(vt => vt.code === editVehicle.vehicleTypeCode);
-      const displayType = vehicleType?.name || editVehicle.type;
+      const displayType = vehicleType?.code === 'OTHER' ? editVehicle.type : (vehicleType?.name || editVehicle.type);
 
       const updatePayload = {
         type: displayType,
@@ -374,24 +374,39 @@ export default function TransporterVehicles() {
                 Upload vehicle registration certificate
               </p>
               <form onSubmit={handleAddVehicle} className="space-y-4">
-                <div>
+                <div className="space-y-3">
                   <Label htmlFor="type">Vehicle Type</Label>
                   <Select
-                    value={newVehicle.type}
-                    onValueChange={(value) => setNewVehicle({ ...newVehicle, type: value })}
+                    value={newVehicle.vehicleTypeCode || ""}
+                    onValueChange={(value) => setNewVehicle({ ...newVehicle, vehicleTypeCode: value })}
                   >
                     <SelectTrigger data-testid="select-vehicle-type">
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Mini Truck">Mini Truck</SelectItem>
-                      <SelectItem value="Pickup">Pickup</SelectItem>
-                      <SelectItem value="LCV">LCV (Light Commercial)</SelectItem>
-                      <SelectItem value="Truck">Truck</SelectItem>
-                      <SelectItem value="Trailer">Trailer</SelectItem>
-                      <SelectItem value="Container">Container</SelectItem>
+                      {VEHICLE_CATEGORIES.map(cat => {
+                        const types = VEHICLE_TYPES.filter(vt => vt.category === cat.code);
+                        if (types.length === 0) return null;
+                        return (
+                          <div key={cat.code}>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted">{cat.name}</div>
+                            {types.map(vt => (
+                              <SelectItem key={vt.code} value={vt.code}>{vt.name}</SelectItem>
+                            ))}
+                          </div>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
+
+                  {newVehicle.vehicleTypeCode === "OTHER" && (
+                    <Input
+                      placeholder="Please specify vehicle type"
+                      value={newVehicle.type}
+                      onChange={e => setNewVehicle({ ...newVehicle, type: e.target.value })}
+                      required
+                    />
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="plateNumber">Registration Number</Label>
@@ -597,7 +612,7 @@ export default function TransporterVehicles() {
                 Update vehicle details and capacity information
               </p>
               <form onSubmit={handleEditVehicle} className="space-y-4">
-                <div>
+                <div className="space-y-3">
                   <Label htmlFor="edit-type">Vehicle Type</Label>
                   <Select
                     value={editVehicle.vehicleTypeCode || ""}
@@ -607,16 +622,29 @@ export default function TransporterVehicles() {
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {VEHICLE_CATEGORIES.map(cat => (
-                        <div key={cat.code}>
-                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted">{cat.name}</div>
-                          {VEHICLE_TYPES.filter(vt => vt.category === cat.code).map(vt => (
-                            <SelectItem key={vt.code} value={vt.code}>{vt.name}</SelectItem>
-                          ))}
-                        </div>
-                      ))}
+                      {VEHICLE_CATEGORIES.map(cat => {
+                        const types = VEHICLE_TYPES.filter(vt => vt.category === cat.code);
+                        if (types.length === 0) return null;
+                        return (
+                          <div key={cat.code}>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted">{cat.name}</div>
+                            {types.map(vt => (
+                              <SelectItem key={vt.code} value={vt.code}>{vt.name}</SelectItem>
+                            ))}
+                          </div>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
+
+                  {editVehicle.vehicleTypeCode === "OTHER" && (
+                    <Input
+                      placeholder="Please specify vehicle type"
+                      value={editVehicle.type}
+                      onChange={e => setEditVehicle({ ...editVehicle, type: e.target.value })}
+                      required
+                    />
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="edit-plateNumber">Registration Number</Label>

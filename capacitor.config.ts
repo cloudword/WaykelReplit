@@ -1,43 +1,40 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.waykel.driver',
-  appName: 'Waykel Driver',
-  webDir: 'dist/driver',
+  appId: 'com.waykel.customer',
+  appName: 'Waykel - Book Transport',
+  webDir: 'dist/customer',
   server: {
     androidScheme: 'https',
   },
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,
-      backgroundColor: "#059669",
+      backgroundColor: "#2563eb",
       androidSplashResourceName: "splash",
       androidScaleType: "CENTER_CROP",
       showSpinner: false,
     },
     StatusBar: {
       style: "DARK",
-      backgroundColor: "#059669"
+      backgroundColor: "#2563eb"
     },
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"]
     },
     Geolocation: {
       enableHighAccuracy: true
-    },
-    Camera: {
-      presentationStyle: "fullscreen"
     }
   },
   ios: {
-    path: "ios-driver",
+    path: "ios-customer",
     contentInset: "automatic",
-    scheme: "WaykelDriver"
+    scheme: "WaykelCustomer"
   },
   android: {
-    path: "android-driver",
+    path: "android-customer",
     allowMixedContent: false,
-    backgroundColor: "#059669"
+    backgroundColor: "#2563eb"
   }
 };
 

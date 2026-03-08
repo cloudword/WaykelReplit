@@ -15,6 +15,7 @@ import { VEHICLE_CATEGORIES, VEHICLE_TYPES, getVehicleTypeDisplay, parseWeightIn
 import { useQuery } from "@tanstack/react-query";
 import { BookOpen, Sparkles, Wand2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -36,6 +37,7 @@ export function BookingForm() {
     date: "",
     pickupTime: "",
     budgetPrice: "",
+    requiredVehicleTypeOther: "",
   });
 
   const [magicPrompt, setMagicPrompt] = useState("");
@@ -87,6 +89,35 @@ export function BookingForm() {
     queryFn: () => waykelApi.addresses.getSavedAddresses(),
   });
 
+  const extractPincode = (place: google.maps.places.PlaceResult): string => {
+    let pincode = "";
+    if (place.address_components) {
+      for (const component of place.address_components) {
+        if (component.types.includes("postal_code")) {
+          pincode = component.long_name;
+          break;
+        }
+      }
+    }
+    return pincode;
+  };
+
+  const { inputRef: pickupInputRef } = usePlacesAutocomplete((place) => {
+    setFormData((prev) => ({
+      ...prev,
+      pickupLocation: place.formatted_address || place.name || prev.pickupLocation,
+      pickupPincode: extractPincode(place) || prev.pickupPincode,
+    }));
+  });
+
+  const { inputRef: dropInputRef } = usePlacesAutocomplete((place) => {
+    setFormData((prev) => ({
+      ...prev,
+      dropLocation: place.formatted_address || place.name || prev.dropLocation,
+      dropPincode: extractPincode(place) || prev.dropPincode,
+    }));
+  });
+
   const handleAddressSelect = (type: "pickup" | "drop", addressId: string) => {
     const addr = addresses.find(a => a.id === addressId);
     if (!addr) return;
@@ -136,7 +167,9 @@ export function BookingForm() {
         weightKg: weightParsed.kg,
         weightTons: weightParsed.tons,
         weightUnit: formData.weightUnit,
-        requiredVehicleType: formData.requiredVehicleType,
+        requiredVehicleType: formData.requiredVehicleType === "OTHER" && formData.requiredVehicleTypeOther
+          ? formData.requiredVehicleTypeOther
+          : formData.requiredVehicleType,
         createdById: user.id,
       });
 
@@ -227,14 +260,16 @@ export function BookingForm() {
                       <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
                       Pickup Location
                     </Label>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 relative">
                       <Input
-                        placeholder="e.g. Fort, Mumbai"
+                        ref={pickupInputRef}
+                        placeholder="Search area (e.g. Fort, Mumbai)"
                         value={formData.pickupLocation}
                         onChange={e => setFormData({ ...formData, pickupLocation: e.target.value })}
-                        className="h-11 border-border/60 focus:border-primary/50 transition-all font-medium flex-1"
+                        className="h-11 border-border/60 focus:border-primary/50 transition-all font-medium flex-1 pl-10"
                         required
                       />
+                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       {addresses.length > 0 && (
                         <Select onValueChange={v => handleAddressSelect("pickup", v)}>
                           <SelectTrigger className="w-12 h-11 border-border/60 p-0 flex items-center justify-center">
@@ -270,14 +305,16 @@ export function BookingForm() {
                       <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
                       Drop Location
                     </Label>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 relative">
                       <Input
-                        placeholder="e.g. Pune City"
+                        ref={dropInputRef}
+                        placeholder="Search area (e.g. Pune City)"
                         value={formData.dropLocation}
                         onChange={e => setFormData({ ...formData, dropLocation: e.target.value })}
-                        className="h-11 border-border/60 focus:border-primary/50 transition-all font-medium flex-1"
+                        className="h-11 border-border/60 focus:border-primary/50 transition-all font-medium flex-1 pl-10"
                         required
                       />
+                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       {addresses.length > 0 && (
                         <Select onValueChange={v => handleAddressSelect("drop", v)}>
                           <SelectTrigger className="w-12 h-11 border-border/60 p-0 flex items-center justify-center">
@@ -350,22 +387,38 @@ export function BookingForm() {
 
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-muted-foreground uppercase">Required Vehicle</Label>
-                  <Select onValueChange={v => setFormData({ ...formData, requiredVehicleType: v === "any" ? "" : v })}>
-                    <SelectTrigger className="h-11 border-border/60">
-                      <SelectValue placeholder="Select Vehicle" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      <SelectItem value="any" className="font-bold text-primary">Any Vehicle (Lowest Quote)</SelectItem>
-                      {VEHICLE_CATEGORIES.map(cat => (
-                        <div key={cat.code}>
-                          <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground bg-muted/50 uppercase tracking-tighter">{cat.name}</div>
-                          {VEHICLE_TYPES.filter(vt => vt.category === cat.code).map(vt => (
-                            <SelectItem key={vt.code} value={vt.code} className="text-xs">{getVehicleTypeDisplay(vt)}</SelectItem>
-                          ))}
-                        </div>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="space-y-3">
+                    <Select onValueChange={v => setFormData({ ...formData, requiredVehicleType: v === "any" ? "" : v })}>
+                      <SelectTrigger className="h-11 border-border/60">
+                        <SelectValue placeholder="Select Vehicle" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px]">
+                        <SelectItem value="any" className="font-bold text-primary">Any Vehicle (Lowest Quote)</SelectItem>
+                        {VEHICLE_CATEGORIES.map(cat => {
+                          const types = VEHICLE_TYPES.filter(vt => vt.category === cat.code);
+                          if (types.length === 0) return null;
+                          return (
+                            <div key={cat.code}>
+                              <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground bg-muted/50 uppercase tracking-tighter">{cat.name}</div>
+                              {types.map(vt => (
+                                <SelectItem key={vt.code} value={vt.code} className="text-xs">{getVehicleTypeDisplay(vt)}</SelectItem>
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+
+                    {formData.requiredVehicleType === "OTHER" && (
+                      <Input
+                        placeholder="Please specify vehicle type"
+                        value={formData.requiredVehicleTypeOther}
+                        onChange={e => setFormData({ ...formData, requiredVehicleTypeOther: e.target.value })}
+                        className="h-11 border-border/60 focus:border-primary/50 transition-all font-medium"
+                        required
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
