@@ -3188,12 +3188,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       reason = "not_verified";
     } else if (transporterStatus === "suspended" || transporterStatus === "rejected") {
       reason = "suspended";
-    } else if (transporterStatus !== "active") {
-      reason = "not_verified";
-    } else if (verificationStatus !== "approved") {
-      reason = "not_verified";
-    } else if (transporterType === "business" && !hasBusinessDocs) {
-      reason = "business_docs_required";
+    } else if (transporterStatus !== "active" || verificationStatus !== "approved") {
+      // If they are not fully active/approved, check specific missing components
+      // Provide more specific feedback why they are not verified
+      if (transporterType === "business" && !hasBusinessDocs) {
+        reason = "business_docs_required";
+      } else {
+        reason = "not_verified";
+      }
     } else if (!hasApprovedVehicle) {
       reason = "missing_vehicle";
     } else if (!hasApprovedDriver) {
