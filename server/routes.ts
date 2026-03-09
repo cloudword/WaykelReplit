@@ -1563,6 +1563,32 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(404).json({ error: "Account not found" });
       }
 
+      // [TEST BYPASS FIX] Correct roles if they got messed up in the DB during previous manual testing
+      if (normalizedPhone.includes("8888888888") && user.role !== "transporter") {
+        console.log("[TEST BYPASS] Forcing 8888888888 to Transporter role");
+        user.role = "transporter";
+        if (!user.transporterId) {
+          const transporter = await storage.createTransporter({
+            companyName: "Test Transport Inc",
+            ownerName: "Test Transporter",
+            contact: normalizedPhone,
+            location: "Testing City",
+            baseCity: "Testing City",
+            fleetSize: 1,
+            status: "approved",
+            verificationStatus: "verified",
+            transporterType: "business",
+            onboardingStatus: "completed",
+          } as any);
+          user.transporterId = transporter.id;
+        }
+        await storage.updateUser(user.id, { role: "transporter", transporterId: user.transporterId });
+      } else if (normalizedPhone.includes("9999999999") && user.role !== "customer") {
+        console.log("[TEST BYPASS] Forcing 9999999999 to Customer role");
+        user.role = "customer";
+        await storage.updateUser(user.id, { role: "customer" });
+      }
+
       let transporterEntityId: string | undefined;
       if (user.role === "transporter" && user.transporterId) {
         const transporter = await storage.getTransporter(user.transporterId);
