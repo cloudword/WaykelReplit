@@ -42,6 +42,7 @@ export default function AdminDashboard() {
       return res.json();
     },
     enabled: isReady,
+    refetchInterval: 15000,
   });
 
   const formatRevenue = (amount: number) => {

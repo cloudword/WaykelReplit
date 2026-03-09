@@ -143,7 +143,12 @@ export default function TransporterDashboard() {
 
     loadDashboardData();
     const notificationInterval = setInterval(loadNotifications, 30000);
-    return () => clearInterval(notificationInterval);
+    const dashboardInterval = setInterval(loadDashboardData, 15000);
+
+    return () => {
+      clearInterval(notificationInterval);
+      clearInterval(dashboardInterval);
+    };
   }, [sessionReady, user?.transporterId]);
 
   if (sessionChecking) {

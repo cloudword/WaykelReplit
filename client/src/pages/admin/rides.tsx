@@ -60,6 +60,8 @@ export default function AdminBids() {
 
   useEffect(() => {
     loadData();
+    const interval = setInterval(loadData, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleApproveBid = async (bidId: string, rideId: string) => {
