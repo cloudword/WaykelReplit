@@ -414,8 +414,8 @@ export function BookingForm() {
             <div className="pt-4">
               <Button
                 type="submit"
-                className="w-full h-14 text-base font-bold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98] transition-all gap-3"
-                disabled={isLoading}
+                className="w-full sm:w-auto h-12 px-8 text-base font-bold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all gap-2"
+                disabled={isLoading || isAiLoading}
                 data-testid="button-submit"
               >
                 {isLoading ? (
@@ -426,14 +426,15 @@ export function BookingForm() {
                 ) : (
                   <>
                     <Zap className="w-5 h-5 fill-current" />
-                    Get Competitive Quotes Now
+                    Book Trip
                   </>
                 )}
               </Button>
-              <p className="text-center text-[10px] text-muted-foreground mt-4 font-medium uppercase tracking-tight">
-                By submitting, you agree to our terms and conditions for commercial bookings
-              </p>
             </div>
+
+            <p className="text-center text-[10px] text-muted-foreground mt-4 font-medium uppercase tracking-tight">
+              By submitting, you agree to our terms and conditions for commercial bookings
+            </p>
           </form>
         </div>
       </CardContent>
