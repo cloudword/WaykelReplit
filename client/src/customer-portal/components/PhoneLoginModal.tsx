@@ -112,7 +112,7 @@ export function PhoneLoginModal({ open, onOpenChange }: PhoneLoginModalProps) {
         if (result.token) {
           setAuthToken(result.token, userData);
         }
-        localStorage.setItem("currentUser", JSON.stringify({ token: result.token, user: userData, ...userData }));
+        localStorage.setItem("currentUser_customer", JSON.stringify({ token: result.token, user: userData, ...userData }));
         toast({ title: mode === "signup" ? "Account created!" : "Welcome back!" });
         onOpenChange(false);
         setLocation("/customer/dashboard");

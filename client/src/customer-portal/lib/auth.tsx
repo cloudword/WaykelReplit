@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session.authenticated && session.user) {
           console.log("[Auth] Syncing user from server:", session.user.id);
           setUser(session.user);
-          localStorage.setItem("currentUser", JSON.stringify(session.user));
+          localStorage.setItem("currentUser_customer", JSON.stringify(session.user));
           updateLastActivity();
         } else {
           setUser(null);

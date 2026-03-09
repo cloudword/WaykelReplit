@@ -3,7 +3,7 @@ import { withCsrfHeader } from "@/lib/api";
 
 // JWT token storage keys
 // JWT token storage keys - Aligned with main app (lib/api.ts)
-const STORAGE_KEY = "currentUser";
+const STORAGE_KEY = "currentUser_customer";
 const TOKEN_EXPIRY_KEY = "waykel_token_expiry";
 const LAST_ACTIVITY_KEY = "waykel_last_activity";
 
